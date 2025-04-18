@@ -37,7 +37,7 @@ bool BMC::Run() {
     bool result = Check(m_model->GetBad());
 
     if (m_settings.cnf) {
-        m_cnfw->WriteFile();
+        m_cnfw->WriteFile(m_maxK);
         m_log->L(0, "CNF written.");
         return true;
     }
@@ -182,11 +182,11 @@ void BMC::OutputCounterExample(int bad) {
 }
 
 
-void CNFWriter::WriteFile() {
+void CNFWriter::WriteFile(int K) {
     // get outputfile
     std::ofstream cnfFile;
     cnfFile.open(m_filePath);
-    cnfFile << "p cnf " << m_maxId << " " << m_clauses.size() << endl;
+    cnfFile << "p cnf " << m_maxId << " " << m_clauses.size() - K << endl;
     bool CommentFlag = false;
     for (clause cls : m_clauses) {
         for (int v : cls){

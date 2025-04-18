@@ -26,7 +26,7 @@ class CNFWriter {
       fake.push_back(k);
       m_clauses.push_back(fake);
     }
-    void WriteFile();
+    void WriteFile(int K=0);
 
   private:
     string m_filePath;
