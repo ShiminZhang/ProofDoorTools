@@ -440,7 +440,9 @@ if [ -n "$1" ] && [ -z "$2" ]; then
     # Process all interpolants
     echo "Processing all interpolants..."
     for j in 0..1; do
-        for file in ./ProofDoorBenchmark/smts/$1/*.smt2; do
+        echo ./ProofDoorBenchmark/smts/$1/*.${j}.smt2
+        for file in ./ProofDoorBenchmark/smts/$1/*.${j}.smt2; do
+            echo "processing: $file"
             if [ -f "$file" ]; then
                     # Extract the filename without path and extension
                 filename=$(basename "$file" .${j}.smt2)
