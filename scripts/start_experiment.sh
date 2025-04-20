@@ -439,24 +439,29 @@ if [ -n "$1" ] && [ -z "$2" ]; then
     echo "Only k value provided. Creating interpolants only..."
     # Process all interpolants
     echo "Processing all interpolants..."
-    for file in ./ProofDoorBenchmark/smts/$1/*.smt2; do
-        if [ -f "$file" ]; then
-            # Extract the filename without path and extension
-            filename=$(basename "$file" .smt2)
-            echo "processing: $filename"
+    for j in 0..1; do
+        for file in ./ProofDoorBenchmark/smts/$1/*.smt2; do
+            if [ -f "$file" ]; then
+                    # Extract the filename without path and extension
+                filename=$(basename "$file" .${j}.smt2)
+                echo "processing: $filename"
+
             # Check if interpolant already exists
-            if [ ! -f "./ProofDoorBenchmark/interpolants/$1/$filename.interpolant" ]; then
-                echo "Generating interpolant for $filename"
-                jobid=$(sbatch --priority 0 -o ./Outputs/interpolant_output_%A_%a.out ./scripts/check_interpolant.sh $filename ./ProofDoorBenchmark/smts/$1/ ./ProofDoorBenchmark/interpolants/$1/ | awk '{print $4}')  
-                echo "Submitted job with ID: $jobid" ${suffix} $dest_path $build >> ./running/runningjobs.log
-            else
-                echo "Interpolant already exists for $filename"
-                rm ./ProofDoorBenchmark/interpolants/$1/$filename.interpolant
-                jobid=$(sbatch --priority 0 -o ./Outputs/interpolant_output_%A_%a.out ./scripts/check_interpolant.sh $filename ./ProofDoorBenchmark/smts/$1/ ./ProofDoorBenchmark/interpolants/$1/ | awk '{print $4}')
-                echo "Submitted job with ID: $jobid" ${suffix} $dest_path $build >> ./running/runningjobs.log
+                if [ ! -f "./ProofDoorBenchmark/interpolants/$1/$filename.interpolant" ]; then
+                    echo "Generating interpolant for $filename"
+                    jobid=$(sbatch --priority 0 -o ./Outputs/interpolant_output_%A_%a.out ./scripts/check_interpolant.sh $filename ./ProofDoorBenchmark/smts/$1/ ./ProofDoorBenchmark/interpolants/$1/ | awk '{print $4}')  
+                    echo "Submitted job with ID: $jobid" ${suffix} $dest_path $build >> ./running/runningjobs.log
+                else
+                    echo "Interpolant already exists for $filename"
+                    rm ./ProofDoorBenchmark/interpolants/$1/$filename.interpolant
+                    jobid=$(sbatch --priority 0 -o ./Outputs/interpolant_output_%A_%a.out ./scripts/check_interpolant.sh $filename ./ProofDoorBenchmark/smts/$1/ ./ProofDoorBenchmark/interpolants/$1/ | awk '{print $4}')
+                    echo "Submitted job with ID: $jobid" ${suffix} $dest_path $build >> ./running/runningjobs.log
+                fi
             fi
-        fi
+        done
+        
     done
+    
 
     echo "Interpolant creation complete."
     exit 0

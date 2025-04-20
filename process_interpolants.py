@@ -255,13 +255,18 @@ if __name__ == "__main__":
     # Rewrite results_map (interpolants map) with keys' first part before "."
     rewritten_results_map = {}
     for key, value in results_map.items():
-        if value < 0:
-            continue
         # Extract the first part of the key before the first "."
         key_parts = key.split('.')
         new_key = key_parts[0]
-        rewritten_results_map[new_key] = value
-    
+        if value < 0:
+            if new_key in rewritten_results_map:
+                print(f"Warning: {key} interpolants exists only for parts")
+            continue
+        if new_key not in rewritten_results_map:
+            rewritten_results_map[new_key] = value
+        else:
+            rewritten_results_map[new_key] += value
+        
     print(f"Rewritten cadical map: {len(rewritten_cadical_map)}")
     # print(rewritten_cadical_map)
     print(f"Rewritten interpolants map: {len(rewritten_results_map)}")
