@@ -6,6 +6,9 @@ from z3 import *
 from z3 import Context
 import signal
 import subprocess
+import argparse
+import json
+import os
 
 
 def tokenize(s):
@@ -131,7 +134,8 @@ def count_by_z3(smt2_content):
         
     # print(f"CNF conversion complete: {cnf_clause_count} clauses")
     return cnf_clause_count
-def count_lines_byz3(file_path):
+
+def count_lines_byz3(file_path,smt_path=None):
     """
     Count the number of lines in a file using Z3, but with a timeout of 1 minute.
     If the counting takes more than 1 minute, stop and return -1.
@@ -146,7 +150,7 @@ def count_lines_byz3(file_path):
     try:
         with open(file_path, 'r') as f:
             content = f.read()
-        smt_content,msg = convert_to_smt(content)
+        smt_content,msg = convert_to_smt(content,smt_path)
     except Exception as e:
         print(f"Error converting to SMT {file_path}: {e}")
         return -2,"Unknown"
@@ -155,48 +159,24 @@ def count_lines_byz3(file_path):
     return count_by_z3(smt_content),"UNSAT"
 
 def main():
-    if len(sys.argv) > 1:
-        with open(sys.argv[1], "r") as f:
-            content = f.read()
-    else:
-        content = sys.stdin.read()
-    smt_content = convert_to_smt(content)
-    # print(smt_content)
-    # Write the SMT content to a file
-    # with open("tmp.converted.smt2", "w") as smt_file:
-    #     smt_file.write(smt_content)
-    count_by_z3(smt_content)
-    # Convert the SMT2 file to CNF using Z3
+    parser = argparse.ArgumentParser(description='Count interpolant lines using Z3')
+    parser.add_argument('file', nargs='?', help='Input file path (default: stdin)')
+    parser.add_argument('--save', action='store_true', help='Save results to ProofSizeMap/data/filename.json')
+    parser.add_argument('--smt', type=str, help='Path to the SMT file to use for variable declarations')
+    args = parser.parse_args()
     
-    # Parse the SMT2 file and convert to CNF
-    # Load the SMT2 file
+    file_path = args.file
+    smt_path = args.smt
+    size, msg = count_lines_byz3(file_path, smt_path)
     
-        
-    # lines = content.strip().splitlines()
-    # if lines and lines[0].strip().lower() == "unsat":
-    #     content = "\n".join(lines[1:])
+    if args.save:
+        basename = os.path.basename(args.file)
+        print(f"Saving to ProofSizeMap/data/{basename}.json")
+        with open(f"ProofSizeMap/data/{basename}.json", "w") as f:
+            json.dump({"size": size}, f)
+    print(size)
 
-    # try:
-    #     sexpr = parse_sexp(content)
-    # except SyntaxError as e:
-    #     print("Error parsing S-expression:", e, file=sys.stderr)
-    #     sys.exit(1)
-
-    # if not (isinstance(sexpr, list) and sexpr and sexpr[0] == "interpolants"):
-    #     print("Input does not start with (interpolants ...)", file=sys.stderr)
-    #     sys.exit(1)
-
-    # interpolants = sexpr[1:]
-    # total_clauses = 0
-
-    # print(f"Total interpolants: {len(interpolants)}")
-    # for i, interp in enumerate(interpolants, start=1):
-    #     clause_count = count_clauses(interp)
-    #     print(f"Interpolant {i}: {clause_count} clause{'s' if clause_count != 1 else ''}")
-    #     total_clauses += clause_count
-
-    # print(f"Total number of clauses: {total_clauses}")
-def convert_to_smt(content):
+def convert_to_smt(content,smt_path=None):
     """
     Convert interpolants to an SMT formula.
     
@@ -225,26 +205,33 @@ def convert_to_smt(content):
     # Extract all variable names from the interpolants
     variables = set()
     
-    def extract_vars(expr):
-        if isinstance(expr, list):
-            if len(expr) >= 3 and expr[0] == "=":
-                # Check for variable names in equality expressions
-                for term in expr[1:]:
-                    if isinstance(term, str) and term.startswith("v"):
-                        variables.add(term)
-            # Recursively process all subexpressions
-            for subexpr in expr:
-                extract_vars(subexpr)
-    
-    for interp in interpolants:
-        extract_vars(interp)
-    
     # Generate SMT2 formula
     smt2_content = []
-    
-    # Declare variables
-    for var in sorted(variables):
-        smt2_content.append(f"(declare-fun {var} () Int)")
+
+    if smt_path is not None:
+        with open(smt_path, "r") as f:
+            original_smt = f.read()
+        original_smt = original_smt.strip().splitlines()
+        for line in original_smt:
+            if line.startswith("(declare-const"):
+                smt2_content.append(line)
+            else:
+                break
+    else:
+        def extract_vars(expr):
+            if isinstance(expr, list):
+                for term in expr:
+                    if isinstance(term, str) and term.startswith("v"):
+                        variables.add(term)
+                # Recursively process all subexpressions
+                for subexpr in expr:
+                    extract_vars(subexpr)
+        for interp in interpolants:
+            extract_vars(interp)
+
+        # Declare variables
+        for var in sorted(variables):
+            smt2_content.append(f"(declare-const {var} Bool)")
     
     smt2_content.append("")
     

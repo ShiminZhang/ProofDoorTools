@@ -2,7 +2,7 @@
 
 gen() {
     filename=$(basename $1)
-    python ../CNFtoQFBV.py $1
+    sbatch -t 01:00:00 -o ./Outputs/${filename}.toSMT.log --wrap="source ../general/bin/activate; python ../CNFtoQFBV.py $1"
 }
 k=$1
 cd ./ProofDoorBenchmark/
@@ -14,4 +14,5 @@ for file in ./cnfs/${k}/*.cnf; do
         gen $file
     fi
 done
+mkdir -p ./smts/${k}/   
 mv ./cnfs/${k}/*.smt2 ./smts/${k}/

@@ -11,6 +11,7 @@ from scipy.stats import pearsonr
 
 def process_interpolants(k_path):
     interpolants_dir = f"ProofDoorBenchmark/interpolants/{k_path}"
+    smts_dir = f"ProofDoorBenchmark/smts/{k_path}"
     results_map = {}
     if not os.path.exists(interpolants_dir):
         print(f"Error: Directory '{interpolants_dir}' not found.")
@@ -27,13 +28,14 @@ def process_interpolants(k_path):
     print("-" * 40)
     
     for file in sorted(files):
+        smt_path = os.path.join(smts_dir, file.replace('.interpolant', '.smt2'))
         file_path = os.path.join(interpolants_dir, file)
         # line_count, let_count = count_lines_byz3(file_path)
         # if line_count == 0 and let_count == 0:
         #     continue
         
         # proofdoor_size = line_count + let_count - 3
-        proofdoor_size = count_lines_byz3(file_path)
+        proofdoor_size = count_lines_byz3(file_path,smt_path)
         print(f"{file}\t{proofdoor_size}")
         results_map[file] = proofdoor_size
     

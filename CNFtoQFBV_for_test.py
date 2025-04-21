@@ -33,10 +33,8 @@ def parse_cnf_file(filepath):
 
 def literal_to_expr(literal):
     var = abs(literal)
-    if literal > 0:
-        return f"v{var}"
-    else:
-        return f"(not v{var})"
+    val = '1' if literal > 0 else '0'
+    return f"(= v{var} {val})"
 
 
 def clause_to_expr(clause):
@@ -52,11 +50,10 @@ def block_to_and_expr(block):
 
 
 def generate_declarations(max_var):
-    return [f"(declare-const v{i} Bool)" for i in range(1, max_var + 1)]
+    return [f"(declare-const v{i} Int)" for i in range(1, max_var + 1)]
 
 
 def generate_single_compute_interpolant(blocks):
-    # output_lines = ["(set-logic QF_UF)"]
     output_lines = []
     N_of_blocks = len(blocks)
     extended_blocks=[]
@@ -76,10 +73,12 @@ def generate_single_compute_interpolant(blocks):
     for block_tuple in extended_blocks:
         # print(block)
         left,right = block_tuple
-        current_interpolant=["(compute-interpolant"]
+        current_interpolant=["(assert"]
         left_expr = block_to_and_expr(left)
         right_expr = block_to_and_expr(right)
         current_interpolant.extend(f"    {line}" for line in left_expr)
+        current_interpolant.append(")")
+        current_interpolant.append("(assert")
         current_interpolant.extend(f"    {line}" for line in right_expr)
         current_interpolant.append(")")
         output_lines.append(current_interpolant)
@@ -100,7 +99,7 @@ def cnf_to_smt2_n_way(input_path, output_path):
         smt2_lines.extend(interpolant)
         # for item in smt2_lines:
             # print(item)
-        with open(f"{output_path}.{i}.smt2", 'w') as f:
+        with open(f"{output_path}.{i}.sanity.smt2", 'w') as f:
             f.write("\n".join(smt2_lines))
         i+=1
 
