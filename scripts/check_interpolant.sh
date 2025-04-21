@@ -1,7 +1,7 @@
 #!/bin/bash                                                    
-#SBATCH --time=0-0:0:10000                                                      
+#SBATCH --time=0-0:0:15000                                                      
 #SBATCH --account=def-vganesh   
-#SBATCH --mem=20g         
+#SBATCH --mem=30g         
 
 instance_name=$1
 smt_path=$2

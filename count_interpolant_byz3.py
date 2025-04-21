@@ -173,7 +173,7 @@ def main():
         basename = os.path.basename(args.file)
         print(f"Saving to ProofSizeMap/data/{basename}.json")
         with open(f"ProofSizeMap/data/{basename}.json", "w") as f:
-            json.dump({"size": size}, f)
+            json.dump({f"{basename}": size}, f)
     print(size)
 
 def convert_to_smt(content,smt_path=None):

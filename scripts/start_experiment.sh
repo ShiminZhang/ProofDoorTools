@@ -439,9 +439,50 @@ if [ -n "$1" ] && [ -z "$2" ]; then
     echo "Only k value provided. Creating interpolants only..."
     # Process all interpolants
     echo "Processing all interpolants..."
-    
-    echo ./ProofDoorBenchmark/smts/$1/*.smt2
-    for file in ./ProofDoorBenchmark/smts/$1/*.smt2; do
+
+    for (( i=0; i<linear_instances_l; i++ )); do
+        name=${linear_instances[$i]}
+        # k_value=$(get_k_value $name)
+        k_value=$1
+        cnf_path=./ProofDoorBenchmark/cnfs/$k_value/$name.$k_value.cnf
+        mkdir -p ./ProofDoorBenchmark/smtsoi/$k_value/
+        for (( j=0; j<k_value; j++ )); do
+            smt_path=./ProofDoorBenchmark/smts/$k_value/$name.$k_value.$j.smt2
+            if [ -f "$smt_path" ]; then
+                cp $smt_path ./ProofDoorBenchmark/smtsoi/$k_value/$name.$k_value.$j.smt2
+            fi
+        done
+    done 
+
+    for (( i=0; i<polynomial_instances_l; i++ )); do
+        name=${polynomial_instances[$i]}
+        # k_value=$(get_k_value $name)
+        k_value=$1
+        cnf_path=./ProofDoorBenchmark/cnfs/$k_value/$name.$k_value.cnf
+        mkdir -p ./ProofDoorBenchmark/smtsoi/$k_value/
+        for (( j=0; j<k_value; j++ )); do
+            smt_path=./ProofDoorBenchmark/smts/$k_value/$name.$k_value.$j.smt2
+            if [ -f "$smt_path" ]; then
+                cp $smt_path ./ProofDoorBenchmark/smtsoi/$k_value/$name.$k_value.$j.smt2
+            fi
+        done
+    done 
+
+    for (( i=0; i<exponential_instances_l; i++ )); do
+        name=${exponential_instances[$i]}
+        # k_value=$(get_k_value $name)
+        k_value=$1
+        cnf_path=./ProofDoorBenchmark/cnfs/$k_value/$name.$k_value.cnf
+        mkdir -p ./ProofDoorBenchmark/smtsoi/$k_value/
+        for (( j=0; j<k_value; j++ )); do
+            smt_path=./ProofDoorBenchmark/smts/$k_value/$name.$k_value.$j.smt2
+            if [ -f "$smt_path" ]; then
+                cp $smt_path ./ProofDoorBenchmark/smtsoi/$k_value/$name.$k_value.$j.smt2
+            fi
+        done
+    done 
+
+    for file in ./ProofDoorBenchmark/smtsoi/$1/*.smt2; do
         echo "processing: $file"
         if [ -f "$file" ]; then
                 # Extract the filename without path and extension
