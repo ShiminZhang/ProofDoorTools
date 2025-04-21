@@ -15,7 +15,7 @@
 # sbatch --wrap --mem 20G "source /home/s568zhan/projects/def-vganesh/s568zhan/generall/bin/activate; python process_interpolants.py --K 10 --UseCache --Solver cadical --FormulaCategory polynomial --UseCache > ./logs/cadical_polynomial_10.log"
 # Function to run all correlations locally without sbatch
 run_correlations_locally() {
-    local k_values=(10 20 80)
+    local k_values=(10 20 40 60 80)
     local solvers=("minisat" "cadical")
     local categories=("exponential" "linear" "polynomial")
     
@@ -24,7 +24,7 @@ run_correlations_locally() {
             for category in "${categories[@]}"; do
                 echo "Running correlation for K=${k}, Solver=${solver}, Category=${category}"
                 source /home/s568zhan/projects/def-vganesh/s568zhan/generall/bin/activate
-                python process_interpolants.py --K ${k} --SkipInterpolant --Solver ${solver} --FormulaCategory ${category} > ./logs/${solver}_${category}_${k}.log
+                python process_interpolants.py --K ${k} --ProcessLogOnly --Solver ${solver} --FormulaCategory ${category} > ./logs/${solver}_${category}_${k}.log
                 echo "Completed ${solver}_${category}_${k}"
             done
         done
