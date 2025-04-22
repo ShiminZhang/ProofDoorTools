@@ -98,7 +98,7 @@ def count_clauses(expr):
     # print(flattened)
     return len(flattened)
 
-def count_by_z3(smt2_content):
+def count_by_z3(smt2_content,smt_path=None):
     # with open(filename, 'r') as f:
     #     smt2_content = f.read()
     
@@ -121,14 +121,15 @@ def count_by_z3(smt2_content):
     # Apply the 'tseitin-cnf' tactic to convert to CNF
     cnf_tactic = Tactic('tseitin-cnf', ctx=ctx)
     cnf_result = cnf_tactic(goal)
-    
+    basename = os.path.basename(smt_path)
+    cnf_path = f"ProofDoorBenchmark/interpolant_as_cnfs/{basename}.cnf"
     # Write the CNF result to a file
-    with open("tmp.cnf", "w") as cnf_file:
+    with open(cnf_path, "w") as cnf_file:
         for subgoal in cnf_result:
             cnf_file.write(str(subgoal) + "\n")
     
     # Count the number of lines in the CNF file
-    with open("tmp.cnf", "r") as cnf_file:
+    with open(cnf_path, "r") as cnf_file:
         cnf_lines = cnf_file.readlines()
         cnf_clause_count = len(cnf_lines)
         
@@ -156,7 +157,7 @@ def count_lines_byz3(file_path,smt_path=None):
         return -2,"Unknown"
     if smt_content is None:
         return -1,msg
-    return count_by_z3(smt_content),"UNSAT"
+    return count_by_z3(smt_content,smt_path),"UNSAT"
 
 def main():
     parser = argparse.ArgumentParser(description='Count interpolant lines using Z3')
@@ -173,7 +174,7 @@ def main():
         basename = os.path.basename(args.file)
         print(f"Saving to ProofSizeMap/data/{basename}.json")
         with open(f"ProofSizeMap/data/{basename}.json", "w") as f:
-            json.dump({f"{basename}": size}, f)
+            json.dump({f"{basename}": (size,msg)}, f)
     print(size)
 
 def convert_to_smt(content,smt_path=None):

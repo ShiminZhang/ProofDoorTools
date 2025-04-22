@@ -1,0 +1,37 @@
+#!/bin/bash
+
+# Check if directory is provided
+if [ $# -ne 1 ]; then
+    echo "Usage: $0 <directory_path>"
+    exit 1
+fi
+
+# Get the directory path from command line argument
+directory="$1"
+
+# Check if the directory exists
+if [ ! -d "$directory" ]; then
+    echo "Error: Directory '$directory' does not exist."
+    exit 1
+fi
+
+
+# Create output directory if it doesn't exist
+output_dir="${directory}"
+
+echo "Processing CNF files in $directory..."
+
+# Process each CNF file in the directory
+for cnf_file in "$directory"/*.cnf; do
+    if [ -f "$cnf_file" ]; then
+        # Get the base filename without path and extension
+        filename=$(basename "$cnf_file" .cnf)
+        
+        # Define the output log file
+        log_file="$output_dir/$filename.log"
+        
+        jobid=$(sbatch --priority 1 -o ./Outputs/output_%A_%a.out ./scripts/submit_solver.sh ./solvers/cadical cadical $cnf_file | awk '{print $4}')
+        jobid=$(sbatch --priority 1 -o ./Outputs/output_%A_%a.out ./scripts/submit_solver.sh ./solvers/minisat minisat $cnf_file | awk '{print $4}')
+        
+    fi
+done

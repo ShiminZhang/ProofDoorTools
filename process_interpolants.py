@@ -47,7 +47,7 @@ def GetData(folder,name, use_cache = False, bit=None):
     log_files = glob.glob(file_name)
     file_counted = 0
     print(f'{file_name} matched {len(log_files)}')
-    if len(log_files) == 0:
+    if len(log_files) == 0 and not use_cache:
         return None,None,None,None
     
     data_for_this_solver = []
@@ -195,22 +195,37 @@ def ComputeCorrelation(SolvingTimeMap,ProofDoorSizeMap):
         "p_value": p_value,
         "sample_size": len(common_keys)
     }
-
+    
+def ComputeCNFvsInterpolantSizeRatio(CNFMap,InterpolantMap):
+    # Compute the ratio of the size of the CNF to the size of the interpolant
+    # Use the Pearson correlation coefficient
+    common_keys = [key for key in CNFMap if key in InterpolantMap]
+    cnf_sizes = [CNFMap[key] for key in common_keys]
+    interpolant_sizes = [InterpolantMap[key] for key in common_keys]
+    ratio = [cnf_sizes[i] / interpolant_sizes[i] for i in range(len(common_keys))]
+    print(ratio)
+    return ratio
+    
 if __name__ == "__main__":
     # Set up argument parser
     parser = argparse.ArgumentParser(description='Process interpolants')
     parser.add_argument('--UseCache', action='store_true', help='Use cached data if available')
+    parser.add_argument('--UseLogCache', action='store_true', help='Use cached data if available')
+    parser.add_argument('--UseCNFCache', action='store_true', help='Use cached data if available')
     parser.add_argument('--ProcessLogOnly', action='store_true', help='Use cached data if available')
     parser.add_argument('--ProcessInterpolantOnly', action='store_true', help='Use cached data if available')
     parser.add_argument('--SkipInterpolant', action='store_true', help='Use cached data if available')
+    parser.add_argument('--CompareCombinedInstances', action='store_true', help='Use cached data if available')
     parser.add_argument('--Solver', type=str, default='cadical', help='SAT solver to use')
     parser.add_argument('--K', type=int, default=80, help='K value')
     parser.add_argument('--FormulaCategory', type=str, default='linear', help='Formula category')
+    parser.add_argument('--CheckCNFvsInterpolantSizeRatio', action='store_true', help='Check CNF vs Interpolant Size Ratio')
     
     # Parse arguments
     args = parser.parse_args()
-    use_cache = args.UseCache
+    use_cache = args.UseCache 
     solver = args.Solver
+    check_cnf_vs_interpolant_size_ratio = args.CheckCNFvsInterpolantSizeRatio
     K = args.K
     formula_category = args.FormulaCategory
     if args.ProcessInterpolantOnly:
@@ -219,6 +234,7 @@ if __name__ == "__main__":
             for file, size in results_map.items():
                 f.write(f"{file}\t{size}\n")
         exit()
+        
     # If use_cache is True, try to read the interpolants map from file
     if use_cache or args.SkipInterpolant and os.path.exists('interpolant_sizes.txt'):
         print("Using cached interpolant sizes from file")
@@ -243,7 +259,8 @@ if __name__ == "__main__":
             for file, size in results_map.items():
                 f.write(f"{file}\t{size}\n")
     
-    cadical_data,cadical_map,cadical_par2,cadical_mem = GetData(f"./ProofDoorBenchmark/{formula_category}/{K}/", solver, use_cache)
+    cadical_data,cadical_map,cadical_par2,cadical_mem = GetData(f"./ProofDoorBenchmark/{formula_category}/{K}/", solver, args.UseLogCache or use_cache)
+
     # print(cadical_map)
             
     # Rewrite cadical_map with keys' first part before "."
@@ -254,6 +271,15 @@ if __name__ == "__main__":
         new_key = key_parts[0]
         rewritten_cadical_map[new_key] = value
     
+    if args.CompareCombinedInstances:
+        combined_data,combined_map,combined_par2,combined_mem = GetData(f"./ProofDoorBenchmark/combined/{formula_category}/", solver, False)
+        # print(cadical_map)
+        # print(combined_map)
+        for key in combined_map:
+            rewritten_key = key.split('.')[0]
+            if rewritten_key in rewritten_cadical_map:
+                print(f"{key} {combined_map[key]} {rewritten_cadical_map[rewritten_key]}")
+        exit()
     # Rewrite results_map (interpolants map) with keys' first part before "."
     rewritten_results_map = {}
     for key, value in results_map.items():
@@ -268,6 +294,27 @@ if __name__ == "__main__":
             rewritten_results_map[new_key] = value
         else:
             rewritten_results_map[new_key] += value
+    
+    if check_cnf_vs_interpolant_size_ratio:
+        cnf_path = f"ProofDoorBenchmark/cnfs/{K}/"
+        cnf_sizes = {}
+        if use_cache or args.UseCNFCache:
+            cnf_sizes = json.load(open(f'ProofDoorBenchmark/cnfs/{K}/cnfs_sizes.json', 'r'))
+        else:
+            for file in os.listdir(cnf_path):
+                if file.endswith('.cnf'):
+                    cnf_sizes[file] = os.path.getsize(os.path.join(cnf_path, file))
+            json.dump(cnf_sizes, open(f'ProofDoorBenchmark/cnfs/{K}/cnfs_sizes.json', 'w'))
+        print(f"CNF sizes: {len(cnf_sizes)}")
+        
+        rewritten_cnf_map = {}
+        for key, value in cnf_sizes.items():
+            key_parts = key.split('.')
+            new_key = key_parts[0]
+            rewritten_cnf_map[new_key] = value
+        print(f"Rewritten cnf map: {len(rewritten_cnf_map)}")
+        ratio = ComputeCNFvsInterpolantSizeRatio(rewritten_cnf_map, rewritten_results_map)
+        print(f"CNF vs Interpolant Size Ratio: {ratio}")
         
     print(f"Rewritten cadical map: {len(rewritten_cadical_map)}")
     # print(rewritten_cadical_map)
