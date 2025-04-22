@@ -9,7 +9,7 @@ import argparse
 import numpy as np
 from scipy.stats import pearsonr
 
-def process_interpolants(k_path):
+def process_interpolants(k_path,to_cnf=False):
     interpolants_dir = f"ProofDoorBenchmark/interpolants/{k_path}"
     smts_dir = f"ProofDoorBenchmark/smts/{k_path}"
     results_map = {}
@@ -35,7 +35,7 @@ def process_interpolants(k_path):
         #     continue
         
         # proofdoor_size = line_count + let_count - 3
-        proofdoor_size = count_lines_byz3(file_path,smt_path)
+        proofdoor_size = count_lines_byz3(file_path,smt_path,to_cnf)
         print(f"{file}\t{proofdoor_size}")
         results_map[file] = proofdoor_size
     
@@ -220,6 +220,7 @@ if __name__ == "__main__":
     parser.add_argument('--K', type=int, default=80, help='K value')
     parser.add_argument('--FormulaCategory', type=str, default='linear', help='Formula category')
     parser.add_argument('--CheckCNFvsInterpolantSizeRatio', action='store_true', help='Check CNF vs Interpolant Size Ratio')
+    parser.add_argument('--ToCNF', action='store_true', help='Convert to CNF')
     
     # Parse arguments
     args = parser.parse_args()
@@ -229,7 +230,7 @@ if __name__ == "__main__":
     K = args.K
     formula_category = args.FormulaCategory
     if args.ProcessInterpolantOnly:
-        results_map = process_interpolants(K)
+        results_map = process_interpolants(K,args.ToCNF)
         with open(f'ProofDoorBenchmark/interpolants/{K}/interpolant_sizes.txt', 'w') as f:
             for file, size in results_map.items():
                 f.write(f"{file}\t{size}\n")
@@ -250,7 +251,7 @@ if __name__ == "__main__":
         if results_map:
             print("Loaded cached interpolant sizes")
     elif not args.ProcessLogOnly:
-        results_map = process_interpolants(K)
+        results_map = process_interpolants(K,args.ToCNF)
     # print(results_map)
     
     # Write results to a file
@@ -286,6 +287,7 @@ if __name__ == "__main__":
         # Extract the first part of the key before the first "."
         key_parts = key.split('.')
         new_key = key_parts[0]
+        value=value[0]
         if value < 0:
             if new_key in rewritten_results_map:
                 print(f"Warning: {key} interpolants exists only for parts")

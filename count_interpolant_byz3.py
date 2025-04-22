@@ -136,7 +136,7 @@ def count_by_z3(smt2_content,smt_path=None):
     # print(f"CNF conversion complete: {cnf_clause_count} clauses")
     return cnf_clause_count
 
-def count_lines_byz3(file_path,smt_path=None):
+def count_lines_byz3(file_path,smt_path=None,to_cnf=False):
     """
     Count the number of lines in a file using Z3, but with a timeout of 1 minute.
     If the counting takes more than 1 minute, stop and return -1.
