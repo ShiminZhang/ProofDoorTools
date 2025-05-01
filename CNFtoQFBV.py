@@ -110,7 +110,7 @@ def cnf_to_smt2_n_way(input_path, output_path):
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
-        print("Usage: python cnf_to_smt2.py <input_file.cnf>")
+        print("Usage: python CNFtoQFBV.py <input_file.cnf>")
         sys.exit(1)
 
     input_file = sys.argv[1]

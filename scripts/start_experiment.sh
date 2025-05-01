@@ -407,7 +407,7 @@ exponential_instances_l=${#exponential_instances[@]}
 polynomial_instances_l=${#polynomial_instances[@]}
 solvers_l=${#solvers[@]}
 suffixs_l=${#suffixs[@]}
-scratch_benchmark_path="/home/s568zhan/scratch/ProofDoorBenchmark"
+scratch_benchmark_path="./ProofDoorBenchmark/"
 
 echo "____________________________________________________________________________________________________" >> ./running/runningjobs.log
 categories=(

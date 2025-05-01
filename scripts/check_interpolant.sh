@@ -1,18 +1,21 @@
 #!/bin/bash                                                    
-#SBATCH --time=0-48:0:00                                                      
+#SBATCH --time=0-24:0:00                                                      
 #SBATCH --account=def-vganesh   
 #SBATCH --mem=40g         
-#SBATCH --array=1-4000%4000  # Process up to 4000 jobs, with max 100 running concurrently
 
 # Get the array index
 array_index=$SLURM_ARRAY_TASK_ID
-
 # Get the list of SMT files
 smt_path=$1
 interpolant_path=$2
 
+echo $smt_path
+echo $interpolant_path
+# Remove trailing slashes from paths
+smt_path=${smt_path%/}
+
 # Get the nth file from the list
-smt_file=$(ls $smt_path/*.smt2 | sed -n "${array_index}p")
+smt_file=$(ls "$smt_path"/*.smt2 2>/dev/null | sed -n "${array_index}p")
 
 if [ -z "$smt_file" ]; then
     echo "No file found for array index $array_index"

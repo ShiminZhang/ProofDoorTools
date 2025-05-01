@@ -1,10 +1,11 @@
 import os
 import json
 import glob
-
+import sys
 def combine_json_files():
+    k = sys.argv[1]
     # Path to the data directory
-    data_dir = "./ProofSizeMap/data/"
+    data_dir = f"./ProofSizeMap/data/{k}"
     # Output file path
     output_file = "./ProofSizeMap/data.json"
     
