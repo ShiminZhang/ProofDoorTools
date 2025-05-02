@@ -2,11 +2,11 @@
 
 gen() {
     filename=$(basename $1)
-    python ../CNFtoQFBV.py $1
-    # sbatch --mem=32G -t 03:00:00 -o ./Outputs/${filename}.toSMT.log --wrap="source /home/s568zhan/projects/def-vganesh/s568zhan/generall/bin/activate; python ../CNFtoQFBV.py $1"
+    # python ../CNFtoQFBV.py $1
+    sbatch --mem=32G -t 03:00:00 -o ./Outputs/${filename}.toSMT.log --wrap="source ~/scratch/generall/bin/activate; python ../CNFtoQFBV.py $1"
 }
 k=$1
-source /home/s568zhan/projects/def-vganesh/s568zhan/generall/bin/activate
+source ~/scratch/generall/bin/activate
 cd ./ProofDoorBenchmark/
 rm *.log
 for file in ./cnfs/${k}/*.cnf; do

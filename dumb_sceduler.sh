@@ -2,8 +2,8 @@
 #SBATCH --time=0-0:0:5000                                                      
 #SBATCH --account=def-vganesh 
 #SBATCH --mem=20G
-sleep 6h
-./cnftosmt.sh 60
+sleep 2h
+./manage_interpolant_jobs.sh 60
 # mv ./ProofDoorBenchmark/cnfs/40/ ./ProofDoorBenchmark/smts/40/
 # ./scripts/start_experiment.sh 40
 # source ../../../projects/def-vganesh/s568zhan/generall/bin/activate
