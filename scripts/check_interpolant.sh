@@ -330,7 +330,7 @@ if [ $time_taken -lt 21600 ]; then
         echo "Processing $file"
         base_name=$(basename $file .interpolant)
         smt_file="${smt_path}/${base_name}.smt2"
-        source ../generall/bin/activate
+        source ../general/bin/activate
         python3 count_interpolant_byz3.py $file --smt $smt_file --save --timeout -1
         deactivate
     fi
