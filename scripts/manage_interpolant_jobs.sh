@@ -10,6 +10,8 @@ if [ -z "$SLURM_JOB_ID" ]; then
     testmode=true
 fi
 
+mkdir -p ./ProofDoorBenchmark/data/
+mkdir -p ./ProofDoorBenchmark/interpolants/
 
 if [ -z "$1" ]; then
     echo "Error: k_value is required"
@@ -20,8 +22,11 @@ k_value=$1
 mkdir -p ./ProofDoorBenchmark/interpolants/${k_value}/
 file_count=$(ls ./ProofDoorBenchmark/smts/$k_value/ | wc -l)
 echo "File count: $file_count"
+empty_file_count=$(find ./ProofDoorBenchmark/smts/$k_value/ -type f -empty | wc -l)
+echo "Empty file count: $empty_file_count"
+
 sleep 10s
-max_jobs=4800
+max_jobs=5000
 batch_size=50  # Smaller batch size for more gradual queue filling
 current_index=1
 limit=1000

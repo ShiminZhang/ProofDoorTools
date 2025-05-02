@@ -319,7 +319,7 @@ end_time=$(date +%s)
 time_taken=$((end_time - start_time))
 echo "Time taken to generate interpolant for $instance_name: $time_taken seconds"
 # echo to json file
-echo "{\"instance_name\": \"$instance_name\", \"time_taken\": $time_taken}" > "./data/PDComputationTime/interpolant_times.json"
+echo "{\"instance_name\": \"$instance_name\", \"time_taken\": $time_taken}" > "./ProofDoorBenchmark/data/PDComputationTime/interpolant_times.json"
 
 # Check if time taken is less than 6 hours (21600 seconds)
 if [ $time_taken -lt 21600 ]; then
