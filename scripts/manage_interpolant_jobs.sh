@@ -4,6 +4,13 @@
 #SBATCH --mem=4g
 #SBATCH -o managing.log
 
+# Check if this script is being run directly (not through sbatch)
+testmode=false
+if [ -z "$SLURM_JOB_ID" ]; then
+    testmode=true
+fi
+
+
 if [ -z "$1" ]; then
     echo "Error: k_value is required"
     echo "Usage: $0 <k_value>"
@@ -13,9 +20,9 @@ k_value=$1
 file_count=$(ls ./ProofDoorBenchmark/smts/$k_value/ | wc -l)
 echo "File count: $file_count"
 sleep 10s
-max_jobs=12880
+max_jobs=4800
 batch_size=50  # Smaller batch size for more gradual queue filling
-current_index=3000
+current_index=1
 limit=1000
 priority=1
 
@@ -37,7 +44,7 @@ submit_next_batch() {
     fi
     
     if [ $start -le $end ]; then
-        job_id=$(./scripts/submit_interpolant_jobs.sh $k_value $start $end)
+        job_id=$(./scripts/submit_interpolant_jobs.sh $k_value $start $end $testmode)
         echo "$(date): Submitted batch $start-$end with job ID $job_id"
     fi
 }
