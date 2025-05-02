@@ -4,6 +4,7 @@
 #SBATCH --mem=20G
 sleep 2h
 ./manage_interpolant_jobs.sh 60
+sbatch scripts/manage_interpolant_jobs.sh 60 linear
 # mv ./ProofDoorBenchmark/cnfs/40/ ./ProofDoorBenchmark/smts/40/
 # ./scripts/start_experiment.sh 40
 # source ../../../projects/def-vganesh/s568zhan/generall/bin/activate

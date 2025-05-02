@@ -17,6 +17,7 @@ if [ -z "$1" ]; then
     exit 1
 fi
 k_value=$1
+mkdir -p ./ProofDoorBenchmark/interpolants/${k_value}/
 file_count=$(ls ./ProofDoorBenchmark/smts/$k_value/ | wc -l)
 echo "File count: $file_count"
 sleep 10s
