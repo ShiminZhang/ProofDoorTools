@@ -237,7 +237,7 @@ interpolant_path=$2
 target_category=$3
 # Extract k_value from the path
 # Assuming the path format includes a directory named with the k_value (e.g., .../40/...)
-k_value=$(echo "$smt_path" | grep -o '/[0-9]\+/' | tail -n 1)
+k_value=$(echo "$smt_path" | grep -o '[0-9]\+' | tail -n 1)
 
 # If k_value couldn't be extracted, set a default or exit with error
 if [ -z "$k_value" ]; then
