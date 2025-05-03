@@ -231,18 +231,27 @@ exponential_instances=(
 # Get the array index
 array_index=$SLURM_ARRAY_TASK_ID
 
-instance_index=$((array_index / $k_value))
-instance_partition_index=$((array_index % $k_value))
 # Get the list of SMT files
 smt_path=$1
 interpolant_path=$2
 target_category=$3
+# Extract k_value from the path
+# Assuming the path format includes a directory named with the k_value (e.g., .../40/...)
+k_value=$(echo "$smt_path" | grep -o '/[0-9]\+/' | tail -n 1)
 
+# If k_value couldn't be extracted, set a default or exit with error
+if [ -z "$k_value" ]; then
+    echo "Error: Could not extract k_value from path. Please ensure the path contains a numeric directory."
+    exit 1
+fi
+
+instance_index=$(($array_index / $k_value))
+instance_partition_index=$(($array_index % $k_value))
 echo $smt_path
 echo $interpolant_path
 # Remove trailing slashes from paths
 smt_path=${smt_path%/}
-
+instance_basename=""
 # Get the nth file from the list
 smt_file=$(ls "$smt_path"/*.smt2 2>/dev/null | sed -n "${array_index}p")
 # If target category is specified, filter files based on category
@@ -251,7 +260,7 @@ if [ ! -z "$target_category" ] && [ "$target_category" != "all" ]; then
     case "$target_category" in
         "linear")
             if [ $array_index -le ${#linear_instances[@]} ]; then
-                instance_name="${linear_instances[$array_index-1]}"
+                instance_basename="${linear_instances[$array_index-1]}"
             else
                 echo "Array index $array_index exceeds the number of linear instances"
                 exit 0
@@ -259,7 +268,7 @@ if [ ! -z "$target_category" ] && [ "$target_category" != "all" ]; then
             ;;
         "polynomial")
             if [ $array_index -le ${#polynomial_instances[@]} ]; then
-                instance_name="${polynomial_instances[$array_index-1]}"
+                instance_basename="${polynomial_instances[$array_index-1]}"
             else
                 echo "Array index $array_index exceeds the number of polynomial instances"
                 exit 0
@@ -267,7 +276,7 @@ if [ ! -z "$target_category" ] && [ "$target_category" != "all" ]; then
             ;;
         "exponential")
             if [ $array_index -le ${#exponential_instances[@]} ]; then
-                instance_name="${exponential_instances[$array_index-1]}"
+                instance_basename="${exponential_instances[$array_index-1]}"
             else
                 echo "Array index $array_index exceeds the number of exponential instances"
                 exit 0
@@ -280,7 +289,7 @@ if [ ! -z "$target_category" ] && [ "$target_category" != "all" ]; then
     esac
     
     # Find the SMT file that matches the instance name
-    smt_file=$(find "$smt_path" -name "${instance_name}*${instance_partition_index}.smt2" | head -n 1)
+    smt_file=$(find "$smt_path" -name "${instance_basename}*${instance_partition_index}.smt2" | head -n 1)
 else
     # Get the nth file from the list (original behavior)
     smt_file=$(ls "$smt_path"/*.smt2 2>/dev/null | sed -n "${array_index}p")
@@ -338,7 +347,7 @@ end_time=$(date +%s)
 time_taken=$((end_time - start_time))
 echo "Time taken to generate interpolant for $instance_name: $time_taken seconds"
 # echo to json file
-echo "{\"instance_name\": \"$instance_name\", \"time_taken\": $time_taken}" > "./ProofDoorBenchmark/data/PDComputationTime/interpolant_times_${instance_name}.${instance_partition_index}.json"
+echo "{\"instance_name\": \"$instance_name\", \"time_taken\": $time_taken}" > "./ProofDoorBenchmark/data/PDComputationTime/${instance_basename}.${k_value}.${instance_partition_index}.json"
 
 # Check if time taken is less than 6 hours (21600 seconds)
 if [ $time_taken -lt 21600 ]; then

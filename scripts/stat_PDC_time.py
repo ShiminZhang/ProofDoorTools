@@ -44,7 +44,7 @@ def main():
         partition_index = parts[2]
         if benchmark_name and time_seconds:
             benchmark_times[benchmark_name].append(time_seconds)
-        json_file = f"./ProofDoorBenchmark/data/PDComputationTime/{basename}.{partition_index}.json"
+        json_file = f"./ProofDoorBenchmark/data/PDComputationTime/{basename}.{k_value}.{partition_index}.json"
         # echo "{\"instance_name\": \"$instance_name\", \"time_taken\": $time_taken}" > "./ProofDoorBenchmark/data/PDComputationTime/interpolant_times.json"
         
         with open(json_file, 'w') as f:
