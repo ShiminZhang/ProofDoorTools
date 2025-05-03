@@ -12,7 +12,8 @@ fi
 
 mkdir -p ./ProofDoorBenchmark/data/
 mkdir -p ./ProofDoorBenchmark/interpolants/
-
+mkdir -p ./ProofDoorBenchmark/data/PDComputationTime/
+mkdir -p ./ProofDoorBenchmark/interpolant_as_cnfs/
 if [ -z "$1" ]; then
     echo "Error: k_value is required"
     echo "Usage: $0 <k_value>"
