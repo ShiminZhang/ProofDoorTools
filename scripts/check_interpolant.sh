@@ -230,6 +230,9 @@ exponential_instances=(
 
 # Get the array index
 array_index=$SLURM_ARRAY_TASK_ID
+
+instance_index=$((array_index / $k_value))
+instance_partition_index=$((array_index % $k_value))
 # Get the list of SMT files
 smt_path=$1
 interpolant_path=$2
@@ -277,7 +280,7 @@ if [ ! -z "$target_category" ] && [ "$target_category" != "all" ]; then
     esac
     
     # Find the SMT file that matches the instance name
-    smt_file=$(find "$smt_path" -name "${instance_name}*.smt2" | head -n 1)
+    smt_file=$(find "$smt_path" -name "${instance_name}*${instance_partition_index}.smt2" | head -n 1)
 else
     # Get the nth file from the list (original behavior)
     smt_file=$(ls "$smt_path"/*.smt2 2>/dev/null | sed -n "${array_index}p")
@@ -286,7 +289,7 @@ fi
 
 
 if [ -z "$smt_file" ]; then
-    echo "No file found for array index $array_index"
+    echo "No file found for array index $array_index $instance_partition_index $instance_index $instance_name $target_category $k_value"
     exit 0
 fi
 
@@ -323,7 +326,7 @@ end_time=$(date +%s)
 time_taken=$((end_time - start_time))
 echo "Time taken to generate interpolant for $instance_name: $time_taken seconds"
 # echo to json file
-echo "{\"instance_name\": \"$instance_name\", \"time_taken\": $time_taken}" > "./ProofDoorBenchmark/data/PDComputationTime/interpolant_times.json"
+echo "{\"instance_name\": \"$instance_name\", \"time_taken\": $time_taken}" > "./ProofDoorBenchmark/data/PDComputationTime/interpolant_times_${instance_name}.${instance_partition_index}.json"
 
 # Check if time taken is less than 6 hours (21600 seconds)
 if [ $time_taken -lt 21600 ]; then
