@@ -13,7 +13,8 @@ fi
 k_value=$1
 start_index=$2
 end_index=$3
-testmode=$4
+formula_category=$4
+testmode=$5
 scratch_benchmark_path="./ProofDoorBenchmark"
 
 # Submit the batch
@@ -24,7 +25,7 @@ if [ "$testmode" = "true" ]; then
     for i in $(seq $start_index $end_index); do
         export SLURM_ARRAY_TASK_ID=$i
         echo "Running task $i directly"
-        ./scripts/check_interpolant.sh ${scratch_benchmark_path}/smts/$k_value/ ${scratch_benchmark_path}/interpolants/$k_value/
+        ./scripts/check_interpolant.sh ${scratch_benchmark_path}/smts/$k_value/ ${scratch_benchmark_path}/interpolants/$k_value/ $formula_category
     done
     echo "Test mode completed"
     exit 0

@@ -1,7 +1,7 @@
 #!/bin/bash                                                    
 #SBATCH --time=0-24:0:00                                                      
 #SBATCH --account=def-vganesh   
-#SBATCH --mem=40g         
+#SBATCH --mem=20g         
 
 testmode=false
 if [ -z "$SLURM_JOB_ID" ]; then
@@ -314,7 +314,24 @@ fi
 
 # Generate interpolant and record time used
 start_time=$(date +%s)
-./z3 "$smt_file" > "$interpolant_path/$instance_name.interpolant"
+interpolant_file="$interpolant_path/$instance_name.interpolant"
+if [ ! -f "$interpolant_file" ] || [ ! -s "$interpolant_file" ]; then
+    echo "Interpolant file $interpolant_file does not exist. Generating..."
+    ./z3 "$smt_file" > "$interpolant_file"
+fi
+end_time=$(date +%s)
+time_taken=$((end_time - start_time))
+echo "Time taken to generate interpolant for $instance_name: $time_taken seconds"
+# echo to json file
+echo "{\"instance_name\": \"$instance_name\", \"time_taken\": $time_taken}" > "./ProofDoorBenchmark/data/PDComputationTime/interpolant_times.json"
+
+# Check if time taken is less than 6 hours (21600 seconds)
+if [ $time_taken -lt 21600 ]; then
+    file="$interpolant_path/$instance_name.interpolant"
+    if [ -f "$file" ]; then
+        echo "Processing $file"
+        base_name=$(basename $file .interpolant)
+fi
 end_time=$(date +%s)
 time_taken=$((end_time - start_time))
 echo "Time taken to generate interpolant for $instance_name: $time_taken seconds"
@@ -331,7 +348,7 @@ if [ $time_taken -lt 21600 ]; then
         base_name=$(basename $file .interpolant)
         smt_file="${smt_path}/${base_name}.smt2"
         source ../general/bin/activate
-        python3 count_interpolant_byz3.py $file --smt $smt_file --save --timeout -1
+        python3 ./scripts/count_interpolant_byz3.py $file --smt $smt_file --save --timeout -1
         deactivate
     fi
 fi

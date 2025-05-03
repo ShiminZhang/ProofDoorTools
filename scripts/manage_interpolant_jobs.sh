@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --time=2-00:0:00
+#SBATCH --time=0-08:0:00
 #SBATCH --account=def-vganesh
 #SBATCH --mem=4g
 #SBATCH -o managing.log
@@ -19,12 +19,16 @@ if [ -z "$1" ]; then
     exit 1
 fi
 k_value=$1
+formula_category=$2
 mkdir -p ./ProofDoorBenchmark/interpolants/${k_value}/
 file_count=$(ls ./ProofDoorBenchmark/smts/$k_value/ | wc -l)
 echo "File count: $file_count"
 empty_file_count=$(find ./ProofDoorBenchmark/smts/$k_value/ -type f -empty | wc -l)
-echo "Empty file count: $empty_file_count"
-
+echo "Empty SMT2 count: $empty_file_count"
+interpolants_file_count=$(ls ./ProofDoorBenchmark/interpolants/$k_value/ | wc -l)
+echo "Interpolant file count: $interpolants_file_count"
+empty_interpolant_file_count=$(find ./ProofDoorBenchmark/interpolants/$k_value/ -type f -empty | wc -l)
+echo "Empty interpolant file count: $empty_interpolant_file_count"
 sleep 10s
 max_jobs=5000
 batch_size=50  # Smaller batch size for more gradual queue filling
@@ -50,7 +54,7 @@ submit_next_batch() {
     fi
     
     if [ $start -le $end ]; then
-        job_id=$(./scripts/submit_interpolant_jobs.sh $k_value $start $end $testmode)
+        job_id=$(./scripts/submit_interpolant_jobs.sh $k_value $start $end $formula_category $testmode)
         echo "$(date): Submitted batch $start-$end with job ID $job_id"
     fi
 }
