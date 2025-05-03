@@ -38,6 +38,7 @@ def main():
         if benchmark_name is None:
             print(f"No benchmark name found in {output_file}")
             continue
+        print(f"Benchmark name: {benchmark_name}, Time taken: {time_seconds} seconds")
         parts = benchmark_name.split(".")
         basename = parts[0]
         k_value = parts[1]
