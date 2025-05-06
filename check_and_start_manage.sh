@@ -21,4 +21,4 @@ echo "PDC count: $PDC_count" >> progress.log
 mv progress.log progress.$time.log
 mv managing.$time.log progress/
 mv progress.$time.log progress/
-sbatch ./scripts/manage_interpolant_jobs.sh $k_value $category
+# sbatch ./scripts/manage_interpolant_jobs.sh $k_value $category

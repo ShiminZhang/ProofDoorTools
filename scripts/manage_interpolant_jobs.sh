@@ -33,7 +33,7 @@ echo "Empty interpolant file count: $empty_interpolant_file_count"
 sleep 10s
 max_jobs=5000
 batch_size=50  # Smaller batch size for more gradual queue filling
-current_index=1
+current_index=1400
 limit=1000
 priority=1
 

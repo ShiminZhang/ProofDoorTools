@@ -16,7 +16,9 @@ if [ -f "$file" ]; then
     echo "Processing $file"
     base_name=$(basename $file .interpolant)
     smt_file="${smt_dir}/${base_name}.smt2"
-    source /home/s568zhan/projects/def-vganesh/s568zhan/generall/bin/activate
-    python3 count_interpolant_byz3.py $file --smt $smt_file --save --timeout -1
+    # source /home/s568zhan/.myenv
+    # source $python_generall
+    source /home/s568zhan/scratch/general/bin/activate
+    python3 scripts/count_interpolant_byz3.py $file --smt $smt_file --save --timeout -1
     deactivate
 fi

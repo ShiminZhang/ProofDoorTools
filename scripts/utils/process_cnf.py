@@ -3,8 +3,8 @@ import json
 from tqdm import tqdm
 import argparse
 import numpy as np
-from catagory import get_instance_list
-# from utils.catagory import get_instance_list
+# from catagory import get_instance_list
+from utils.catagory import get_instance_list
 
 def compute_cnf_size_for_category(category,K,use_cache=False):
     instance_list = get_instance_list(category)
@@ -18,6 +18,25 @@ def compute_cnf_size_for_category(category,K,use_cache=False):
                 cnf_sizes[instance] = os.path.getsize(cnf_path)
         json.dump(cnf_sizes, open(f'ProofDoorBenchmark/cnfs/{K}/{category}_cnfs_sizes.json', 'w'))
     return cnf_sizes
+
+def get_N_of_literals(cnf_path):
+    with open(cnf_path, 'r') as file:
+        for line in file:
+            if line.startswith('p cnf'):
+                _, _, N , L = line.split()
+                return int(N)
+    return None
+
+def compute_N_map(K,use_cache=False):
+    N_map = {}
+    if use_cache and os.path.exists(f'ProofDoorBenchmark/cnfs/{K}/N_map.json'):
+        N_map = json.load(open(f'ProofDoorBenchmark/cnfs/{K}/N_map.json', 'r'))
+    else:
+        for file in tqdm(os.listdir(f'ProofDoorBenchmark/cnfs/{K}')):
+            if file.endswith('.cnf'):
+                N_map[file] = get_N_of_literals(f'ProofDoorBenchmark/cnfs/{K}/{file}')
+        json.dump(N_map, open(f'ProofDoorBenchmark/cnfs/{K}/N_map.json', 'w'))
+    return N_map
 
 def compute_cnf_sizes(cnf_path,K,use_cache=False):
     cnf_sizes = {}

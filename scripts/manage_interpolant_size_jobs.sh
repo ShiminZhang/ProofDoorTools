@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --time=2-00:0:00
+#SBATCH --time=0-08:0:00
 #SBATCH --account=def-vganesh
 #SBATCH --mem=4g
 #SBATCH -o managing_sizes.log
@@ -13,7 +13,8 @@ fi
 k_value=$1
 interpolants_dir="ProofDoorBenchmark/interpolants/${k_value}/"
 smt_dir="ProofDoorBenchmark/smts/${k_value}/"
-
+mkdir -p ProofDoorBenchmark/PDsizeLogs
+mkdir -p ProofSizeMap/data/${k_value}
 # Get all interpolant files
 interpolant_files=(${interpolants_dir}/*.interpolant)
 total_files=${#interpolant_files[@]}

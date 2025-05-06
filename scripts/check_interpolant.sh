@@ -344,8 +344,6 @@ if [ $time_taken -lt 21600 ]; then
         base_name=$(basename $file .interpolant)
 fi
 end_time=$(date +%s)
-time_taken=$((end_time - start_time))
-echo "Time taken to generate interpolant for $instance_name: $time_taken seconds"
 # echo to json file
 echo "{\"instance_name\": \"$instance_name\", \"time_taken\": $time_taken}" > "./ProofDoorBenchmark/data/PDComputationTime/${instance_basename}.${k_value}.${instance_partition_index}.json"
 
