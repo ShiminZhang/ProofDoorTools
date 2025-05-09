@@ -249,6 +249,7 @@ instance_index=$(($array_index / $k_value))
 instance_partition_index=$(($array_index % $k_value))
 echo $smt_path
 echo $interpolant_path
+echo $target_category
 # Remove trailing slashes from paths
 smt_path=${smt_path%/}
 instance_basename=""
@@ -301,7 +302,7 @@ if [ -z "$smt_file" ]; then
     echo "No file found for array index $array_index $instance_partition_index $instance_index $instance_name $target_category $k_value"
     exit 0
 fi
-
+echo $smt_file
 # Extract the instance name from the file path
 instance_name=$(basename "$smt_file" .smt2)
 
@@ -330,6 +331,9 @@ interpolant_file="$interpolant_path/$instance_name.interpolant"
 if [ ! -f "$interpolant_file" ] || [ ! -s "$interpolant_file" ]; then
     echo "Interpolant file $interpolant_file does not exist. Generating..."
     ./z3 "$smt_file" > "$interpolant_file"
+else
+    echo "Interpolant file $interpolant_file exists. Skipping generation."
+    exit 0
 fi
 end_time=$(date +%s)
 time_taken=$((end_time - start_time))
@@ -342,6 +346,7 @@ if [ $time_taken -lt 21600 ]; then
     if [ -f "$file" ]; then
         echo "Processing $file"
         base_name=$(basename $file .interpolant)
+    fi
 fi
 end_time=$(date +%s)
 # echo to json file

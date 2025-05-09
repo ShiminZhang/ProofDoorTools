@@ -32,8 +32,8 @@ empty_interpolant_file_count=$(find ./ProofDoorBenchmark/interpolants/$k_value/ 
 echo "Empty interpolant file count: $empty_interpolant_file_count"
 sleep 10s
 max_jobs=5000
-batch_size=50  # Smaller batch size for more gradual queue filling
-current_index=1400
+batch_size=1441  # Smaller batch size for more gradual queue filling
+current_index=1
 limit=1000
 priority=1
 

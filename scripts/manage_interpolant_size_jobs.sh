@@ -33,8 +33,8 @@ submit_next_batch() {
     
     if [ $start -le $end ]; then
         sbatch --array=${start}-${end} \
-               --mem=30G \
-               --time=4:00:00 \
+               --mem=20G \
+               --time=8:00:00 \
                --output="ProofDoorBenchmark/PDsizeLogs/computePDsize_%A_%a.log" \
                scripts/parallel_compute_interpolant_sizes.sh $k_value
         echo "$(date): Submitted batch $start-$end"
@@ -45,7 +45,7 @@ echo "$(date): Starting job management for k_value=$k_value"
 mkdir -p ./running
 
 # Main loop
-current_index=1
+current_index=1007
 limit=1000  # Maximum number of jobs to run at once
 batch_size=40  # Number of array tasks per batch
 while [ $current_index -le $total_files ]; do

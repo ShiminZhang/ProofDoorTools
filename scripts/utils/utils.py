@@ -190,4 +190,5 @@ def PolynomialRegression(x_dict,y_dict,degree=2):
     print(f"Polynomial coefficients:\n{coefficients}")
     print(f"R² score: {r2:.4f}")
     print(f"Mean Squared Error: {mse:.4f}")
+    print(f"Size of common keys: {len(common_keys)}")
     return polynomial

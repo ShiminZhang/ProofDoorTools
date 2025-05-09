@@ -66,6 +66,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Process interpolants')
     parser.add_argument('--UseCache', action='store_true', help='Use cached data if available')
     parser.add_argument('--UseLogCache', action='store_true', help='Use cached data if available')
+    parser.add_argument('--UseInterpolantCache', action='store_true', help='Use cached data if available')
     parser.add_argument('--UseCNFCache', action='store_true', help='Use cached data if available')
     parser.add_argument('--ProcessLogOnly', action='store_true', help='Use cached data if available')
     parser.add_argument('--ProcessInterpolantOnly', action='store_true', help='Use cached data if available')
@@ -97,10 +98,10 @@ if __name__ == "__main__":
         exit()
         
     # If use_cache is True, try to read the interpolants map from file
-    if use_cache or args.SkipInterpolant and os.path.exists('./ProofSizeMap/data.json'):
+    if use_cache or args.SkipInterpolant or args.UseInterpolantCache and os.path.exists('./ProofSizeMap/data.json'):
         print("Using cached interpolant sizes from file")
         results_map = {}
-        data = json.load(open('./ProofSizeMap/data.json', 'r'))
+        data = json.load(open(f'./ProofSizeMap/data_{K}.json', 'r'))
         for key, value in data.items():
             k_value = key.split('.')[1]
             if k_value != str(K):
@@ -224,6 +225,9 @@ if __name__ == "__main__":
                 # Assuming the first column is the instance name and second is the time
                 instance_name = row.iloc[0]
                 time_value = row.iloc[1]
+                timeout_flag = row.iloc[2]
+                # if timeout_flag:
+                #     time_value /= 2.0
                 PDC_time_dict[instance_name] = time_value
             PDC_time_map = PDC_time_dict
         
@@ -238,7 +242,8 @@ if __name__ == "__main__":
             rewritten_PDC_time_map[new_key] += value
         print(f"PDC time map size: {len(rewritten_PDC_time_map)}")
         print(rewritten_PDC_time_map)
-        ComputeCorrelation(rewritten_cadical_map, rewritten_PDC_time_map,NameLeft="Solving Time",NameRight="PDC Time")
+        ComputeCorrelation(rewritten_PDC_time_map, rewritten_cadical_map, NameRight="PDC Time", NameLeft="Solving Time")
+        exit()
     
     if args.CheckInterpolantCNFSizeCorrelation:
         print("-" * 100)
@@ -336,7 +341,7 @@ if __name__ == "__main__":
     print(f"Rewritten cadical map: {len(rewritten_cadical_map)}")
     # print(rewritten_cadical_map)
     print(f"Rewritten interpolants map: {len(proof_door_size_map)}")
-    # print(proof_door_size_map)
+    print(proof_door_size_map)
     ComputeCorrelation(rewritten_cadical_map, proof_door_size_map)
     print(f"Par2 score: {cadical_par2}")
     

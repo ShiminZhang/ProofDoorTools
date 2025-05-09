@@ -7,7 +7,7 @@ def combine_json_files():
     # Path to the data directory
     data_dir = f"./ProofSizeMap/data/{k}"
     # Output file path
-    output_file = "./ProofSizeMap/data.json"
+    output_file = f"./ProofSizeMap/data_{k}.json"
     
     # Dictionary to store all combined data
     combined_data = {}

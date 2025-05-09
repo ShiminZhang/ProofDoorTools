@@ -126,7 +126,8 @@ def count_by_z3(smt2_content,smt_path=None):
     # Write the CNF result to a file
     with open(cnf_path, "w") as cnf_file:
         for subgoal in cnf_result:
-            cnf_file.write(str(subgoal) + "\n")
+            for clause in subgoal:
+                cnf_file.write(str(clause) + "\n")
     
     # Count the number of lines in the CNF file
     with open(cnf_path, "r") as cnf_file:
