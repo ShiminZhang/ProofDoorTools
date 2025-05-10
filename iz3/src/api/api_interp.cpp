@@ -57,6 +57,9 @@ typedef interpolation_options_struct *Z3_interpolation_options;
 
 extern "C" {
 
+// Forward declaration for proof saving function
+void Z3_save_proof_to_file(Z3_context ctx, Z3_ast proof, const char* filename);
+
     Z3_context Z3_mk_interpolation_context(Z3_config cfg){
         if (!cfg) cfg = Z3_mk_config();
         Z3_set_param_value(cfg, "PROOF", "true");
@@ -78,6 +81,10 @@ extern "C" {
                               int num_theory,
                               Z3_ast *theory)
     {
+
+        // Save the proof to a file for demonstration
+        std::cout << "Saving proof to file..." << std::endl;
+        Z3_save_proof_to_file(ctx, proof, "saved_proof.smt2");
 
         if (num > 1){ // if we have interpolants to compute
 
@@ -243,6 +250,7 @@ extern "C" {
         Z3_TRY;
         LOG_Z3_compute_interpolant(c, pat, p, out_interp, model);
         RESET_ERROR_CODE();
+        std::cout << "Z3_compute_interpolant" << std::endl;
 
 
         // params_ref &_p = to_params(p)->m_params;
@@ -326,6 +334,17 @@ extern "C" {
         Z3_CATCH_RETURN(Z3_L_UNDEF);
     }
 
+    // Save a proof AST to a file in SMT-LIB format
+    void Z3_save_proof_to_file(Z3_context ctx, Z3_ast proof, const char* filename) {
+        // Convert the proof AST to SMT-LIB string
+        const char* proof_str = Z3_ast_to_string(ctx, proof);
+        // Write to file
+        std::ofstream f(filename);
+        if (f.is_open()) {
+            f << proof_str;
+            f.close();
+        }
+    }
 
 };
 
