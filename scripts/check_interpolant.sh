@@ -246,7 +246,7 @@ fi
 
 instance_index=$(($array_index / $k_value))
 instance_partition_index=$(($array_index % $k_value))
-echo $array_index matched to $instance_index $instance_partition_index
+echo $array_index matched to $instance_index $instance_partition_index at target category $target_category
 echo $smt_path
 echo $interpolant_path
 echo $target_category

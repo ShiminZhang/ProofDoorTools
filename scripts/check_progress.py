@@ -386,7 +386,7 @@ def check_progress(k, instance_type):
             interpolant_file = os.path.join(instance_dir, f"{instance}.{k}.{partition}.interpolant")
             # print(interpolant_file)
             if os.path.exists(interpolant_file):
-                print(f"Found {interpolant_file}")
+                #print(f"Found {interpolant_file}")
                 found_instances += 1
     print(f"Found {found_instances} interpolant files out of {total_instances} for {instance_type} instances")
 
@@ -394,7 +394,7 @@ def check_progress(k, instance_type):
 if __name__ == "__main__":
     # separate_cnf_files(20)
     k=int(argv[1])
-    # check_progress(k, "linear")
+    check_progress(k, "linear")
     check_progress(k, "polynomial")
-    # check_progress(k, "exponential")
+    check_progress(k, "exponential")
     

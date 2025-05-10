@@ -33,7 +33,7 @@ echo "Empty interpolant file count: $empty_interpolant_file_count"
 sleep 10s
 max_jobs=5000
 batch_size=40  # Smaller batch size for more gradual queue filling
-current_index=1501
+current_index=1
 limit=1000
 priority=1
 
@@ -47,6 +47,7 @@ get_queue_size() {
 submit_next_batch() {
     local start=$1
     local size=$2
+    local category=$3
     local end=$((start + size - 1))
     
     # Ensure we don't exceed max_jobs
@@ -55,7 +56,7 @@ submit_next_batch() {
     fi
     
     if [ $start -le $end ]; then
-        job_id=$(./scripts/submit_interpolant_jobs.sh $k_value $start $end $formula_category $testmode)
+        job_id=$(./scripts/submit_interpolant_jobs.sh $k_value $start $end $category $testmode)
         echo "$(date): Submitted batch $start-$end with job ID $job_id"
     fi
 }
@@ -75,7 +76,7 @@ while [ $current_index -le $max_jobs ]; do
     
     if [ $available_slots -ge $batch_size ]; then
         # We have room for at least one batch
-        submit_next_batch $current_index $batch_size
+        submit_next_batch $current_index $batch_size $formula_category
         current_index=$((current_index + batch_size))
         echo "$(date): Next index: $current_index"
     else
