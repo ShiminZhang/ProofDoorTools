@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --time=0-16:0:00
+#SBATCH --time=0-12:0:00
 #SBATCH --account=def-vganesh
 #SBATCH --mem=4g
 #SBATCH -o managing.log
@@ -32,8 +32,8 @@ empty_interpolant_file_count=$(find ./ProofDoorBenchmark/interpolants/$k_value/ 
 echo "Empty interpolant file count: $empty_interpolant_file_count"
 sleep 10s
 max_jobs=5000
-batch_size=1441  # Smaller batch size for more gradual queue filling
-current_index=1
+batch_size=40  # Smaller batch size for more gradual queue filling
+current_index=1501
 limit=1000
 priority=1
 

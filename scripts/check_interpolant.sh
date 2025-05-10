@@ -238,7 +238,6 @@ target_category=$3
 # Extract k_value from the path
 # Assuming the path format includes a directory named with the k_value (e.g., .../40/...)
 k_value=$(echo "$smt_path" | grep -o '[0-9]\+' | tail -n 1)
-
 # If k_value couldn't be extracted, set a default or exit with error
 if [ -z "$k_value" ]; then
     echo "Error: Could not extract k_value from path. Please ensure the path contains a numeric directory."
@@ -247,6 +246,7 @@ fi
 
 instance_index=$(($array_index / $k_value))
 instance_partition_index=$(($array_index % $k_value))
+echo $array_index matched to $instance_index $instance_partition_index
 echo $smt_path
 echo $interpolant_path
 echo $target_category
@@ -328,6 +328,7 @@ fi
 # Generate interpolant and record time used
 start_time=$(date +%s)
 interpolant_file="$interpolant_path/$instance_name.interpolant"
+echo $interpolant_file
 if [ ! -f "$interpolant_file" ] || [ ! -s "$interpolant_file" ]; then
     echo "Interpolant file $interpolant_file does not exist. Generating..."
     ./z3 "$smt_file" > "$interpolant_file"
