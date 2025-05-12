@@ -20,13 +20,18 @@ then
     exit 1
 fi
 
-
+extra_args=""
+if ["$build" = "cadical"]
+then
+    extra_args="--restart=false"
+fi
+echo extra_args: $extra_args
 filename=$(basename $3)
 LOG_FILE="./$path.$suffix.log"
 test -f $LOG_FILE && rm $LOG_FILE
 # exec > "$LOG_FILE" 2>&1
 test -f $build && echo $build $suffix $path
-time $build $path > $LOG_FILE
+time $build $path $extra_args > $LOG_FILE
 # $build $i
 echo $suffix $LOG_FILE "${@:4}"
 echo run $build $suffix $filename "${@:4}"
