@@ -363,6 +363,7 @@ if [ $time_taken -lt 21600 ]; then
         base_name=$(basename $file .interpolant)
         smt_file="${smt_path}/${base_name}.smt2"
         source ../general/bin/activate
+        python ./scripts/separate_profile_from_interpolant.py $file
         python3 ./scripts/count_interpolant_byz3.py $file --smt $smt_file --save --timeout -1
         deactivate
     fi

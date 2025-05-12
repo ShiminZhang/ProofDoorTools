@@ -23,20 +23,20 @@ fi
 k_value=$1
 formula_category=$2
 mkdir -p ./ProofDoorBenchmark/interpolants/${k_value}/
-if [ $testmode = false ]; then
-    file_count=$(ls ./ProofDoorBenchmark/smts/$k_value/ | wc -l)
-    echo "File count: $file_count"
-    empty_file_count=$(find ./ProofDoorBenchmark/smts/$k_value/ -type f -empty | wc -l)
-    echo "Empty SMT2 count: $empty_file_count"
-    interpolants_file_count=$(ls ./ProofDoorBenchmark/interpolants/$k_value/ | wc -l)
-    echo "Interpolant file count: $interpolants_file_count"
-    empty_interpolant_file_count=$(find ./ProofDoorBenchmark/interpolants/$k_value/ -type f -empty | wc -l)
-    echo "Empty interpolant file count: $empty_interpolant_file_count"
-    sleep 10s
-fi
+# if [ $testmode = false ]; then
+#     # file_count=$(ls ./ProofDoorBenchmark/smts/$k_value/ | wc -l)
+#     # echo "File count: $file_count"
+#     # empty_file_count=$(find ./ProofDoorBenchmark/smts/$k_value/ -type f -empty | wc -l)
+#     # echo "Empty SMT2 count: $empty_file_count"
+#     # interpolants_file_count=$(ls ./ProofDoorBenchmark/interpolants/$k_value/ | wc -l)
+#     # echo "Interpolant file count: $interpolants_file_count"
+#     # empty_interpolant_file_count=$(find ./ProofDoorBenchmark/interpolants/$k_value/ -type f -empty | wc -l)
+#     # echo "Empty interpolant file count: $empty_interpolant_file_count"
+#     # sleep 10s
+# fi
 max_jobs=5000
 batch_size=40  # Smaller batch size for more gradual queue filling
-current_index=1601
+current_index=61
 limit=1000
 priority=1
 

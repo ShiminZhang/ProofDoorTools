@@ -21,27 +21,31 @@
 
 import os
 import sys
+from tqdm import tqdm
 import re
 
 def parse_cnf_list(input_file):
     """Parse a CNF list from a file or string."""
     print("Parsing CNF list from file:", input_file)
-    if os.path.isfile(input_file):
-        with open(input_file, 'r') as f:
-            content = f.read()
-    else:
-        content = input_file
+    # if os.path.isfile(input_file):
+    #     with open(input_file, 'r') as f:
+    #         content = f.read()
+    # else:
+    #     content = input_file
     
-    # Extract the list content
-    match = re.search(r'\[(.*?)\]', content, re.DOTALL)
-    if not match:
-        raise ValueError("No valid CNF list found in the input")
+    # # Extract the list content
+    # match = re.search(r'\[(.*?)\]', content, re.DOTALL)
+    # if not match:
+    #     # it could be saved with out list
+    #     cnf_text = content
     
-    cnf_text = match.group(1)
+    # cnf_text = match.group(1)
     
-    # Parse the list items
+    # # Parse the list items
     clauses = []
-    for line in cnf_text.split(','):
+    with open(input_file, 'r') as f:
+        lines = f.readlines()
+    for line in lines:
         line = line.strip()
         if not line:
             continue
@@ -111,9 +115,9 @@ def write_dimacs_file(input_file, output_file=None):
     return output_file
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Usage: python SMTCNFtoDIMACS.py <input_file> [output_file]")
-        sys.exit(1)
+    # if len(sys.argv) < 2:
+    #     print("Usage: python SMTCNFtoDIMACS.py <input_file> [output_file]")
+    #     sys.exit(1)
     # Process directory of CNF files with K value
     if len(sys.argv) >= 3 and os.path.isdir(sys.argv[1]):
         k_value = int(sys.argv[2])
@@ -121,7 +125,7 @@ if __name__ == "__main__":
         
         # Group files by basename
         file_groups = {}
-        for filename in os.listdir(directory):
+        for filename in tqdm(os.listdir(directory)):
             if filename.endswith('.cnf'):
                 # Extract basename from filename.K.j.smt2.cnf format
                 parts = filename.split('.')
@@ -133,25 +137,31 @@ if __name__ == "__main__":
         
         dimacs_files = []
         # Process each group of files
-        for basename, files in file_groups.items():
+        for basename, files in tqdm(file_groups.items()):
+            output_dir = f"ProofDoorBenchmark/combined_cnfs/"
+            os.makedirs(output_dir, exist_ok=True)
+            output_file = f"{output_dir}/{basename}.{k_value}.dimacs"
+            if os.path.exists(output_file):
+                print(f"Skipping group {basename} as {output_file} already exists")
+                continue
             # Sort files by j value to ensure correct order
             files.sort(key=lambda f: int(f.split('.')[-3]))
             
             # Check if all files in the group have less than 200 lines
             valid_group = True
-            for file_path in files:
-                with open(file_path, 'r') as f:
-                    line_count = sum(1 for _ in f)
-                    if line_count >= 200:
-                        valid_group = False
-                        print(f"Skipping group {basename} as {file_path} has {line_count} lines (>= 200)")
-                        break
+            # for file_path in files:
+            #     with open(file_path, 'r') as f:
+            #         line_count = sum(1 for _ in f)
+                    # if line_count >= 200:
+                    #     valid_group = False
+                    #     print(f"Skipping group {basename} as {file_path} has {line_count} lines (>= 200)")
+                    #     break
             
             if not valid_group:
                 continue
             
-            print(f"Processing group {basename} with files:")
-            print(files)
+            # print(f"Processing group {basename} with files:")
+            # print(files)
             # Combine all clauses from files with the same basename
             all_clauses = []
             for file_path in files:
@@ -162,7 +172,6 @@ if __name__ == "__main__":
             header, var_mapping, dimacs_clauses = convert_to_dimacs(all_clauses)
             
             # Write combined DIMACS file
-            output_file = f"ProofDoorBenchmark/interpolant_as_cnfs/dimacs/{basename}.{k_value}.dimacs"
             dimacs_files.append(output_file)
             with open(output_file, 'w') as f:
                 f.write(header + "\n")
@@ -172,6 +181,7 @@ if __name__ == "__main__":
                     f.write(clause + "\n")
             
             print(f"Combined {len(files)} files for {basename} into {output_file}")
+        
         for file in dimacs_files:
             basename = os.path.basename(file)
             basename = basename.split('.')[0]
@@ -179,7 +189,7 @@ if __name__ == "__main__":
             original_cnf = f"{original_cnf_path}{basename}.{k_value}.cnf"
             # Combine original CNF with DIMACS output
             if os.path.exists(original_cnf):
-                combined_output = f"./ProofDoorBenchmark/interpolant_as_cnfs/dimacs/{basename}.{k_value}.combined.cnf"
+                combined_output = f"{output_dir}/{basename}.{k_value}.combined.cnf"
                 
                 # Read the DIMACS file content and remove comments
                 dimacs_clauses = []

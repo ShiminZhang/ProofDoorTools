@@ -42,15 +42,15 @@ def read_interpolant_and_get_smt_lib_format(file_path,definitions):
     return interpolant
 
 def check_equivalence(interpolant_cnf, interpolant_smt, original_smt):
-    print("checking equivalence of :")
-    print(f"interpolant cnf: {interpolant_cnf}")
-    print(f"interpolant smt: {interpolant_smt}")
-    print(f"original smt: {original_smt}")
+    # print("checking equivalence of :")
+    # print(f"interpolant cnf: {interpolant_cnf}")
+    # print(f"interpolant smt: {interpolant_smt}")
+    # print(f"original smt: {original_smt}")
     smt_content = to_pure_smt2(original_smt)
     # save the interpolant smt content to a file
     base_name = os.path.basename(original_smt)
     k_value = base_name.split(".")[1]
-    print(f"k value: {k_value}")
+    # print(f"k value: {k_value}")
     path = os.path.dirname("ProofDoorBenchmark/sanity_smts/")
     os.makedirs(path, exist_ok=True)
     
@@ -58,8 +58,6 @@ def check_equivalence(interpolant_cnf, interpolant_smt, original_smt):
     if not os.path.exists(pure_smt_file):
         with open(pure_smt_file, "w") as f:
             f.write(smt_content)
-    else:
-        print(f"file {pure_smt_file} already exists")
 
     _,_,definitions = read_smt2_file(pure_smt_file)
     # print("reading definitions done")
@@ -84,25 +82,28 @@ def check_equivalence(interpolant_cnf, interpolant_smt, original_smt):
         return False
 
 def check_equivalence_by_basename(basename,K):
-    for k in range(K):
-        if not os.path.exists(f"ProofDoorBenchmark/interpolant_as_cnfs/{basename}.{K}.{k}.smt2.cnf"):
-            print(f"file {basename}.{K}.{k}.smt2.cnf does not exist")
-            continue
-        if not os.path.exists(f"ProofDoorBenchmark/interpolants/{K}/{basename}.{K}.{k}.interpolant"):
-            print(f"file {basename}.{K}.{k}.interpolant does not exist")
-            continue
-        if not os.path.exists(f"ProofDoorBenchmark/smts/{K}/{basename}.{K}.{k}.smt2"):
-            print(f"file {basename}.{K}.{k}.smt2 does not exist")
-            continue
-        
-        if check_equivalence(
-            f"ProofDoorBenchmark/interpolant_as_cnfs/{basename}.{K}.{k}.smt2.cnf",
-            f"ProofDoorBenchmark/interpolants/{K}/{basename}.{K}.{k}.interpolant",
-            f"ProofDoorBenchmark/smts/{K}/{basename}.{K}.{k}.smt2"
-        ):
-            print(f"The interpolants are equivalent for {basename}.{K}.{k}")
-        else:
-            print(f"The interpolants are not equivalent for {basename}.{K}.{k}")
+    output_log="SanityCheck.log"
+    with open(output_log, "a") as f:
+        f.write(f"Checking {basename} with K={K}\n")
+        for k in range(K):
+            if not os.path.exists(f"ProofDoorBenchmark/interpolant_as_cnfs/{basename}.{K}.{k}.smt2.cnf"):
+                f.write(f"  file {basename}.{K}.{k}.smt2.cnf does not exist")
+                continue
+            if not os.path.exists(f"ProofDoorBenchmark/interpolants/{K}/{basename}.{K}.{k}.interpolant"):
+                f.write(f"  file {basename}.{K}.{k}.interpolant does not exist")
+                continue
+            if not os.path.exists(f"ProofDoorBenchmark/smts/{K}/{basename}.{K}.{k}.smt2"):
+                f.write(f"  file {basename}.{K}.{k}.smt2 does not exist")
+                continue
+            
+            if check_equivalence(
+                f"ProofDoorBenchmark/interpolant_as_cnfs/{basename}.{K}.{k}.smt2.cnf",
+                f"ProofDoorBenchmark/interpolants/{K}/{basename}.{K}.{k}.interpolant",
+                f"ProofDoorBenchmark/smts/{K}/{basename}.{K}.{k}.smt2"
+            ):
+                f.write(f"The interpolants are equivalent for {basename}.{K}.{k}\n")
+            else:
+                f.write(f"The interpolants are not equivalent for {basename}.{K}.{k}\n")
 
 def main():
     category_list = get_instance_list("linear")
