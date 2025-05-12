@@ -33,7 +33,7 @@ fi
 
 # Continue with SLURM submission if not in test mode
 
-jobid=$(sbatch --array=$start_index-$end_index%1000 --priority 0 -o ./Outputs/compute_interpolant_%A_%a.out ./scripts/check_interpolant.sh ${scratch_benchmark_path}/smts/$k_value/ ${scratch_benchmark_path}/interpolants/$k_value/ | awk '{print $4}')
+jobid=$(sbatch --array=$start_index-$end_index%1000 --priority 0 -o ./Outputs/compute_interpolant_%A_%a.out ./scripts/check_interpolant.sh ${scratch_benchmark_path}/smts/$k_value/ ${scratch_benchmark_path}/interpolants/$k_value/ $formula_category | awk '{print $4}')
 echo "Submitted array job $start_index-$end_index with ID: $jobid" >> ./running/runningjobs.log
 echo "Submitted array job $start_index-$end_index with ID: $jobid"
 echo $jobid 
