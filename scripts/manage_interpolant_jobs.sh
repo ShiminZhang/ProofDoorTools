@@ -36,7 +36,7 @@ if [ $testmode = false ]; then
 fi
 max_jobs=5000
 batch_size=40  # Smaller batch size for more gradual queue filling
-current_index=1
+current_index=1601
 limit=1000
 priority=1
 

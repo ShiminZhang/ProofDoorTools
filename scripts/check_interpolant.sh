@@ -260,26 +260,26 @@ if [ ! -z "$target_category" ] && [ "$target_category" != "all" ]; then
     # Get the instance name based on the category and array index
     case "$target_category" in
         "linear")
-            if [ $array_index -le ${#linear_instances[@]} ]; then
-                instance_basename="${linear_instances[$array_index-1]}"
+            if [ $instance_index -le ${#linear_instances[@]} ]; then
+                instance_basename="${linear_instances[$instance_index-1]}"
             else
-                echo "Array index $array_index exceeds the number of linear instances"
+                echo "instance_index $instance_index exceeds the number of linear instances"
                 exit 0
             fi
             ;;
         "polynomial")
-            if [ $array_index -le ${#polynomial_instances[@]} ]; then
-                instance_basename="${polynomial_instances[$array_index-1]}"
+            if [ $instance_index -le ${#polynomial_instances[@]} ]; then
+                instance_basename="${polynomial_instances[$instance_index-1]}"
             else
-                echo "Array index $array_index exceeds the number of polynomial instances"
+                echo "instance_index $instance_index exceeds the number of polynomial instances"
                 exit 0
             fi
             ;;
         "exponential")
-            if [ $array_index -le ${#exponential_instances[@]} ]; then
-                instance_basename="${exponential_instances[$array_index-1]}"
+            if [ $instance_index -le ${#exponential_instances[@]} ]; then
+                instance_basename="${exponential_instances[$instance_index-1]}"
             else
-                echo "Array index $array_index exceeds the number of exponential instances"
+                echo "instance_index $instance_index exceeds the number of exponential instances"
                 exit 0
             fi
             ;;
