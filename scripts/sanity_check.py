@@ -1,7 +1,7 @@
 # import z3
 from utils.utils import read_smt2_file, read_interpolant, to_pure_smt2
 from z3 import *
-from utils.catagory import get_category_list
+from utils.catagory import get_instance_list
 import os
 
 def read_interpolant_cnf(file_path,definitions):
@@ -105,7 +105,7 @@ def check_equivalence_by_basename(basename,K):
             print(f"The interpolants are not equivalent for {basename}.{K}.{k}")
 
 def main():
-    category_list = get_category_list("linear")
+    category_list = get_instance_list("linear")
     for category in category_list:
         check_equivalence_by_basename(category,60)
     # check_equivalence_by_basename("139442p0",60)
