@@ -7,7 +7,7 @@ from collections import defaultdict
 from scipy.stats import pearsonr
 from sklearn.metrics import r2_score, mean_squared_error
 import numpy as np
-
+from z3 import *
 def RewriteMap(InMap):
     OutMap = {}
     for key, value in InMap.items():
@@ -191,4 +191,85 @@ def PolynomialRegression(x_dict,y_dict,degree=2):
     print(f"R² score: {r2:.4f}")
     print(f"Mean Squared Error: {mse:.4f}")
     print(f"Size of common keys: {len(common_keys)}")
-    return polynomial
+    return 
+    
+
+def read_smt2_file(filename):
+    # Parse SMT2 file
+    solver = Solver()
+    formulas = parse_smt2_file(filename)
+    # The parse_smt2_file function doesn't directly return declarations
+    # We need to parse the file separately to get declarations
+    
+    # Read the file content
+    with open(filename, 'r') as file:
+        content = file.read()
+    
+    # Extract declarations using string parsing
+    declarations = []
+    for line in content.split('\n'):
+        if line.startswith('(declare-const'):
+            # Extract variable name from declaration
+            declarations.append(line)
+    
+    print(f"Found {len(declarations)} variable declarations")
+    asserts = []
+    print(f"Found {len(formulas)} formulas")
+    for f in formulas:
+        if is_and(f):
+            asserts.append(f)
+    assert1 = asserts[0]
+    assert2 = asserts[1]
+
+    # if len(asserts) != 2:
+    #     print("Error: SMT2 file must contain exactly 2 asserts")
+    #     sys.exit(1)
+        
+    return assert1, assert2, declarations
+
+def read_interpolant(filename, definitions):
+    # Skip first line of interpolant file
+    with open(filename) as f:
+        next(f)  # Skip first line
+        interpolant_str = f.read()
+    # Check if the interpolant string starts with "(interpolants" and replace it with "(assert"
+    if interpolant_str.startswith("(interpolants"):
+        interpolant_str = "(assert" + interpolant_str[13:]
+    # print(interpolant_str[0:-2])
+    # Remove the last ")" from the interpolant string
+    # if interpolant_str.endswith(")"):
+    # interpolant_str = interpolant_str[:-2]
+    # print(interpolant_str)
+    # Parse as SMT2 formula    
+    input = ""
+    for d in definitions:
+        input += d + "\n"
+    input += interpolant_str
+    # print(input)
+    # print(parse_smt2_string(input))
+    formula = parse_smt2_string(input)[0]
+    return formula
+
+def to_pure_smt2(smt_file_path):
+    # read the smt file
+    with open(smt_file_path, 'r') as file:
+        lines = file.readlines()
+        content = ""
+        start_removed = False
+        ignore_first_and_flag = False
+        for line in lines:
+            if "(compute-interpolant" in line and not start_removed:
+                # Replace compute-interpolant with assert
+                content += line.replace("(compute-interpolant", "(assert")
+                start_removed = True
+                continue
+            if "(and" in line:
+                if ignore_first_and_flag:
+                    content += line.replace("(and", ")\n (assert \n (and")
+                    continue
+                else:
+                    ignore_first_and_flag = True
+                    content += line
+            else:
+                content += line
+    return content
