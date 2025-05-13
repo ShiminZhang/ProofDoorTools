@@ -1,5 +1,5 @@
 #!/bin/bash                                                    
-#SBATCH --time=0-24:0:00                                                      
+#SBATCH --time=0-3:00:00                                                      
 #SBATCH --account=def-vganesh   
 #SBATCH --mem=20g         
 
@@ -331,7 +331,7 @@ interpolant_file="$interpolant_path/$instance_name.interpolant"
 echo $interpolant_file
 if [ ! -f "$interpolant_file" ] || [ ! -s "$interpolant_file" ]; then
     echo "Interpolant file $interpolant_file does not exist. Generating..."
-    ./z3 "$smt_file" > "$interpolant_file"
+    ./z3 -interp.profile=true "$smt_file" > "$interpolant_file"
 else
     echo "Interpolant file $interpolant_file exists. Skipping generation."
     exit 0
@@ -354,7 +354,7 @@ end_time=$(date +%s)
 echo "{\"instance_name\": \"$instance_name\", \"time_taken\": $time_taken}" > "./ProofDoorBenchmark/data/PDComputationTime/${instance_basename}.${k_value}.${instance_partition_index}.json"
 
 # Check if time taken is less than 6 hours (21600 seconds)
-if [ $time_taken -lt 21600 ]; then
+if [ $time_taken -lt 9000 ]; then
 
     file="$interpolant_path/$instance_name.interpolant"
 

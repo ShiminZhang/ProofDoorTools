@@ -105,7 +105,13 @@ def count_by_z3(smt2_content,smt_path=None):
     # Parse SMT2 content into a Z3 goal
     ctx = Context()
     solver = Solver(ctx=ctx)
-    
+    cnf_path = f"ProofDoorBenchmark/interpolant_as_cnfs/{basename}.cnf"
+    if os.path.exists(cnf_path) and os.path.getsize(cnf_path) > 0:
+        with open(cnf_path, "r") as cnf_file:
+            cnf_lines = cnf_file.readlines()
+            cnf_clause_count = len(cnf_lines)
+            return cnf_clause_count
+        
     try:
         parsed = parse_smt2_string(smt2_content, ctx=ctx)
         solver.add(parsed)
@@ -122,7 +128,6 @@ def count_by_z3(smt2_content,smt_path=None):
     cnf_tactic = Tactic('tseitin-cnf', ctx=ctx)
     cnf_result = cnf_tactic(goal)
     basename = os.path.basename(smt_path)
-    cnf_path = f"ProofDoorBenchmark/interpolant_as_cnfs/{basename}.cnf"
     # Write the CNF result to a file
     with open(cnf_path, "w") as cnf_file:
         for subgoal in cnf_result:
