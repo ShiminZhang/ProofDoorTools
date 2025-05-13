@@ -331,7 +331,7 @@ interpolant_file="$interpolant_path/$instance_name.interpolant"
 echo $interpolant_file
 if [ ! -f "$interpolant_file" ] || [ ! -s "$interpolant_file" ]; then
     echo "Interpolant file $interpolant_file does not exist. Generating..."
-    ./z3 -interp.profile=true "$smt_file" > "$interpolant_file"
+    ./z3 interp.profile=true "$smt_file" > "$interpolant_file"
 else
     echo "Interpolant file $interpolant_file exists. Skipping generation."
     exit 0

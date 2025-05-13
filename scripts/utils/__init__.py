@@ -110,3 +110,24 @@ def get_exponential_instances():
     """
     from .catagory import get_exponential_instances as get_impl
     return get_impl()   
+
+def get_ProofSizeMap_dir(k_value):
+    """
+    Retrieves the directory for ProofSizeMap.
+    """
+    from .paths import get_PDS_dir as get_impl
+    return get_impl(k_value)
+
+def get_interpolant_dir(k_value):
+    """
+    Retrieves the directory for interpolant.
+    """
+    from .paths import get_interpolant_dir as get_impl
+    return get_impl(k_value)
+
+def get_PDS_dir(k_value):
+    """
+    Retrieves the directory for PDS.
+    """
+    from .paths import get_PDS_dir as get_impl
+    return get_impl(k_value)

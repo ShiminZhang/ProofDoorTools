@@ -4,6 +4,7 @@ import re
 from copy import deepcopy
 from z3 import *
 from z3 import Context
+from utils.paths import get_PDS_dir
 import signal
 import subprocess
 import argparse
@@ -165,6 +166,17 @@ def count_lines_byz3(file_path,smt_path=None, timeout=300):
     if smt_content is None:
         return -1,msg
     return count_by_z3(smt_content,smt_path),"UNSAT"
+
+def count_and_save(file_path,smt_path=None):
+    size, msg = count_lines_byz3(file_path, smt_path, 300)
+    basename = os.path.basename(file_path)
+    k_value = os.path.basename(file_path).split(".")[1]
+    dir = get_PDS_dir(k_value)
+    print(f"Saving to {dir}/{basename}.json")
+    with open(f"{dir}/{basename}.json", "w") as f:
+        json.dump({f"{basename}": (size,msg)}, f)
+    print(size)
+    return size,msg
 
 def main():
     parser = argparse.ArgumentParser(description='Count interpolant lines using Z3')
