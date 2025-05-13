@@ -4,12 +4,14 @@ import re
 from copy import deepcopy
 from z3 import *
 from z3 import Context
+import time
 from utils.paths import get_PDS_dir
 import signal
 import subprocess
 import argparse
 import json
 import os
+from tqdm import tqdm
 
 
 def tokenize(s):
@@ -157,7 +159,19 @@ def count_lines_byz3(file_path,smt_path=None, timeout=300):
     if timeout > 0:
         signal.signal(signal.SIGALRM, timeout_handler)
         signal.alarm(timeout)
+    # Set up keyboard interrupt handler to stop converting when Ctrl+C is pressed
+    # (We use Ctrl+C as a proxy for Ctrl+Shift+X since direct detection is not possible)
+    original_sigint_handler = signal.getsignal(signal.SIGINT)
+    
+    def sigint_handler(signum, frame):
+        raise TimeoutError("User interrupted")
+    
+    # Set our custom interrupt handler
+    signal.signal(signal.SIGINT, sigint_handler)
     try:
+        # Print timestamp before starting the counting process
+        current_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+        print(f"[{current_time}] Starting to count lines for {file_path}")
         with open(file_path, 'r') as f:
             content = f.read()
         smt_content,msg = convert_to_smt(content,smt_path)

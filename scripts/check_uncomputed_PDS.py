@@ -2,6 +2,7 @@ import os
 import sys
 import shutil
 from tqdm import tqdm
+import json
 from utils.paths import get_interpolant_dir, get_PDS_data_dir, get_PDS_dir, get_smts_dir
 from count_interpolant_byz3 import count_by_z3, count_and_save
 
@@ -43,21 +44,61 @@ def check_uncomputed_PDS(k_value,memory_limit=-1):
     json_files = os.listdir(PDS_dir)
     interpolant_dir = get_interpolant_dir(k_value)
     interpolant_files = os.listdir(interpolant_dir)
+    print(len(interpolant_files))
+    print(len(json_files))
     smts_dir = get_smts_dir(k_value)
+    basename_ignore=[]
+    uncomputed_files=[]
     for file in tqdm(sorted(interpolant_files)):
         if file.endswith(".interpolant"):
+            basename = file.split(".")[0]
+            # json_file = file.replace(".interpolant", ".json")
+            json_file = f"{file}.json"
+            json_file_path = os.path.join(PDS_dir, json_file)
+            if os.path.exists(json_file_path):
+                continue
+            if json_file in json_files and os.path.getsize(json_file_path) > 0:
+                with open(json_file_path, "r") as f:
+                    data = json.load(f)
+                    if data[file][0] < 0:
+                        print(f"not skipping {file} because of error")
+                    else:
+                        print(f"Skipping {file} because it is already computed")
+                        continue
+            uncomputed_files.append(file)
+            
+    for file in tqdm(sorted(uncomputed_files)):
+        if file.endswith(".interpolant"):
+            basename = file.split(".")[0]
+            if basename in basename_ignore:
+                print(f"Skipping {file} because it is in basename_ignore")
+                continue
+            # json_file = file.replace(".interpolant", ".json")
+            json_file = f"{file}.json"
+            
+            if os.path.exists(os.path.join(PDS_dir, json_file)):
+                continue
             # Skip empty interpolant files
             if os.path.getsize(os.path.join(interpolant_dir, file)) == 0:
                 continue
             if memory_limit != -1:
                 if os.path.getsize(os.path.join(interpolant_dir, file)) > memory_limit:
                     continue
-            json_file = file.replace(".interpolant", ".json")
             if json_file not in json_files:
+                print(f"Counting {file}")
                 count,msg = count_and_save(
                     os.path.join(interpolant_dir, file),
                     os.path.join(smts_dir, file.replace(".interpolant", ".smt2")))
-
+                if count < 0:
+                    print(f"Error counting {file}")
+                    basename_ignore.append(basename)
+    # for file in tqdm(sorted(json_files)):
+    #     basename = file.split(".")[0]
+    #     if basename in basename_ignore:
+    #         continue
+    #     if file.endswith(".json"):
+    #         if os.path.getsize(os.path.join(PDS_dir, file)) == 0:
+    #             continue
 def main():
     k_value = sys.argv[1]
     memory_limit = parse_memory_limit(sys.argv[2])
