@@ -2,10 +2,12 @@
 #SBATCH --time=0-0:0:5000                                                      
 #SBATCH --account=def-vganesh 
 #SBATCH --mem=20G
-sleep 2h
-rm ./ProofDoorBenchmark/smts/10/*.smt2
-mv ./ProofDoorBenchmark/cnfs/10/*.smt2 ./ProofDoorBenchmark/smts/10/
-sbatch ./manage_interpolant_jobs.sh 10
+sleep 10m
+source ../generall/bin/activate
+python check_uncomputed_PDS.py 60 6g
+# rm ./ProofDoorBenchmark/smts/10/*.smt2
+# mv ./ProofDoorBenchmark/cnfs/10/*.smt2 ./ProofDoorBenchmark/smts/10/
+# sbatch ./manage_interpolant_jobs.sh 10
 # sbatch scripts/manage_interpolant_jobs.sh 10 linear
 # mv ./ProofDoorBenchmark/cnfs/40/ ./ProofDoorBenchmark/smts/40/
 # ./scripts/start_experiment.sh 40
