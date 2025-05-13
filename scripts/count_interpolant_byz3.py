@@ -106,6 +106,7 @@ def count_by_z3(smt2_content,smt_path=None):
     # Parse SMT2 content into a Z3 goal
     ctx = Context()
     solver = Solver(ctx=ctx)
+    basename = os.path.basename(smt_path)
     cnf_path = f"ProofDoorBenchmark/interpolant_as_cnfs/{basename}.cnf"
     if os.path.exists(cnf_path) and os.path.getsize(cnf_path) > 0:
         with open(cnf_path, "r") as cnf_file:
