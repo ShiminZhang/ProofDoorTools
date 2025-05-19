@@ -1,12 +1,18 @@
 import unittest
 from unittest.mock import patch, MagicMock
-from absorption_analysis import (
+import sys
+import os
+
+# Add the scripts directory to the Python path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from scripts.absorption_analysis import (
     check_clause_absorption,
     compute_wire,
     compute_wire_for_formula,
     construct_clause
 )
-from utils.process_cnf import CNF
+from scripts.utils.process_cnf import CNF
 
 class TestAbsorptionAnalysis(unittest.TestCase):
     def setUp(self):

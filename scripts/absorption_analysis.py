@@ -1,5 +1,6 @@
 from utils.process_cnf import CNF
 import subprocess
+from tqdm import tqdm
 from multiprocessing import Pool, cpu_count
 
 def check_single_literal(args):
@@ -30,19 +31,23 @@ def check_clause_absorption(clause, formula: CNF):
 def compute_wire_for_formula(formula: CNF,K):
     A = formula.get_A(K)
     B = formula.get_B(K)
+    # print(A.dump_stats())
+    # print(B.dump_stats())
+    # print("--------------------------------")
     return compute_wire(A,B)
 
 def compute_wire(A,B):
     # A and B are two cnf formulas 
     shared_literals =set([l for l in B.literal_set if l in A.literal_set])
+    shared_literals = sorted(list(shared_literals))
     return shared_literals
 
-def construct_clause(literals):
+def construct_all_possible_clauses(literals):
     clauses = []
     n = len(literals)
     
     # Generate all possible combinations of literals
-    for i in range(1, 2**n):
+    for i in tqdm(range(1, 2**n)):
         # Convert number to binary and pad with zeros
         binary = format(i, f'0{n}b')
         
@@ -52,4 +57,12 @@ def construct_clause(literals):
     return clauses
 
 def main():
+    formula = CNF.from_file("./test/6s4.4.cnf")
+    wires= compute_wire_for_formula(formula,2)
+    all_possible_clauses = construct_all_possible_clauses(wires)
+    for clause in all_possible_clauses:
+        print(clause)
     pass
+
+if __name__ == "__main__":
+    main()

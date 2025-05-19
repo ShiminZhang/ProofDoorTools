@@ -8,28 +8,35 @@ from utils.catagory import get_instance_list
 # from typing import List, Set, Dict, Optional
 
 class CNF:
-    def __init__(self,cnf_path):
+    def __init__(self,cnf_path=None):
         self.cnf_path = cnf_path
         self.clauses = []
         self.N = None
         self.L = None
         self.iter_map = {}
         self.literal_set = set()
-        self.parse_cnf()
-        
+        self.K = -1
+        if cnf_path is not None:
+            self.parse_cnf()
+    
+    @classmethod
+    def from_file(cls, cnf_path):
+        return cls(cnf_path)
     
     def parse_cnf(self):
         with open(self.cnf_path, 'r') as file:
             line_count = 0
-            iter_count = 0
+            self.iter_map[0] = 0
+            iter_count = 1
             for line in file:
                 if line.startswith('p cnf'):
-                    _, _, N , _ = line.split()
+                    _, _, L , N = line.split()
                     self.N = int(N)
                     self.L = int(L)
                 elif line.startswith('c'):
                     if line.startswith('c iter'):
                         self.iter_map[iter_count] = line_count
+                        iter_count += 1
                     continue
                 elif line.startswith('v'):
                     continue
@@ -39,9 +46,20 @@ class CNF:
                     if literals:  # Only add non-empty clauses
                         self.clauses.append(literals)
                         line_count += 1
+            self.K = iter_count
+            self.dump_stats()
             assert self.N is not None and self.L is not None
             assert len(self.clauses) == self.N
             self.parse_literals()
+            assert len(self.literal_set) == self.L
+
+    def dump_stats(self):
+        print(f"N: {self.N}, L: {self.L}")
+        print(f"Number of clauses: {len(self.clauses)}")
+        print(f"Number of literals: {len(self.literal_set)}")
+        print(f"Number of unique literals: {len(self.literal_set)}")
+        print(f"Number of clauses: {len(self.clauses)}")
+        print(self.iter_map)
 
     def append_clause(self, clause):
         if not isinstance(clause, list):
