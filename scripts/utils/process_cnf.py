@@ -5,6 +5,97 @@ import argparse
 import numpy as np
 # from catagory import get_instance_list
 from utils.catagory import get_instance_list
+# from typing import List, Set, Dict, Optional
+
+class CNF:
+    def __init__(self,cnf_path):
+        self.cnf_path = cnf_path
+        self.clauses = []
+        self.N = None
+        self.L = None
+        self.iter_map = {}
+        self.literal_set = set()
+        self.parse_cnf()
+        
+    
+    def parse_cnf(self):
+        with open(self.cnf_path, 'r') as file:
+            line_count = 0
+            iter_count = 0
+            for line in file:
+                if line.startswith('p cnf'):
+                    _, _, N , _ = line.split()
+                    self.N = int(N)
+                    self.L = int(L)
+                elif line.startswith('c'):
+                    if line.startswith('c iter'):
+                        self.iter_map[iter_count] = line_count
+                    continue
+                elif line.startswith('v'):
+                    continue
+                else:
+                    # Split the line into literals and remove the trailing 0
+                    literals = [int(x) for x in line.strip().split()[:-1]]
+                    if literals:  # Only add non-empty clauses
+                        self.clauses.append(literals)
+                        line_count += 1
+            assert self.N is not None and self.L is not None
+            assert len(self.clauses) == self.N
+            self.parse_literals()
+
+    def append_clause(self, clause):
+        if not isinstance(clause, list):
+            raise TypeError("Clause must be a list of integers")
+        if not all(isinstance(x, int) for x in clause):
+            raise TypeError("All elements in clause must be integers")
+        if not clause:
+            raise ValueError("Clause cannot be empty")
+        self.clauses.insert(0,clause)
+        self.N += 1
+        self.L = max(self.L, max(abs(literal) for literal in clause))
+        self.parse_literals()
+    
+    def parse_literals(self):
+        assert self.clauses is not None
+        for clause in self.clauses:
+            for literal in clause:
+                self.literal_set.add(abs(literal))
+    
+    def get_clauses(self):
+        return self.clauses
+    
+    def get_N(self):
+        return self.N
+    
+    def get_L(self):
+        return self.L
+    
+    def get_clause_at(self, index):
+        return self.clauses[index]
+    
+    def get_iter_map(self):
+        return self.iter_map
+    
+    def init_with_clauses(self,clauses):
+        self.clauses = clauses
+        self.N = len(clauses)
+        self.L = max(max(abs(literal) for literal in clause) for clause in clauses)
+        self.iter_map = {}
+        self.parse_literals()
+    
+    def get_A(self, K):
+        clauses = self.clauses[0:self.iter_map[K]]
+        A = CNF()
+        A.init_with_clauses(clauses)
+        return A
+    
+    def get_B(self, K):
+        clauses = self.clauses[self.iter_map[K]:]
+        B = CNF()
+        B.init_with_clauses(clauses)
+        return B
+    
+    
 
 def compute_cnf_size_for_category(category,K,use_cache=False):
     instance_list = get_instance_list(category)
