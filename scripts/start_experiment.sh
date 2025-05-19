@@ -422,7 +422,7 @@ for (( i=0; i<linear_instances_l; i++ )); do
         build=./solvers/${solvers[$j]}
         suffix=${suffixs[$j]}
         
-        jobid=$(sbatch --priority 0 -o ./solve_log_dir/output_%A_%a.out ./scripts/submit_solver.sh $build ${suffix} $dest_path | awk '{print $4}')
+        jobid=$(sbatch --priority 0 -o ./$solve_log_dir/output_%A_%a.out ./scripts/submit_solver.sh $build ${suffix} $dest_path | awk '{print $4}')
         echo "Submitted job with ID: $jobid" ${suffix} $dest_path $build >> ./running/runningjobs.log
         echo "Submitted job with ID: $jobid" ${suffix} $dest_path $build
     done
@@ -449,7 +449,7 @@ for (( i=0; i<polynomial_instances_l; i++ )); do
         build=./solvers/${solvers[$j]}
         suffix=${suffixs[$j]}
         
-        jobid=$(sbatch --priority 0 -o ./solve_log_dir/output_%A_%a.out ./scripts/submit_solver.sh $build ${suffix} $dest_path | awk '{print $4}')
+        jobid=$(sbatch --priority 0 -o ./$solve_log_dir/output_%A_%a.out ./scripts/submit_solver.sh $build ${suffix} $dest_path | awk '{print $4}')
         echo "Submitted job with ID: $jobid" ${suffix} $dest_path $build >> ./running/runningjobs.log
         echo "Submitted job with ID: $jobid" ${suffix} $dest_path $build
     done
@@ -476,7 +476,7 @@ for (( i=0; i<exponential_instances_l; i++ )); do
         build=./solvers/${solvers[$j]}
         suffix=${suffixs[$j]}
         
-        jobid=$(sbatch --priority 0 -o ./solve_log_dir/output_%A_%a.out ./scripts/submit_solver.sh $build ${suffix} $dest_path | awk '{print $4}')
+        jobid=$(sbatch --priority 0 -o ./$solve_log_dir/output_%A_%a.out ./scripts/submit_solver.sh $build ${suffix} $dest_path | awk '{print $4}')
         echo "Submitted job with ID: $jobid" ${suffix} $dest_path $build >> ./running/runningjobs.log
         echo "Submitted job with ID: $jobid" ${suffix} $dest_path $build
     done
