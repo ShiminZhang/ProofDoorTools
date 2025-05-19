@@ -3,8 +3,8 @@
 gen() {
     filename=$(basename $1)
     
-    sbatch --mem=32g -t 03:00:00 --wrap "../simplecar -bmc -k $2 -cnf ./cnfs/${2}/ $1"
-    # ../simplecar -bmc -k $2 -cnf ./cnfs/${2}/ $1
+    # sbatch --mem=32g -t 03:00:00 --wrap "../simplecar -bmc -k $2 -cnf ./cnfs/${2}/ $1"
+    ../simplecar -bmc -k $2 -cnf ./cnfs/${2}/ $1
 }
 
 cd ./ProofDoorBenchmark/
