@@ -1,4 +1,5 @@
 #include "internal.hpp"
+#include <iostream>
 
 namespace CaDiCaL {
 
@@ -289,6 +290,8 @@ bool Internal::propagate () {
         else {
           build_chain_for_units (w.blit, w.clause, 0);
           search_assign (w.blit, w.clause);
+          std::cout << "PDLOG: propagate to " << w.blit << std::endl; 
+          exit(0);
           // lrat_chain.clear (); done in search_assign
         }
 
@@ -387,6 +390,8 @@ bool Internal::propagate () {
             // assigned to false (still 'v < 0'), thus we found a unit.
             //
             build_chain_for_units (other, w.clause, 0);
+            std::cout << "PDLOG: propagate to " << other << std::endl; 
+            exit(0);
             search_assign (other, w.clause);
             // lrat_chain.clear (); done in search_assign
 

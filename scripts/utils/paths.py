@@ -1,3 +1,5 @@
+import os
+
 def get_interpolant_dir(k_value):
     return f"./ProofDoorBenchmark/interpolants/{k_value}/"
 
@@ -9,3 +11,15 @@ def get_PDS_dir(k_value):
 
 def get_smts_dir(k_value):
     return f"./ProofDoorBenchmark/smts/{k_value}/"
+
+def get_wires_dir(k_value):
+    if not os.path.exists("./ProofDoorBenchmark/wires/"):
+        os.makedirs("./ProofDoorBenchmark/wires/")
+    if not os.path.exists(f"./ProofDoorBenchmark/wires/{k_value}/"):
+        os.makedirs(f"./ProofDoorBenchmark/wires/{k_value}/")
+    return f"./ProofDoorBenchmark/wires/{k_value}/"
+
+def get_absorption_experiments_dir():
+    if not os.path.exists("./ProofDoorBenchmark/absorption_experiments/"):
+        os.makedirs("./ProofDoorBenchmark/absorption_experiments/")
+    return f"./ProofDoorBenchmark/absorption_experiments/"

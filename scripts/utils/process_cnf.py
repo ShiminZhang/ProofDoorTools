@@ -4,7 +4,7 @@ from tqdm import tqdm
 import argparse
 import numpy as np
 # from catagory import get_instance_list
-from utils.catagory import get_instance_list
+from catagory import get_instance_list
 # from typing import List, Set, Dict, Optional
 
 class CNF:
@@ -46,12 +46,12 @@ class CNF:
                     if literals:  # Only add non-empty clauses
                         self.clauses.append(literals)
                         line_count += 1
-            self.K = iter_count
-            self.dump_stats()
+            self.K = iter_count - 1
             assert self.N is not None and self.L is not None
             assert len(self.clauses) == self.N
             self.parse_literals()
-            assert len(self.literal_set) == self.L
+            # self.dump_stats()
+            # assert len(self.literal_set) == self.L
 
     def dump_stats(self):
         print(f"N: {self.N}, L: {self.L}")
@@ -72,12 +72,13 @@ class CNF:
         self.N += 1
         self.L = max(self.L, max(abs(literal) for literal in clause))
         self.parse_literals()
+        return self
     
     def parse_literals(self):
         assert self.clauses is not None
         for clause in self.clauses:
             for literal in clause:
-                self.literal_set.add(abs(literal))
+                self.literal_set.add(literal)
     
     def get_clauses(self):
         return self.clauses
@@ -101,19 +102,27 @@ class CNF:
         self.iter_map = {}
         self.parse_literals()
     
-    def get_A(self, K):
-        clauses = self.clauses[0:self.iter_map[K]]
+    def get_A(self, i):
+        clauses = self.clauses[0:self.iter_map[i]]
         A = CNF()
         A.init_with_clauses(clauses)
         return A
     
-    def get_B(self, K):
-        clauses = self.clauses[self.iter_map[K]:]
+    def get_B(self, i):
+        clauses = self.clauses[self.iter_map[i]:]
         B = CNF()
         B.init_with_clauses(clauses)
         return B
     
-    
+    def to_dimacs(self, file_path):
+        """Write the CNF formula to a file in DIMACS format."""
+        with open(file_path, 'w') as f:
+            # Write header
+            f.write(f"p cnf {self.L} {self.N}\n")
+            # Write clauses
+            for clause in self.clauses:
+                f.write(" ".join(str(lit) for lit in clause) + " 0\n")
+        return file_path
 
 def compute_cnf_size_for_category(category,K,use_cache=False):
     instance_list = get_instance_list(category)

@@ -1,4 +1,5 @@
 #include "internal.hpp"
+#include <iostream>
 
 namespace CaDiCaL {
 
@@ -286,6 +287,8 @@ int Internal::cdcl_loop_with_inprocessing () {
       else
         analyze ();
     } else if (satisfied ()) { // found model
+      std::cout << "PDLOG: propagated to " << propagated << " Then satisfied" << std::endl;
+      exit(0);
       if (!external_check_solution () || unsat) {
         if (unsat)
           continue;
@@ -854,13 +857,15 @@ int Internal::solve (bool preprocess_only) {
     if (!preprocess_only)
       init_search_limits ();
   }
-  if (!res && !level)
-    res = preprocess ();
+  // propagate();
+  // exit(0);
+  // if (!res && !level)
+  //   res = preprocess ();
   if (!preprocess_only) {
-    if (!res && !level)
-      res = local_search ();
-    if (!res && !level)
-      res = lucky_phases ();
+    // if (!res && !level)
+    //   res = local_search ();
+    // if (!res && !level)
+    //   res = lucky_phases ();
     if (!res || (res == 10 && external_prop)) {
       if (res == 10 && external_prop && level)
         backtrack ();

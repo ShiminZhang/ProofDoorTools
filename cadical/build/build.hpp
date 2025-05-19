@@ -1,0 +1,6 @@
+#define VERSION "2.1.3"
+#define IDENTIFIER "c2c788cc0d2c49fe7e904f0dc1603c00ddcea309"
+#define SHORTID "c2c788c"
+#define COMPILER "g++ (Ubuntu 13.3.0-6ubuntu2~24.04) 13.3.0"
+#define FLAGS "-Wall -Wextra -O3 -DNDEBUG -DQUIET"
+#define DATE "Mon May 19 22:36:05 CST 2025 Linux PalGoose 5.15.167.4-microsoft-standard-WSL2 x86_64"
