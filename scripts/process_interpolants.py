@@ -81,8 +81,10 @@ if __name__ == "__main__":
     parser.add_argument('--CheckInterpolantCNFSizeCorrelation', action='store_true', help='Check Interpolant CNF size correlation')
     parser.add_argument('--CheckPDCSolvingTimeCorrelation', action='store_true', help='Check PDC solving time correlation')
     parser.add_argument('--CheckFormulaSizeNCorrelation', action='store_true', help='Check formula size N correlation')
+    parser.add_argument('--CompareNoRestartWithRestart', action='store_true', help='Compare no restart with restart')
     parser.add_argument('--FitPolynomialRegressionOnFormulaSize', type=int, default=-1, help='Fit polynomial regression on formula size')
     parser.add_argument('--FitPolynomialRegressionOnPDSize', type=int, default=-1, help='Fit polynomial regression on PD size')
+    
     # Parse arguments
     args = parser.parse_args()
     use_cache = args.UseCache 
@@ -228,6 +230,32 @@ if __name__ == "__main__":
     # Preparations done ------------------------------------------------------------
 
     # analysis ---------------------------------------------------------------------
+    if args.CompareNoRestartWithRestart:
+        print("-" * 100)
+        print(f"Comparing no restart with restart for K={K}")
+        no_restart_data,no_restart_map,no_restart_par2,no_restart_mem = GetData(f"./ProofDoorBenchmark/{formula_category}/{K}/", solver, args.UseLogCache or use_cache)
+        rewritten_no_restart_map = {}
+        for key, value in no_restart_map.items():
+            rewritten_key = key.split('.')[0]
+            rewritten_no_restart_map[rewritten_key] = value
+        common_keys = [key for key in rewritten_no_restart_map if key in rewritten_cadical_map]
+        for key in common_keys:
+            print(f"{key} {rewritten_no_restart_map[key]} {rewritten_cadical_map[key]}")
+        no_restart_sizes = [rewritten_no_restart_map[key] for key in common_keys]   
+        cadical_sizes = [rewritten_cadical_map[key] for key in common_keys]
+        solved_no_restart_instances = [key for key in common_keys if rewritten_no_restart_map[key] < 50]
+        solved_cadical_instances = [key for key in common_keys if rewritten_cadical_map[key] < 50]
+        average_no_restart_par2= sum(no_restart_sizes) / len(no_restart_sizes)
+        average_cadical_par2 = sum(cadical_sizes) / len(cadical_sizes)
+        print(f"Average no restart par2: {average_no_restart_par2}")
+        print(f"Average cadical par2: {average_cadical_par2}")
+        print(f"Solved no restart instances: {len(solved_no_restart_instances)}")
+        print(f"Solved cadical instances: {len(solved_cadical_instances)}")
+        print(f"Rewritten no restart map: {len(rewritten_no_restart_map)}")
+        print(rewritten_no_restart_map)
+        exit()
+    
+    
     if args.CheckFormulaSizeNCorrelation:
         # TODO do a regression analysis
         print("-" * 100)

@@ -21,9 +21,10 @@ then
 fi
 
 extra_args=""
-if ["$build" = "cadical"]
+if ["$suffix" = "cadinorestart"]
 then
     extra_args="--restart=false"
+    echo "extra_args: $extra_args"
 fi
 echo extra_args: $extra_args
 filename=$(basename $3)

@@ -243,15 +243,15 @@ get_k_value() {
 
 
 solvers=(
+    # "cadical"
     "cadical"
-    "cadical"
-    "mininorestart"
+    # "mininorestart"
     )
 
 suffixs=(
-    "cadical"
+    # "cadical"
     "cadinorestart"
-    "mininorestart"
+    # "mininorestart"
 )
 
 # benchmark=(
