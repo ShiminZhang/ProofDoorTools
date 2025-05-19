@@ -369,10 +369,11 @@ import sys
 # Define the three directories for different instance types
 LINEAR_DIR = "ProofDoorBenchmark/combined/linear/"
 EXPONENTIAL_DIR = "ProofDoorBenchmark/combined/exponential/"
+POLYNOMIAL_DIR = "ProofDoorBenchmark/combined/polynomial/"
 UNKNOWN_DIR = "ProofDoorBenchmark/combined/unknown/"
 
 # Create directories if they don't exist
-for directory in [LINEAR_DIR, EXPONENTIAL_DIR, UNKNOWN_DIR]:
+for directory in [LINEAR_DIR, EXPONENTIAL_DIR, POLYNOMIAL_DIR, UNKNOWN_DIR]:
     os.makedirs(directory, exist_ok=True)
 
 def get_basename(filename):
@@ -383,7 +384,7 @@ def get_basename(filename):
 
 def separate_files():
     """Separate combined CNF files into appropriate directories based on their basenames."""
-    combined_dir = "ProofDoorBenchmark/combined/"
+    combined_dir = "ProofDoorBenchmark/combined_cnfs/"
     
     # Check if the combined directory exists
     if not os.path.exists(combined_dir):
@@ -396,7 +397,7 @@ def separate_files():
     
     # Process each file in the combined directory
     for filename in os.listdir(combined_dir):
-        if filename.endswith('.cnf'):
+        if filename.endswith('.cnf') or filename.endswith('.log'):
             basename = get_basename(filename)
             source_path = os.path.join(combined_dir, filename)
             

@@ -21,6 +21,7 @@
 
 import os
 import sys
+from utils.categories import get_category
 from tqdm import tqdm
 import re
 
@@ -119,18 +120,28 @@ if __name__ == "__main__":
     #     print("Usage: python SMTCNFtoDIMACS.py <input_file> [output_file]")
     #     sys.exit(1)
     # Process directory of CNF files with K value
+    only_category = "exponential"
     if len(sys.argv) >= 3 and os.path.isdir(sys.argv[1]):
         k_value = int(sys.argv[2])
         directory = sys.argv[1]
         
         # Group files by basename
         file_groups = {}
+        count = 0
+        limit = 20
         for filename in tqdm(os.listdir(directory)):
             if filename.endswith('.cnf'):
                 # Extract basename from filename.K.j.smt2.cnf format
                 parts = filename.split('.')
                 if len(parts) >= 4 and parts[1].isdigit() and int(parts[1]) == k_value:
                     basename = parts[0]
+                    if get_category(basename) != only_category:
+                        continue
+                    else:
+                        count += 1
+                        if count > limit:
+                            break
+
                     if basename not in file_groups:
                         file_groups[basename] = []
                     file_groups[basename].append(os.path.join(directory, filename))

@@ -147,6 +147,55 @@ if __name__ == "__main__":
             rewritten_key = key.split('.')[0]
             if rewritten_key in rewritten_cadical_map:
                 print(f"{key} {combined_map[key]} {rewritten_cadical_map[rewritten_key]}")
+        # Calculate average solving times for both combined and original instances
+        combined_times = list(combined_map.values())
+        original_times = list(rewritten_cadical_map.values())
+        
+        if combined_times:
+            combined_avg = sum(combined_times) / len(combined_times)
+            print(f"Average solving time for combined instances: {combined_avg:.4f}s")
+        else:
+            print("No combined instances to calculate average time")
+            
+        if original_times:
+            original_avg = sum(original_times) / len(original_times)
+            print(f"Average solving time for original instances: {original_avg:.4f}s")
+        else:
+            print("No original instances to calculate average time")
+        
+        # Calculate average times for common instances only
+        common_combined_times = []
+        common_original_times = []
+        for key in combined_map:
+            rewritten_key = key.split('.')[0]
+            if rewritten_key in rewritten_cadical_map:
+                common_combined_times.append(combined_map[key])
+                common_original_times.append(rewritten_cadical_map[rewritten_key])
+        
+        if common_combined_times:
+            common_combined_avg = sum(common_combined_times) / len(common_combined_times)
+            common_original_avg = sum(common_original_times) / len(common_original_times)
+            print(f"Average solving time for common instances - Combined: {common_combined_avg:.4f}s, Original: {common_original_avg:.4f}s")
+            print(f"Number of common instances: {len(common_combined_times)}")
+        else:
+            print("No common instances found to calculate average times")
+        # Calculate the average ratio between combined and original solving times
+        ratios = []
+        for key in combined_map:
+            rewritten_key = key.split('.')[0]
+            if rewritten_key in rewritten_cadical_map:
+                combined_time = combined_map[key]
+                original_time = rewritten_cadical_map[rewritten_key]
+                if original_time > 0:  # Avoid division by zero
+                    ratio = combined_time / original_time
+                    ratios.append(ratio)
+        
+        if ratios:
+            average_ratio = sum(ratios) / len(ratios)
+            print(f"Average ratio (combined/original): {average_ratio:.4f}")
+            print(f"Number of instances compared: {len(ratios)}")
+        else:
+            print("No valid instances to compare ratios")
         exit()
     # Rewrite results_map (interpolants map) with keys' first part before "."
     proof_door_size_map = {}
