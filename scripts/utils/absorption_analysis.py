@@ -1,5 +1,5 @@
-from process_cnf import CNF
-from paths import get_absorption_experiments_dir, get_wires_dir
+from utils.process_cnf import CNF
+from utils.paths import get_absorption_experiments_dir, get_wires_dir
 import subprocess
 from tqdm import tqdm
 from multiprocessing import Pool, cpu_count
@@ -74,6 +74,7 @@ def construct_all_possible_clauses(literals):
     return clauses
 
 def compute_wire_and_save(formula: CNF,K=-1):
+    print(f"compute_wire_and_save: {formula.cnf_path}")
     if K == -1:
         K = formula.K
     if K <= 0:

@@ -1,6 +1,7 @@
 import os
 from count_interpolant_lines import count_lines
 from count_interpolant_byz3 import count_lines_byz3
+import matplotlib.pyplot as plt
 import glob
 import json         
 import re
@@ -14,7 +15,7 @@ from utils.utils import GetData
 from collections import defaultdict
 from utils.utils import ComputeCorrelation,RewriteMap,PolynomialRegression
 from utils.process_cnf import compute_N_map
-
+from utils.draw import init_plot,draw_scaling_plot_line,finish_plot
 
 def process_interpolants(k_path,to_cnf=False):
     interpolants_dir = f"ProofDoorBenchmark/interpolants/{k_path}"
@@ -142,55 +143,56 @@ if __name__ == "__main__":
         rewritten_cadical_map[new_key] = value
     
     if args.CompareCombinedInstances:
-        combined_data,combined_map,combined_par2,combined_mem = GetData(f"./ProofDoorBenchmark/combined/{formula_category}/", solver, False)
-        # print(cadical_map)
-        # print(combined_map)
-        for key in combined_map:
-            rewritten_key = key.split('.')[0]
-            if rewritten_key in rewritten_cadical_map:
-                print(f"{key} {combined_map[key]} {rewritten_cadical_map[rewritten_key]}")
-        # Calculate average solving times for both combined and original instances
-        combined_times = list(combined_map.values())
-        original_times = list(rewritten_cadical_map.values())
-        
-        if combined_times:
-            combined_avg = sum(combined_times) / len(combined_times)
-            print(f"Average solving time for combined instances: {combined_avg:.4f}s")
-        else:
-            print("No combined instances to calculate average time")
+        init_plot("Original Formula Solving Time", "Combined Formula Solving Time", "Solving Time Comparison")
+        for solver in ["cadical"]:
+            cadical_data,cadical_map,cadical_par2,cadical_mem = GetData(f"./ProofDoorBenchmark/{formula_category}/{K}/", "cadical", args.UseLogCache or use_cache)
+            rewritten_cadical_map = {}
+            for key, value in cadical_map.items():
+                # Extract the first part of the key before the first "."
+                key_parts = key.split('.')
+                new_key = key_parts[0]
+                rewritten_cadical_map[new_key] = value
+            combined_data,combined_map,combined_par2,combined_mem = GetData(f"./ProofDoorBenchmark/combined_cnfs/", solver, False)
+            # print(cadical_map)
+            # print(combined_map)
+            for key in combined_map:
+                rewritten_key = key.split('.')[0]
+                if rewritten_key in rewritten_cadical_map:
+                    print(f"{key} {combined_map[key]} {rewritten_cadical_map[rewritten_key]}")
+            # Calculate average solving times for both combined and original instances
+            combined_times = list(combined_map.values())
+            original_times = list(rewritten_cadical_map.values())
             
-        if original_times:
-            original_avg = sum(original_times) / len(original_times)
-            print(f"Average solving time for original instances: {original_avg:.4f}s")
-        else:
-            print("No original instances to calculate average time")
-        
-        # Calculate average times for common instances only
-        common_combined_times = []
-        common_original_times = []
-        for key in combined_map:
-            rewritten_key = key.split('.')[0]
-            if rewritten_key in rewritten_cadical_map:
-                common_combined_times.append(combined_map[key])
-                common_original_times.append(rewritten_cadical_map[rewritten_key])
-        
-        if common_combined_times:
-            common_combined_avg = sum(common_combined_times) / len(common_combined_times)
-            common_original_avg = sum(common_original_times) / len(common_original_times)
-            print(f"Average solving time for common instances - Combined: {common_combined_avg:.4f}s, Original: {common_original_avg:.4f}s")
-            print(f"Number of common instances: {len(common_combined_times)}")
-        else:
-            print("No common instances found to calculate average times")
-        # Calculate the average ratio between combined and original solving times
-        ratios = []
-        for key in combined_map:
-            rewritten_key = key.split('.')[0]
-            if rewritten_key in rewritten_cadical_map:
-                combined_time = combined_map[key]
-                original_time = rewritten_cadical_map[rewritten_key]
-                if original_time > 0:  # Avoid division by zero
-                    ratio = combined_time / original_time
-                    ratios.append(ratio)
+            if combined_times:
+                combined_avg = sum(combined_times) / len(combined_times)
+                print(f"Average solving time for combined instances: {combined_avg:.4f}s")
+            else:
+                print("No combined instances to calculate average time")
+                
+            if original_times:
+                original_avg = sum(original_times) / len(original_times)
+                print(f"Average solving time for original instances: {original_avg:.4f}s")
+            else:
+                print("No original instances to calculate average time")
+            
+            # Calculate average times for common instances only
+            common_combined_times = []
+            common_original_times = []
+            for key in combined_map:
+                rewritten_key = key.split('.')[0]
+                if rewritten_key in rewritten_cadical_map:
+                    common_combined_times.append(combined_map[key])
+                    common_original_times.append(rewritten_cadical_map[rewritten_key])
+            
+            draw_scaling_plot_line(rewritten_cadical_map.values(), combined_map.values(), solver)
+            if common_combined_times:
+                common_combined_avg = sum(common_combined_times) / len(common_combined_times)
+                common_original_avg = sum(common_original_times) / len(common_original_times)
+                print(f"Average solving time for common instances - Combined: {common_combined_avg:.4f}s, Original: {common_original_avg:.4f}s")
+                print(f"Number of common instances: {len(common_combined_times)}")
+            else:
+                print("No common instances found to calculate average times")
+        finish_plot("SolvingTimeComparison.png")
         
         if ratios:
             average_ratio = sum(ratios) / len(ratios)
@@ -233,20 +235,32 @@ if __name__ == "__main__":
     if args.CompareNoRestartWithRestart:
         print("-" * 100)
         print(f"Comparing no restart with restart for K={K}")
-        no_restart_data,no_restart_map,no_restart_par2,no_restart_mem = GetData(f"./ProofDoorBenchmark/{formula_category}/{K}/", solver, args.UseLogCache or use_cache)
-        rewritten_no_restart_map = {}
-        for key, value in no_restart_map.items():
-            rewritten_key = key.split('.')[0]
-            rewritten_no_restart_map[rewritten_key] = value
-        common_keys = [key for key in rewritten_no_restart_map if key in rewritten_cadical_map]
-        for key in common_keys:
-            print(f"{key} {rewritten_no_restart_map[key]} {rewritten_cadical_map[key]}")
-        no_restart_sizes = [rewritten_no_restart_map[key] for key in common_keys]   
-        cadical_sizes = [rewritten_cadical_map[key] for key in common_keys]
-        solved_no_restart_instances = [key for key in common_keys if rewritten_no_restart_map[key] < 50]
-        solved_cadical_instances = [key for key in common_keys if rewritten_cadical_map[key] < 50]
-        average_no_restart_par2= sum(no_restart_sizes) / len(no_restart_sizes)
-        average_cadical_par2 = sum(cadical_sizes) / len(cadical_sizes)
+        init_plot("Solving time with restart", "solving time without restart", "solving time with/without restart")
+        for category in ["linear", "polynomial", "exponential"]:
+            cadical_data,cadical_map,cadical_par2,cadical_mem = GetData(f"./ProofDoorBenchmark/{category}/{K}/", "cadical", args.UseLogCache or use_cache)
+            rewritten_cadical_map = {}
+            for key, value in cadical_map.items():
+                # Extract the first part of the key before the first "."
+                key_parts = key.split('.')
+                new_key = key_parts[0]
+                rewritten_cadical_map[new_key] = value
+            no_restart_data,no_restart_map,no_restart_par2,no_restart_mem = GetData(f"./ProofDoorBenchmark/{category}/{K}/", "cadinorestart", args.UseLogCache or use_cache)
+            rewritten_no_restart_map = {}
+            for key, value in no_restart_map.items():
+                rewritten_key = key.split('.')[0]
+                rewritten_no_restart_map[rewritten_key] = value
+            common_keys = [key for key in rewritten_no_restart_map if key in rewritten_cadical_map]
+            for key in common_keys:
+                print(f"{key} {rewritten_no_restart_map[key]} {rewritten_cadical_map[key]}")
+            no_restart_sizes = [rewritten_no_restart_map[key] for key in common_keys]   
+            cadical_sizes = [rewritten_cadical_map[key] for key in common_keys]
+            solved_no_restart_instances = [key for key in common_keys if rewritten_no_restart_map[key] < 50]
+            solved_cadical_instances = [key for key in common_keys if rewritten_cadical_map[key] < 50]
+            average_no_restart_par2= sum(no_restart_sizes) / len(no_restart_sizes)
+            average_cadical_par2 = sum(cadical_sizes) / len(cadical_sizes)
+        # plt.axis('equal')
+            draw_scaling_plot_line(cadical_sizes, no_restart_sizes, category)
+        finish_plot("test.png")
         print(f"Average no restart par2: {average_no_restart_par2}")
         print(f"Average cadical par2: {average_cadical_par2}")
         print(f"Solved no restart instances: {len(solved_no_restart_instances)}")

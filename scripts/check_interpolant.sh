@@ -1,5 +1,5 @@
 #!/bin/bash                                                    
-#SBATCH --time=0-3:00:00                                                      
+#SBATCH --time=0-12:00:00                                                      
 #SBATCH --account=def-vganesh   
 #SBATCH --mem=20g         
 

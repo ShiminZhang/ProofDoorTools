@@ -1,8 +1,11 @@
 # import z3
-from utils.utils import read_smt2_file, read_interpolant, to_pure_smt2
+from utils.utils import read_smt2_file, read_interpolant, to_pure_smt2, parse_interpolant_cnf_to_dimacs
+from utils.absorption_analysis import CNF
 from z3 import *
 from utils.catagory import get_instance_list
 import os
+import json
+from tqdm import tqdm
 
 def read_interpolant_cnf(file_path,definitions):
     # read as SMT-LIB format, use z3 to parse
@@ -105,10 +108,34 @@ def check_equivalence_by_basename(basename,K):
             else:
                 f.write(f"The interpolants are not equivalent for {basename}.{K}.{k}\n")
 
+def check_interpolant_in_wires(basename,K,j):
+    wire_file = f"ProofDoorBenchmark/wires/{K}/{basename}.{K}.{j+1}.wires.json"
+    if not os.path.exists(wire_file):
+        return False
+    with open(wire_file, "r") as f:
+        data = json.load(f)
+    wires = data["wires"]
+    interpolant_file_cnf = f"ProofDoorBenchmark/interpolant_as_cnfs/{basename}.{K}.{j}.smt2.cnf"
+    dimacs_file = f"ProofDoorBenchmark/interpolant_as_cnfs/{basename}.{K}.{j}.dimacs"
+    # if not os.path.exists(dimacs_file):
+    dimacs = parse_interpolant_cnf_to_dimacs(interpolant_file_cnf,dimacs_file)
+    interpolant_cnf = CNF.from_file(dimacs_file)
+    
+    literals = interpolant_cnf.get_literals()
+    # for wire in tqdm(wires):
+    for literal in tqdm(literals):
+        if abs(literal) not in wires:
+            print(f"wire: {wires}, literal: {literal}")
+            print(f"literals: {literals}")
+            return False
+    print("Wire contains interpolant")
+    return True
+
 def main():
-    category_list = get_instance_list("linear")
-    for category in category_list:
-        check_equivalence_by_basename(category,60)
+    check_interpolant_in_wires("6s159",40,20)
+    # category_list = get_instance_list("linear")
+    # for category in category_list:
+    #     check_equivalence_by_basename(category,60)
     # check_equivalence_by_basename("139442p0",60)
     # check_equivalence(
     #     "ProofDoorBenchmark/interpolant_as_cnfs/139442p0.60.1.smt2.cnf",

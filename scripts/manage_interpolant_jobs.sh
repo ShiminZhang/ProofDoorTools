@@ -36,7 +36,7 @@ mkdir -p ./ProofDoorBenchmark/interpolants/${k_value}/
 # fi
 max_jobs=5000
 batch_size=60  # Smaller batch size for more gradual queue filling
-current_index=2280
+current_index=1
 limit=1000
 priority=1
 

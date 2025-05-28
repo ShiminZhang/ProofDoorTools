@@ -21,11 +21,11 @@ then
 fi
 
 extra_args=""
-if ["$suffix" = "cadinorestart"]
-then
-    extra_args="--restart=false"
-    echo "extra_args: $extra_args"
-fi
+# if ["$suffix" = "cadinorestart"]
+# then
+extra_args="--restart=false"
+echo "extra_args: $extra_args"
+# fi
 echo extra_args: $extra_args
 filename=$(basename $3)
 LOG_FILE="./$path.$suffix.log"

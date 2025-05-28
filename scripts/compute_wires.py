@@ -1,5 +1,5 @@
-from process_cnf import CNF
-from paths import get_wires_dir
+from utils.process_cnf import CNF
+from utils.paths import get_wires_dir
 from utils.absorption_analysis import compute_wire_and_save
 import os
 import json

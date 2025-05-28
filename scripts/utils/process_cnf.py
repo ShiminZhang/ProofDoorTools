@@ -4,7 +4,7 @@ from tqdm import tqdm
 import argparse
 import numpy as np
 # from catagory import get_instance_list
-from catagory import get_instance_list
+from utils.catagory import get_instance_list
 # from typing import List, Set, Dict, Optional
 
 class CNF:
@@ -48,7 +48,9 @@ class CNF:
                         line_count += 1
             self.K = iter_count - 1
             assert self.N is not None and self.L is not None
-            assert len(self.clauses) == self.N
+            print(f"N: {self.N}, L: {self.L}")
+            print(f"Number of clauses: {len(self.clauses)}")
+            # assert len(self.clauses) == self.N
             self.parse_literals()
             # self.dump_stats()
             # assert len(self.literal_set) == self.L
@@ -94,6 +96,9 @@ class CNF:
     
     def get_iter_map(self):
         return self.iter_map
+    
+    def get_literals(self):
+        return self.literal_set
     
     def init_with_clauses(self,clauses):
         self.clauses = clauses

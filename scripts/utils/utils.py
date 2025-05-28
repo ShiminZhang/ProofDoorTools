@@ -16,6 +16,139 @@ def RewriteMap(InMap):
         OutMap[new_key] = value
     return OutMap
 
+def convert_to_dimacs(clauses):
+    """Convert parsed clauses to DIMACS CNF format."""
+    # Create a mapping of variable names to integers
+    var_map = {}
+    var_counter = 1
+    
+    dimacs_clauses = []
+    for clause in clauses:
+        # print(f"clause: {clause}")
+        dimacs_clause = []
+            
+        if clause not in var_map:
+            var_map[clause] = var_counter
+            var_counter += 1
+            
+        for literal in clause.strip().split(" "):
+            is_negated = literal.startswith('Not(')
+            if is_negated:
+                var_name = literal[5:-1]
+            else:
+                var_name = literal[1:]
+            if "!" in var_name:
+                continue
+            
+            if is_negated:
+                dimacs_clause.append(f"-{var_name} ")
+            else:
+                dimacs_clause.append(f"{var_name} ")
+        if len(dimacs_clause) > 0:
+            dimacs_clauses.append("".join(dimacs_clause) + " 0")
+    
+    # Create the DIMACS header
+    header = f"p cnf {len(var_map)} {len(dimacs_clauses)}"
+    
+    # Create a variable mapping comment section
+    var_mapping = [f"c {var_id} = {var_name}" for var_name, var_id in var_map.items()]
+    
+    return header, var_mapping, dimacs_clauses
+def parse_cnf_list(input_file):
+    clauses = []
+    with open(input_file, 'r') as f:
+        lines = f.readlines()
+    reading_line=""
+    for i in range(len(lines)):
+        line = lines[i]
+        line = line.strip()
+        if reading_line:
+            reading_line += f" {line}"
+            if line.endswith(")"):
+                reading_line = reading_line[:-1]
+                reading_line = reading_line.replace("Or(", "")
+                reading_line = reading_line.replace(",", "")
+                reading_line = reading_line.strip()
+                clauses.append(reading_line)
+                # print(f"reading_line: {reading_line}")
+                reading_line = ""
+                continue
+            continue
+        if not line:
+            continue
+        if line.startswith("Or("):
+            if line.endswith(")"):
+                line = line[:-1]
+                line = line.replace("Or(", "")
+                line = line.strip()
+                line = line.replace(",", "")
+                clauses.append(line)
+            elif line.endswith(","):
+                reading_line = line
+            continue
+        
+        if line.startswith('Not('):
+            # Handle negated variables
+            var = line[4:-1].strip()  # Extract variable name from Not(var)
+            clauses.append(f"-{var}")
+        else:
+            # Handle positive variables
+            clauses.append(line)
+    return clauses
+
+def parse_interpolant_cnf_to_dimacs(input_file,output_file=None):
+    """Parse a CNF list from a file or string."""
+    print("Parsing CNF list from file:", input_file)
+    clauses = []
+    with open(input_file, 'r') as f:
+        lines = f.readlines()
+    reading_line=""
+    for i in range(len(lines)):
+        line = lines[i]
+        line = line.strip()
+        if reading_line:
+            reading_line += f" {line}"
+            if line.endswith(")"):
+                reading_line = reading_line[:-1]
+                reading_line = reading_line.replace("Or(", "")
+                reading_line = reading_line.replace(",", "")
+                reading_line = reading_line.strip()
+                clauses.append(reading_line)
+                # print(f"reading_line: {reading_line}")
+                reading_line = ""
+                continue
+            continue
+        if not line:
+            continue
+        if line.startswith("Or("):
+            if line.endswith(")"):
+                line = line[:-1]
+                line = line.replace("Or(", "")
+                line = line.strip()
+                line = line.replace(",", "")
+                clauses.append(line)
+            elif line.endswith(","):
+                reading_line = line
+            continue
+        
+        if line.startswith('Not('):
+            # Handle negated variables
+            var = line[4:-1].strip()  # Extract variable name from Not(var)
+            clauses.append(f"-{var}")
+        else:
+            # Handle positive variables
+            clauses.append(line)
+            
+    header, var_mapping, dimacs_clauses = convert_to_dimacs(clauses)
+    if output_file:
+        with open(output_file, 'w') as f:
+            f.write(header + "\n")
+            for mapping in var_mapping:
+                f.write(mapping + "\n")
+            for clause in dimacs_clauses:
+                f.write(clause + "\n")
+    return header, dimacs_clauses
+
 def ComputeCorrelation(SolvingTimeMap,ProofDoorSizeMap,NameLeft="SolvingTime",NameRight="ProofDoorSize"):
     # Compute the correlation between the proof door size and the solving time
     # Use the Pearson correlation coefficient

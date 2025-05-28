@@ -110,10 +110,14 @@ def count_by_z3(smt2_content,smt_path=None):
     solver = Solver(ctx=ctx)
     basename = os.path.basename(smt_path)
     cnf_path = f"ProofDoorBenchmark/interpolant_as_cnfs/{basename}.cnf"
-    if os.path.exists(cnf_path) and os.path.getsize(cnf_path) > 0:
+    if os.path.exists(cnf_path) and os.path.getsize(cnf_path) > 0 and False:
         with open(cnf_path, "r") as cnf_file:
             cnf_lines = cnf_file.readlines()
-            cnf_clause_count = len(cnf_lines)
+            count = 0
+            for line in cnf_lines:
+                if not line.startswith("  "):
+                    count += 1
+            cnf_clause_count = count
             return cnf_clause_count
         
     try:
@@ -126,17 +130,20 @@ def count_by_z3(smt2_content,smt_path=None):
     # Create a goal and add the assertions
     goal = Goal(ctx=ctx)
     for f in solver.assertions():
+        # print(f)
         goal.add(f)
-    
     # Apply the 'tseitin-cnf' tactic to convert to CNF
     cnf_tactic = Tactic('tseitin-cnf', ctx=ctx)
-    cnf_result = cnf_tactic(goal)
+    cnf_simplify = Tactic('simplify', ctx=ctx)
+    tactics_to_use = Then(cnf_tactic, cnf_simplify)
+    cnf_result = tactics_to_use(goal)
     basename = os.path.basename(smt_path)
     # Write the CNF result to a file
     with open(cnf_path, "w") as cnf_file:
         for subgoal in cnf_result:
             for clause in subgoal:
-                cnf_file.write(str(clause) + "\n")
+                newline = " ".join(line.strip() for line in str(clause).splitlines())
+                cnf_file.write(newline + "\n")
     
     # Count the number of lines in the CNF file
     with open(cnf_path, "r") as cnf_file:
