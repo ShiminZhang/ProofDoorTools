@@ -8,6 +8,7 @@ from scipy.stats import pearsonr
 from sklearn.metrics import r2_score, mean_squared_error
 import numpy as np
 from z3 import *
+
 def RewriteMap(InMap):
     OutMap = {}
     for key, value in InMap.items():
@@ -37,8 +38,11 @@ def convert_to_dimacs(clauses):
                 var_name = literal[5:-1]
             else:
                 var_name = literal[1:]
-            if "!" in var_name:
-                continue
+            # if "aux_" in var_name:
+
+                # var_name = var_name.split("aux_")[1]
+                # after_exclamation = var_name.split("!")[1]
+                # var_name = f"aux_{after_exclamation}"
             
             if is_negated:
                 dimacs_clause.append(f"-{var_name} ")
@@ -46,15 +50,22 @@ def convert_to_dimacs(clauses):
                 dimacs_clause.append(f"{var_name} ")
         if len(dimacs_clause) > 0:
             dimacs_clauses.append("".join(dimacs_clause) + " 0")
-    
+    # after this, we need to replace auxillary variables with new available literals
+    for i in range(len(dimacs_clauses)):
+        clause = dimacs_clauses[i]
+        for literal in clause.strip().split(" "):
+            if "aux_" in literal:
+                var_name = literal.split("aux_")[1]
+                dimacs_clauses[i] = dimacs_clauses[i].replace(literal, f"{var_name}")
+
     # Create the DIMACS header
     header = f"p cnf {len(var_map)} {len(dimacs_clauses)}"
     
     # Create a variable mapping comment section
     var_mapping = [f"c {var_id} = {var_name}" for var_name, var_id in var_map.items()]
-    
     return header, var_mapping, dimacs_clauses
-def parse_cnf_list(input_file):
+
+def parse_cnf_list(input_file, auxilliary_map=None):
     clauses = []
     with open(input_file, 'r') as f:
         lines = f.readlines()
@@ -94,6 +105,21 @@ def parse_cnf_list(input_file):
         else:
             # Handle positive variables
             clauses.append(line)
+    if auxilliary_map is None:
+        print("WARNING: auxilliary variables will not be added to the map")
+    # add auxilliary variables to the map
+    for i in range(len(clauses)):
+        clause = clauses[i]
+        for literal in clause.strip().split(" "):
+            if "!" in literal:
+                var_name = literal.split("!")[1]
+                next_available_auxilliary_var = len(auxilliary_map) + 1
+                if (var_name, input_file) not in auxilliary_map:
+                    auxilliary_map[(var_name, input_file)] = next_available_auxilliary_var
+                else:
+                    next_available_auxilliary_var = auxilliary_map[(var_name, input_file)]
+                clause = clause.replace(literal, f"aux_{next_available_auxilliary_var}")
+        clauses[i] = clause
     return clauses
 
 def parse_interpolant_cnf_to_dimacs(input_file,output_file=None):

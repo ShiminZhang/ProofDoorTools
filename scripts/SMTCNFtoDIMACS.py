@@ -161,14 +161,12 @@ if __name__ == "__main__":
             if not valid_group:
                 continue
             
-            # print(f"Processing group {basename} with files:")
-            # print(files)
             # Combine all clauses from files with the same basename
             all_clauses = []
+            auxilliary_map = {}  # Initialize map once, outside the loop
             for file_path in files:
-                clauses = parse_cnf_list(file_path)
+                clauses = parse_cnf_list(file_path, auxilliary_map)  # Pass the same map to each file
                 all_clauses.extend(clauses)
-            
             # Convert combined clauses to DIMACS
             header, var_mapping, dimacs_clauses = convert_to_dimacs(all_clauses)
             
