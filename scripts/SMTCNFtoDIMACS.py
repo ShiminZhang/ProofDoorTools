@@ -140,6 +140,23 @@ if __name__ == "__main__":
         # Process each group of files
         for basename, files in tqdm(file_groups.items()):
             output_dir = f"ProofDoorBenchmark/combined_cnfs/"
+            original_cnf_path = f"ProofDoorBenchmark/cnfs/{k_value}/"
+            original_cnf = f"{original_cnf_path}{basename}.{k_value}.cnf"
+            original_var_count = 0
+            if os.path.exists(original_cnf):
+                with open(original_cnf, 'r') as f:
+                    lines = f.readlines()
+                for line in lines:
+                    if "p cnf" in line:
+                        parts = line.split()
+                        original_var_count = int(parts[2])
+                        original_clause_count = int(parts[3])
+                        break
+            else:
+                print(f"Original CNF file {original_cnf} not found, skipping combination")
+                exit(0)
+                continue
+            
             os.makedirs(output_dir, exist_ok=True)
             output_file = f"{output_dir}/{basename}.{k_value}.dimacs"
             # if os.path.exists(output_file):
@@ -164,10 +181,12 @@ if __name__ == "__main__":
             # Combine all clauses from files with the same basename
             all_clauses = []
             auxilliary_map = {}  # Initialize map once, outside the loop
+
             for file_path in files:
-                clauses = parse_cnf_list(file_path, auxilliary_map)  # Pass the same map to each file
+                clauses = parse_cnf_list(file_path, auxilliary_map, original_var_count)  # Pass the same map to each file
                 all_clauses.extend(clauses)
             # Convert combined clauses to DIMACS
+            # print (auxilliary_map)
             header, var_mapping, dimacs_clauses = convert_to_dimacs(all_clauses)
             
             # Write combined DIMACS file
