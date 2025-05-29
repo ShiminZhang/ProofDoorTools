@@ -198,6 +198,9 @@ if __name__ == "__main__":
                 dimacs_var_count = 0
                 dimacs_clause_count = 0
                 
+                # TODO: this is not correct. The auxilliary variables are not correctly handled.
+                # currently, the variables are simply deleted, I should add them as extra cnf literals
+                # The best way to do this is a read all formulas and reassign the variables
                 with open(file, 'r') as dimacs_f:
                     for line in dimacs_f:
                         line = line.strip()
