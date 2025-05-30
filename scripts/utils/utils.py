@@ -24,6 +24,7 @@ def convert_to_dimacs(clauses):
     var_counter = 1
     
     dimacs_clauses = []
+    # print(f"clauses: {clauses}")
     for clause in clauses:
         # print(f"clause: {clause}")
         dimacs_clause = []
@@ -59,10 +60,12 @@ def convert_to_dimacs(clauses):
             if "aux_" in literal:
                 var_name = literal.split("aux_")[1]
                 dimacs_clauses[i] = dimacs_clauses[i].replace(literal, f"{var_name}")
+        dimacs_clauses[i] = dimacs_clauses[i].replace("v", "")
     max_literal = 0
     for clause in dimacs_clauses:
         for literal in clause.strip().split(" "):
             if literal and literal != "0":
+                # print(literal)
                 abs_value = abs(int(literal))
                 max_literal = max(max_literal, abs_value)
     # Create the DIMACS header
@@ -79,6 +82,12 @@ def parse_cnf_list(input_file, auxilliary_map=None, original_var_count=0):
     reading_line=""
     for i in range(len(lines)):
         line = lines[i]
+        line = line.replace("(or ", "Or(")
+        line = line.replace("(not ", "Not(")
+        if ".." in line:
+            print(input_file)
+            print(line)
+            break
         line = line.strip()
         if reading_line:
             reading_line += f" {line}"
@@ -441,3 +450,26 @@ def to_pure_smt2(smt_file_path):
             else:
                 content += line
     return content
+                
+def parse_memory_limit(memory_limit_str):
+    """
+    Parse memory limit string to bytes.
+    Examples: '10g' -> 10 * 1024 * 1024 * 1024, '500m' -> 500 * 1024 * 1024
+    Default is 10g if the input is not a valid memory limit.
+    """
+    if memory_limit_str == '-1':
+        return -1
+    
+    try:
+        if memory_limit_str.endswith('g'):
+            return int(memory_limit_str[:-1]) * 1024 * 1024 * 1024
+        elif memory_limit_str.endswith('m'):
+            return int(memory_limit_str[:-1]) * 1024 * 1024
+        elif memory_limit_str.endswith('k'):
+            return int(memory_limit_str[:-1]) * 1024
+        else:
+            # Try to parse as bytes
+            return int(memory_limit_str)
+    except (ValueError, AttributeError):
+        # Default to 10GB if parsing fails
+        return 10 * 1024 * 1024 * 1024

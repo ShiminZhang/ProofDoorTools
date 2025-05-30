@@ -6,6 +6,9 @@ def get_interpolant_dir(k_value):
 def get_PDS_data_dir():
     return f"./ProofSizeMap/data/"
 
+def get_interpolant_cnf_dir():
+    return f"./ProofDoorBenchmark/interpolant_as_cnfs/"
+
 def get_PDS_dir(k_value):
     return f"./ProofSizeMap/data/{k_value}/"
 
