@@ -1,9 +1,11 @@
 #!/bin/bash                                                    
-#SBATCH --time=0-0:0:5000                                                      
+#SBATCH --time=0-8:0:0                                                      
 #SBATCH --account=def-vganesh 
 #SBATCH --mem=20G
 # sleep 10m
-# source ../generall/bin/activate
+source ../general/bin/activate
+python scripts/combine_proofdoor_to_cnf.py 40 40
+sbatch ./scripts/manage_interpolant_jobs.sh 10 linear
 # python check_uncomputed_PDS.py 60 6g
 # ./scripts/start_experiment.sh 60 all
 # sleep 2h

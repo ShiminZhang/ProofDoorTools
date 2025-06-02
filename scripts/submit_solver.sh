@@ -23,7 +23,7 @@ fi
 extra_args=""
 # if ["$suffix" = "cadinorestart"]
 # then
-extra_args="--restart=false"
+# extra_args="--restart=false"
 echo "extra_args: $extra_args"
 # fi
 echo extra_args: $extra_args

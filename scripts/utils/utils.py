@@ -249,6 +249,7 @@ def GetData(folder,name, use_cache = False, bit=None):
     file_counted = 0
     print(f'{file_name} matched {len(log_files)}')
     if len(log_files) == 0 and not use_cache:
+        print(f"No log files found for {name} in {folder}")
         return None,None,None,None
     
     data_for_this_solver = []
