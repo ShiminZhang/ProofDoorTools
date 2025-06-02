@@ -489,7 +489,11 @@ void Solver::uncheckedEnqueue(Lit p, CRef from)
     assigns[var(p)] = lbool(!sign(p));
 
     //  Report absorption
-    printf("PDLOG propagated to %d\n", toInt(p));
+    if (lbool(!sign(p)) == l_True){
+        printf("PDLOG propagated to %d\n", var(p) +1);
+    } else {
+        printf("PDLOG propagated to -%d\n", var(p) +1);
+    }
     vardata[var(p)] = mkVarData(from, decisionLevel());
     trail.push_(p);
 }
@@ -753,8 +757,8 @@ lbool Solver::search(int nof_conflicts)
             // }
 
         }else{
-            printf("PDLOG decision");
-
+            printf("PDLOG decision\n");
+            exit(0);
             // NO CONFLICT
             if ((nof_conflicts >= 0 && conflictC >= nof_conflicts) || !withinBudget()){
                 // Reached bound on number of conflicts:

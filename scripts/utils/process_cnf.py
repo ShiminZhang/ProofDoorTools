@@ -1,5 +1,6 @@
 import os
 import json
+from debug.logging import LOG
 from tqdm import tqdm
 import argparse
 import numpy as np
@@ -48,8 +49,8 @@ class CNF:
                         line_count += 1
             self.K = iter_count - 1
             assert self.N is not None and self.L is not None
-            print(f"N: {self.N}, L: {self.L}")
-            print(f"Number of clauses: {len(self.clauses)}")
+            LOG(f"N: {self.N}, L: {self.L}")
+            LOG(f"Number of clauses: {len(self.clauses)}")
             # assert len(self.clauses) == self.N
             self.parse_literals()
             # self.dump_stats()
