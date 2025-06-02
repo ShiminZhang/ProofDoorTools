@@ -489,6 +489,7 @@ void Solver::uncheckedEnqueue(Lit p, CRef from)
     assigns[var(p)] = lbool(!sign(p));
 
     //  Report absorption
+    printf("PDLOG propagated to %d\n", toInt(p));
     vardata[var(p)] = mkVarData(from, decisionLevel());
     trail.push_(p);
 }
@@ -701,6 +702,8 @@ bool Solver::simplify()
 |    all variables are decision variables, this means that the clause set is satisfiable. 'l_False'
 |    if the clause set is unsatisfiable. 'l_Undef' if the bound on number of conflicts is reached.
 |________________________________________________________________________________________________@*/
+
+
 lbool Solver::search(int nof_conflicts)
 {
     assert(ok);
@@ -714,7 +717,8 @@ lbool Solver::search(int nof_conflicts)
         if (confl != CRef_Undef){
             // CONFLICT
             //  Report absorption
-
+            printf("PDLOG conflict");
+            exit(0);
 
             // conflicts++; conflictC++;
             // if (decisionLevel() == 0) return l_False;
@@ -749,6 +753,8 @@ lbool Solver::search(int nof_conflicts)
             // }
 
         }else{
+            printf("PDLOG decision");
+
             // NO CONFLICT
             if ((nof_conflicts >= 0 && conflictC >= nof_conflicts) || !withinBudget()){
                 // Reached bound on number of conflicts:
