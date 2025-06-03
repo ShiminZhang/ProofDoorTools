@@ -7,7 +7,7 @@ gen() {
 }
 k=$1
 # source ../general/bin/activate
-source /home/s568zhan/projects/def-vganesh/s568zhan/generall/bin/activate
+# source /home/s568zhan/projects/def-vganesh/s568zhan/generall/bin/activate
 cd ./ProofDoorBenchmark/
 rm *.log
 for file in ./cnfs/${k}/*.cnf; do

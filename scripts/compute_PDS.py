@@ -46,15 +46,15 @@ def main():
         print("Usage: python check_uncomputed_PDS.py <k_value> <memory_limit>")
         sys.exit(1)
     relocate_PDS_files(k_value)
-    # uncomputed_files = get_uncomputed_interpolant_files(k_value)
+    uncomputed_files = get_uncomputed_interpolant_files(k_value)
     # all_interpolant_files = get_all_interpolant_files(k_value)
-    subsumed_interpolant_files = get_subsumed_PDS_interpolant_files(k_value)
+    # subsumed_interpolant_files = get_subsumed_PDS_interpolant_files(k_value)
     force_file = ["6s43.40.2.interpolant"]
     # print(len(all_interpolant_files))
-    print(f"len(subsumed_interpolant_files): {len(subsumed_interpolant_files)}")
+    # print(f"len(subsumed_interpolant_files): {len(subsumed_interpolant_files)}")
     # compute_PDS(k_value,all_interpolant_files,memory_limit)
     # compute_PDS(k_value,subsumed_interpolant_files,memory_limit)
-    compute_PDS(k_value,force_file,memory_limit)
+    compute_PDS(k_value,uncomputed_files,memory_limit)
 
 if __name__ == "__main__":
     main()
