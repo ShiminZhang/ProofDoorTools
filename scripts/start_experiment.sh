@@ -251,8 +251,8 @@ solvers=(
 
 suffixs=(
     # "cadical"
-    "cadi_nodel_norestart"
-    # "cadi_nodelete"
+    # "cadi_nodel_norestart"
+    "cadi_nodelete"
     # "mininorestart"
 )
 
