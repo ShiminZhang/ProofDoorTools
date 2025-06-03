@@ -44,6 +44,24 @@ def write_dimacs_file(input_file, output_file=None):
     print(f"Converted {input_file} to DIMACS format in {output_file}")
     return output_file
 
+def group_cnf_files_by_index(directory, k_value,index, force_name=None, ):
+    """Group CNF files by index for a given k value."""
+    file_groups = {}
+    count = 0
+    for filename in tqdm(os.listdir(directory)):
+        if filename.endswith('.cnf'):
+            if force_name is not None and force_name not in filename:
+                continue
+            parts = filename.split('.')
+            if len(parts) >= 4 and parts[1].isdigit() and int(parts[1]) == k_value:
+                basename = parts[0]
+                if int(parts[2]) != index:
+                    continue
+                if basename not in file_groups:
+                    file_groups[basename] = []
+                file_groups[basename].append(os.path.join(directory, filename))
+    return file_groups
+            
 def group_cnf_files_by_basename(directory, k_value, force_name=None, limit=-1):
     """Group CNF files by basename for a given k value."""
     file_groups = {}
@@ -135,7 +153,46 @@ def combine_with_original_cnf(dimacs_file, original_cnf, output_file):
             combined_f.write(clause + "\n")
     print(f"Combined {dimacs_file} and {original_cnf} into {output_file}")
 
-def combine_n_interpolant_to_cnf(directory, k_value, n_value=-1, force_name=None):           
+def combine_single_i_interpolant_to_cnf(directory, k_value, index, force_name=None):             
+        file_groups = group_cnf_files_by_index(directory, k_value, index, force_name)
+        dimacs_files = []
+        for basename, files in tqdm(file_groups.items()):
+            output_dir = f"ProofDoorBenchmark/combined_cnfs/"
+            original_cnf_path = f"ProofDoorBenchmark/cnfs/{k_value}/"
+            original_cnf = f"{original_cnf_path}{basename}.{k_value}.cnf"
+            print(f"original_cnf: {original_cnf}")
+            original_var_count = 0
+            if os.path.exists(original_cnf):
+                with open(original_cnf, 'r') as f:
+                    lines = f.readlines()
+                for line in lines:
+                    if "p cnf" in line:
+                        parts = line.split()
+                        original_var_count = int(parts[2])
+                        break
+            else:
+                print(f"Original CNF file {original_cnf} not found, skipping combination")
+                exit(0)
+                continue
+            os.makedirs(output_dir, exist_ok=True)
+            output_file = f"{output_dir}/{basename}.{k_value}.index_{index}.dimacs"
+            valid_group = True
+            if not valid_group:
+                continue
+            auxilliary_map = {}
+            assert(len(files) == 1)
+            all_clauses = parse_cnf_list(files[0], auxilliary_map, original_var_count)
+            header, var_mapping, dimacs_clauses = convert_to_dimacs(all_clauses)
+            with open(output_file, 'w') as f:
+                f.write(header + "\n")
+                for mapping in var_mapping:
+                    f.write(mapping + "\n")
+                for clause in dimacs_clauses:
+                    f.write(clause + "\n")
+            dimacs_files.append(output_file)
+            print(f"Combined {len(files)} files: ({files})  for {basename} into {output_file}")                 
+                
+def combine_first_n_interpolant_to_cnf(directory, k_value, n_value=-1, force_name=None):           
         if n_value == -1:
             n_value = "all"
         file_groups = group_cnf_files_by_basename(directory, k_value, force_name, n_value)
@@ -183,7 +240,8 @@ def combine_n_interpolant_to_cnf(directory, k_value, n_value=-1, force_name=None
                 combined_output = f"{output_dir}/{basename}.{k_value}.combined.{n_value}.cnf"
                 combine_with_original_cnf(file, original_cnf, combined_output)
             else:
-                print(f"Original CNF file {original_cnf} not found, skipping combination")                                    
+                print(f"Original CNF file {original_cnf} not found, skipping combination")                      
+                              
 def main():
     # only_category = "exponential"
     force_name = None
@@ -193,7 +251,7 @@ def main():
         directory = get_interpolant_cnf_dir()
         limit = int(sys.argv[2] if len(sys.argv) > 2 else -1)
         for n in range(limit):
-            combine_n_interpolant_to_cnf(directory, k_value, n+1, force_name)
+            combine_first_n_interpolant_to_cnf(directory, k_value, n+1, force_name)
         sys.exit(0)
     # input_file = sys.argv[1]
     # output_file = sys.argv[2] if len(sys.argv) > 2 else None

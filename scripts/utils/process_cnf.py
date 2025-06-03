@@ -1,6 +1,6 @@
 import os
 import json
-from debug.logging import LOG
+from debug.logging import LOG, LOG_TAG
 from tqdm import tqdm
 import argparse
 import numpy as np
@@ -102,8 +102,12 @@ class CNF:
         return self.literal_set
     
     def init_with_clauses(self,clauses):
+        LOG_TAG(f"init_with_clauses: {clauses}", "detailed")
         self.clauses = clauses
         self.N = len(clauses)
+        # for clause in clauses:
+        #     print(clause)
+        #     print(max(abs(literal) for literal in clause))
         self.L = max(max(abs(literal) for literal in clause) for clause in clauses)
         self.iter_map = {}
         self.parse_literals()

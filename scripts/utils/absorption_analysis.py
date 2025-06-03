@@ -15,7 +15,7 @@ def check_single_literal(args):
     solver_binary = "./minisat_propagator"
     # Create a copy of the formula
     formula_copy = CNF()
-    formula_copy.init_with_clauses(formula.get_clauses())
+    formula_copy.init_with_clauses(formula)
     for neg_literal in rest_of_clause:
         formula_copy.append_clause([neg_literal])
     # if len(rest_of_clause) > 0:
@@ -69,14 +69,8 @@ def check_single_literal(args):
 def hashing(clause):
     return hash(tuple(clause))
 
-def check_clause_absorption(clause, cnf_path):
-    LOG(f"{clause} {cnf_path}")
-    # Create arguments for parallel processing
-    formula = CNF.from_file(cnf_path)
-    basename = os.path.basename(cnf_path)
-    basename = basename.split(".")[0]
-    hash_value = hashing(clause)
-    args_list = [(literal, [-l for l in clause if l != literal], formula, f"{basename}.check_absorb_{hash_value}_{literal}.cnf") for literal in clause]
+def check_formula_absorp_clause(formula, clause, cachename):
+    args_list = [(literal, [-l for l in clause if l != literal], formula, f"{cachename}_{literal}.cnf") for literal in clause]
     # Use number of CPU cores minus 1 to leave some resources for other processes
     num_processes = max(1, cpu_count() - 1)
     LOG_TAG(f"formed args_list: {args_list}", "detailed")
@@ -85,7 +79,26 @@ def check_clause_absorption(clause, cnf_path):
         results = pool.map(check_single_literal, args_list)
     # Return False if any of the checks failed
     LOG(f"results: {results}")
-    return all(results)
+    return results
+
+def check_clause_absorption(clause, cnf_path):
+    LOG(f"{clause} {cnf_path}")
+    # Create arguments for parallel processing
+    formula = CNF.from_file(cnf_path)
+    basename = os.path.basename(cnf_path)
+    basename = basename.split(".")[0]
+    hash_value = hashing(clause)
+    return check_formula_absorp_clause(formula, clause, f"{basename}.check_absorb_{hash_value}")
+    # args_list = [(literal, [-l for l in clause if l != literal], formula, f"{basename}.check_absorb_{hash_value}_{literal}.cnf") for literal in clause]
+    # # Use number of CPU cores minus 1 to leave some resources for other processes
+    # num_processes = max(1, cpu_count() - 1)
+    # LOG_TAG(f"formed args_list: {args_list}", "detailed")
+    # # Create a pool of workers and map the work
+    # with Pool(processes=num_processes) as pool:
+    #     results = pool.map(check_single_literal, args_list)
+    # # Return False if any of the checks failed
+    # LOG(f"results: {results}")
+    # return all(results)
 
 def compute_wire_for_formula(formula: CNF,i):
     if i <= 0:

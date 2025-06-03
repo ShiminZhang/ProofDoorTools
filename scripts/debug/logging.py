@@ -2,7 +2,7 @@ import inspect
 Showlog = False
 VISIBLE_TAGS=[]
 
-def ToggleShowlog(on):
+def TOGGLE_SHOWLOG(on):
     global Showlog
     Showlog = on
 
