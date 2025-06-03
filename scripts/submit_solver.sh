@@ -23,16 +23,18 @@ fi
 extra_args=""
 # if ["$suffix" = "cadinorestart"]
 # then
-# extra_args="--restart=false"
+extra_args="--restart=0,--reduce=0,--restoreall=2,--flush=0"
+# extra_args="--restart=false,"
 echo "extra_args: $extra_args"
 # fi
 echo extra_args: $extra_args
 filename=$(basename $3)
 LOG_FILE="./$path.$suffix.log"
+PROOF_FILE="./$path.$suffix.drat"
 test -f $LOG_FILE && rm $LOG_FILE
 # exec > "$LOG_FILE" 2>&1
 test -f $build && echo $build $suffix $path
-time $build $path $extra_args > $LOG_FILE
+time $build $path %PROOF_FILE $extra_args > $LOG_FILE
 # $build $i
 echo $suffix $LOG_FILE "${@:4}"
 echo run $build $suffix $filename "${@:4}"

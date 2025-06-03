@@ -244,13 +244,15 @@ get_k_value() {
 
 solvers=(
     # "cadical"
+    # "cadical"
     "cadical"
     # "mininorestart"
     )
 
 suffixs=(
     # "cadical"
-    "cadinorestart"
+    "cadi_nodel_norestart"
+    # "cadi_nodelete"
     # "mininorestart"
 )
 
@@ -407,6 +409,8 @@ for (( i=0; i<linear_instances_l; i++ )); do
     k_value=$1
     cnf_path=./ProofDoorBenchmark/cnfs/$k_value/$name.$k_value.cnf
     dest_path=./ProofDoorBenchmark/linear/$k_value/$name.$k_value.cnf
+
+    dest_path=$cnf_path
     # sbatch --priority 0 -o ./Outputs/output_%A_%a.out ./scripts/check_interpolant.sh $name.$k_value ./ProofDoorBenchmark/smts/$k_value/ ./ProofDoorBenchmark/interpolants/$k_value/
     
     # Copy file if it doesn't exist in destination
@@ -434,6 +438,8 @@ for (( i=0; i<polynomial_instances_l; i++ )); do
     k_value=$1
     cnf_path=./ProofDoorBenchmark/cnfs/$k_value/$name.$k_value.cnf
     dest_path=./ProofDoorBenchmark/polynomial/$k_value/$name.$k_value.cnf
+    dest_path=$cnf_path
+
     # sbatch --priority 0 -o ./Outputs/output_%A_%a.out ./scripts/check_interpolant.sh $name.$k_value ./ProofDoorBenchmark/smts/$k_value/ ./ProofDoorBenchmark/interpolants/$k_value/
     
     # Copy file if it doesn't exist in destination
@@ -461,6 +467,8 @@ for (( i=0; i<exponential_instances_l; i++ )); do
     k_value=$1
     cnf_path=./ProofDoorBenchmark/cnfs/$k_value/$name.$k_value.cnf
     dest_path=./ProofDoorBenchmark/exponential/$k_value/$name.$k_value.cnf
+    dest_path=$cnf_path
+
     # sbatch --priority 0 -o ./Outputs/output_%A_%a.out ./scripts/check_interpolant.sh $name.$k_value ./ProofDoorBenchmark/smts/$k_value/ ./ProofDoorBenchmark/interpolants/$k_value/
     
     # Copy file if it doesn't exist in destination
