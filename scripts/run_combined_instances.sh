@@ -1,13 +1,9 @@
 #!/bin/bash
 
 # Check if directory is provided
-if [ $# -ne 1 ]; then
-    echo "Usage: $0 <directory_path>"
-    exit 1
-fi
 
 # Get the directory path from command line argument
-directory="$1"
+directory="./ProofDoorBenchmark/combined_cnfs/"
 
 # Check if the directory exists
 if [ ! -d "$directory" ]; then
@@ -31,7 +27,6 @@ for cnf_file in "$directory"/*.cnf; do
         log_file="$output_dir/$filename.log"
         
         jobid=$(sbatch --priority 0 -o ./Outputs/output_%A_%a.out ./scripts/submit_solver.sh ./solvers/cadical cadical $cnf_file | awk '{print $4}')
-        jobid=$(sbatch --priority 0 -o ./Outputs/output_%A_%a.out ./scripts/submit_solver.sh ./solvers/minisat minisat $cnf_file | awk '{print $4}')
-        
+        # jobid=$(sbatch --priority 0 -o ./Outputs/output_%A_%a.out ./scripts/submit_solver.sh ./solvers/minisat minisat $cnf_file | awk '{print $4}')
     fi
 done

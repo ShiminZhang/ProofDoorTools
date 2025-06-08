@@ -195,6 +195,21 @@ def combine_single_i_interpolant_to_cnf(directory, k_value, index, force_name=No
 def combine_first_n_interpolant_to_cnf(directory, k_value, n_value=-1, force_name=None):           
         if n_value == -1:
             n_value = "all"
+        if n_value == 0:
+            file_groups = group_cnf_files_by_basename(directory, k_value, force_name, 1)
+            print(f"file_groups: {file_groups}")
+            for basename, files in tqdm(file_groups.items()):
+                basename = os.path.basename(files[0])
+                basename = basename.split('.')[0]
+                original_cnf_path = f"ProofDoorBenchmark/cnfs/{k_value}/"
+                original_cnf = f"{original_cnf_path}{basename}.{k_value}.cnf"
+                output_dir = f"ProofDoorBenchmark/combined_cnfs/"
+                print(f"copying {original_cnf} to {basename}.{k_value}.combined.0.cnf")
+                combined_output = f"{output_dir}/{basename}.{k_value}.combined.0.cnf"
+                os.system(f"cp {original_cnf} {combined_output}")
+            return
+                
+                
         file_groups = group_cnf_files_by_basename(directory, k_value, force_name, n_value)
         dimacs_files = []
         for basename, files in tqdm(file_groups.items()):
@@ -231,6 +246,7 @@ def combine_first_n_interpolant_to_cnf(directory, k_value, n_value=-1, force_nam
                     f.write(clause + "\n")
             dimacs_files.append(output_file)
             print(f"Combined {len(files)} files: ({files})  for {basename} into {output_file}")
+            
         for file in dimacs_files:
             basename = os.path.basename(file)
             basename = basename.split('.')[0]
@@ -250,8 +266,9 @@ def main():
         # directory = sys.argv[1]
         directory = get_interpolant_cnf_dir()
         limit = int(sys.argv[2] if len(sys.argv) > 2 else -1)
-        for n in range(limit):
-            combine_first_n_interpolant_to_cnf(directory, k_value, n+1, force_name)
+        # for n in range(limit):
+        #     combine_first_n_interpolant_to_cnf(directory, k_value, n+1, force_name)
+        combine_first_n_interpolant_to_cnf(directory, k_value, 0, force_name)
         sys.exit(0)
     # input_file = sys.argv[1]
     # output_file = sys.argv[2] if len(sys.argv) > 2 else None

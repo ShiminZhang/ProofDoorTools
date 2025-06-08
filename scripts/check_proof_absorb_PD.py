@@ -1,5 +1,6 @@
 from utils.absorption_analysis import check_clause_absorption,check_formula_absorp_clause
 from utils.process_cnf import CNF
+from utils.tosmt import cnf_to_smt2_n_way
 from utils.paths import get_cnfs_dir,get_interpolant_cnf_dir,get_interpolant_dir,get_smts_dir,get_interpolant_dimacs_dir,get_absorption_experiments_dir,get_figures_dir
 from combine_proofdoor_to_cnf import combine_single_i_interpolant_to_cnf
 import os
@@ -8,6 +9,8 @@ from count_interpolant_byz3 import count_and_save
 from debug.logging import LOG, LOG_TAG, REG_TAG, TOGGLE_SHOWLOG
 from tqdm import tqdm
 import matplotlib.pyplot as plt
+import sys
+import argparse
 
 def test1():
     cnf_path = "./test/test.cnf"
@@ -34,8 +37,13 @@ def test3():
     assert(check_clause_absorption([1,6,10],cnf_path) == False)
     assert(check_clause_absorption([1,2,-3,5,-10],cnf_path) == True)
     
-def check_proof_absorb_PD(cnf_path, k_value, index):
+def check_proof_absorb_PD(cnf_path, k_value, index, use_cache=True):
     original_cnf = CNF.from_file(cnf_path)
+    basename = os.path.basename(cnf_path)
+    basename = basename.split(".")[0]
+    output_path = f"{get_absorption_experiments_dir()}/{basename}.{index}.check_absorb.json"
+    if os.path.exists(output_path) and use_cache:
+        return json.load(open(output_path))
     proof_path = cnf_path.replace(".cnf",".drat")
     clauses = []
     with open(proof_path, "r") as file:
@@ -48,8 +56,6 @@ def check_proof_absorb_PD(cnf_path, k_value, index):
             else:
                 clauses.append([int(literal) for literal in line.strip().split(" ") if literal != "" and literal != "0"])
     # LOG(f"clauses: {clauses}")
-    basename = os.path.basename(cnf_path)
-    basename = basename.split(".")[0]
     interpolant_dir = get_interpolant_dimacs_dir()
     interpolant_cnf_path = f"{interpolant_dir}/{basename}.{k_value}.index_{index}.dimacs"
     interpolant_cnf = CNF.from_file(interpolant_cnf_path)
@@ -63,7 +69,7 @@ def check_proof_absorb_PD(cnf_path, k_value, index):
             literals_absorption = check_formula_absorp_clause(clauses[0:limit], clause, f"{basename}.{index}.check_absorb_{hash_value}.cnf")
             clause_absorption_map[j] = literals_absorption
         result[str(clause)] = clause_absorption_map
-    with open(f"{get_absorption_experiments_dir()}/{basename}.{index}.check_absorb.json", 'w') as outfile:
+    with open(output_path, 'w') as outfile:
         json.dump(result,outfile, indent=4)
     return result
 
@@ -106,7 +112,7 @@ def get_clause_pass_percentage_trend(cnf_path, k_value):
                 total_count += 1
             percentage_for_interpolant_per_iteration.append(float(pass_count) / total_count)
         percentage_for_iterations.append(percentage_for_interpolant_per_iteration)
-    draw_greyscale_plot(percentage_for_iterations,f'Clause Absorption Pass Percentage Heatmap {basename}')
+    draw_greyscale_plot(percentage_for_iterations,f'Clause Absorption Pass Percentage Heatmap {basename}_{k_value}')
     return percentage_for_iterations
 
 def get_literal_pass_percentage_trend(cnf_path, k_value):
@@ -129,35 +135,89 @@ def get_literal_pass_percentage_trend(cnf_path, k_value):
     draw_greyscale_plot(percentage_for_iterations,f'Literal Absorption Pass Percentage Heatmap {basename}',color='Blues')
     return percentage_for_iterations
 
-def prepare_datas(names,k_value):
+def prepare_datas(names,k_value,index=None):
+    if index != None:
+        return
     # prepare proofs
-    # solver = "./solvers/wsl_cadical"
-    # for name in names:
-    #     cnf_path = f"./ProofDoorBenchmark/cnfs/{k_value}/{name}.{k_value}.cnf"
-    #     proof_path = cnf_path.replace(".cnf",".drat")
-    #     if not os.path.exists(proof_path):
-    #         os.system(f"{solver} {cnf_path} {proof_path} --restart=0 --reduce=0 --restoreall=2 --flush=0 --no-binary")
+    solver = "./solvers/cadical"
+    for name in names:
+        cnf_path = f"./ProofDoorBenchmark/cnfs/{k_value}/{name}.{k_value}.cnf"
+        if not os.path.exists(cnf_path):
+            exit(f"CNF file {cnf_path} does not exist")
+        proof_path = cnf_path.replace(".cnf",".drat")
+        if not os.path.exists(proof_path):
+            os.system(f"{solver} {cnf_path} {proof_path} --restart=0 --reduce=0 --restoreall=2 --flush=0 --no-binary")
+        
             
     # prepare interpolants
     for name in names:
         for i in range(k_value):
-            interpolant_path = f"{get_interpolant_dir(k_value)}/{name}.{k_value}.{i}.interpolant"
+            cnf_path = f"./ProofDoorBenchmark/cnfs/{k_value}/{name}.{k_value}.cnf"
             smt_path = f"{get_smts_dir(k_value)}/{name}.{k_value}.{i}.smt2"
-            count_and_save(interpolant_path,smt_path)
+            
+            if not os.path.exists(smt_path):
+                cnf_to_smt2_n_way(cnf_path,f"{get_smts_dir(k_value)}/{name}.{k_value}")
+                
+            interpolant_path = f"{get_interpolant_dir(k_value)}/{name}.{k_value}.{i}.interpolant"
+            if not os.path.exists(interpolant_path):
+                os.system(f"./z3 {smt_path} > {interpolant_path}")
+                # exit(f"Interpolant file {interpolant_path} does not exist")
+            interpolant_cnf_path = f"{get_interpolant_cnf_dir()}/{name}.{k_value}.{i}.smt2.cnf"
+            
+            if not os.path.exists(interpolant_cnf_path):
+                print(f"Interpolant CNF file {interpolant_cnf_path} DNE, regenerating")
+                count_and_save(interpolant_path,smt_path)
+                
+            dimacs_path = f"{get_interpolant_dimacs_dir()}/{name}.{k_value}.index_{i}.dimacs"
+            if not os.path.exists(dimacs_path) or True:
+                print(f"Dimacs file {dimacs_path} DNE, regenerating")
+                combine_single_i_interpolant_to_cnf(get_interpolant_cnf_dir(), k_value, i, name)
+            
+    # for i in range(k_value):
+    #     combine_single_i_interpolant_to_cnf(get_interpolant_cnf_dir(), k_value, i)
 
-    for i in range(k_value):
-        combine_single_i_interpolant_to_cnf(get_interpolant_cnf_dir(), k_value, i)
-
-def check_and_draw(names,k_value):
+def check_and_draw_for_index(names,k_value,index):
     for name in names:
+        check_proof_absorb_PD(f"{get_cnfs_dir(k_value)}/{name}.{k_value}.cnf",k_value,index,True)
+
+def check_and_draw(names,k_value,index=None):
+    if index != None:
+        check_and_draw_for_index(names,k_value,index)
+        return
+    for name in names:
+        print(f"Checking absorption of {name}.{k_value}")
         for i in range(k_value):
-            check_proof_absorb_PD(f"{get_cnfs_dir(k_value)}/{name}.{k_value}.cnf",k_value,i)
+            check_proof_absorb_PD(f"{get_cnfs_dir(k_value)}/{name}.{k_value}.cnf",k_value,i,False)
         get_clause_pass_percentage_trend(f"{get_cnfs_dir(k_value)}/{name}.{k_value}.cnf",k_value)
         get_literal_pass_percentage_trend(f"{get_cnfs_dir(k_value)}/{name}.{k_value}.cnf",k_value)
 
 def main():
-    # prepare_datas(["6s0","139442p0","6s273b37", "139442p0"],10)
-    check_and_draw(["6s0","139442p0","6s273b37", "139442p0"],10)
+    # prepare_datas(["6s0","139442p0","139464p0","6s275rb318"],10)
+    # check_and_draw(["6s0","139442p0","139464p0"],10)
+    # (get_literal_pass_percentage_trend('./ProofDoorBenchmark/cnfs/10/6s0.10.cnf',10))
+    # (get_clause_pass_percentage_trend('./ProofDoorBenchmark/cnfs/10/6s0.10.cnf',10))
+    
+    parser = argparse.ArgumentParser(description='Check and draw absorption experiments')
+    parser.add_argument('--target_index', type=int, help='Index of the target instance')
+    parser.add_argument('--target_name', type=str, help='Name of the target instance')
+    parser.add_argument('--K', type=int, help='Name of the target instance', required=True)
+    parser.add_argument('--index', type=int, help='Name of the target instance', required=False)
+    args = parser.parse_args()
+    target_index = args.target_index
+    target_name = args.target_name
+    k_value = args.K
+    if target_index != None:
+        targets=["6s0","6s4","6s273b37", "6s194"]
+        prepare_datas([targets[target_index]],k_value,args.index)
+        check_and_draw([targets[target_index]],k_value,args.index)
+    elif target_name:
+        prepare_datas([target_name],k_value)
+        check_and_draw([target_name],k_value)
+    else:
+        print("Please specify either --target_index or --target_name")
+        return
+    
+    # check_and_draw(["6s0","139442p0","6s273b37", "139442p0"],10)
     # debug.logging.ToggleShowlog(True)
     # formula = CNF.from_file("./test/test.cnf")
     # formula = CNF.from_file("./test/test.cnf")

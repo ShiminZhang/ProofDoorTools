@@ -12,7 +12,7 @@ def check_single_literal(args):
     
     literal, rest_of_clause, formula, CNF_output_file = args
     # solver_binary = "./propagator"
-    solver_binary = "./minisat_propagator"
+    solver_binary = "./propagator"
     # Create a copy of the formula
     formula_copy = CNF()
     formula_copy.init_with_clauses(formula)

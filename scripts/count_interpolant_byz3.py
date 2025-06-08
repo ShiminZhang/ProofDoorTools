@@ -189,8 +189,13 @@ def count_lines_byz3(file_path,smt_path=None, timeout=300):
         return -1,msg
     return count_by_z3(smt_content,smt_path),"UNSAT"
 
-def count_and_save(file_path,smt_path=None):
-    size, msg = count_lines_byz3(file_path, smt_path, 300)
+def to_smt_cnf(file_path,smt_path=None):
+        with open(file_path, 'r') as f:
+            content = f.read()
+        smt_content,msg = convert_to_smt(content,smt_path)
+        
+def count_and_save(file_path,smt_path=None,limit=300):
+    size, msg = count_lines_byz3(file_path, smt_path, limit)
     basename = os.path.basename(file_path)
     k_value = os.path.basename(file_path).split(".")[1]
     dir = get_PDS_dir(k_value)

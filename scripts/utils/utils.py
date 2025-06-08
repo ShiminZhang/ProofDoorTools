@@ -35,6 +35,8 @@ def convert_to_dimacs(clauses):
             
         for literal in clause.strip().split(" "):
             is_negated = literal.startswith('Not(')
+            is_negated_by_sign = literal.startswith('-')
+            literal = literal.replace("-", "")
             if "aux_" in literal:
                 if is_negated:
                     var_name = literal[4:-1]
@@ -47,7 +49,7 @@ def convert_to_dimacs(clauses):
                 else:
                     var_name = literal[1:]
             
-            if is_negated:
+            if is_negated or is_negated_by_sign:
                 dimacs_clause.append(f"-{var_name} ")
             else:
                 dimacs_clause.append(f"{var_name} ")
@@ -249,7 +251,6 @@ def GetData(folder,name, use_cache = False, bit=None):
     file_counted = 0
     print(f'{file_name} matched {len(log_files)}')
     if len(log_files) == 0 and not use_cache:
-        print(f"No log files found for {name} in {folder}")
         return None,None,None,None
     
     data_for_this_solver = []
