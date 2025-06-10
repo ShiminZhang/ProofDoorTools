@@ -41,7 +41,8 @@ def check_proof_absorb_PD(cnf_path, k_value, index, use_cache=True):
     original_cnf = CNF.from_file(cnf_path)
     basename = os.path.basename(cnf_path)
     basename = basename.split(".")[0]
-    output_path = f"{get_absorption_experiments_dir()}/{basename}.{index}.check_absorb.json"
+    # output_path = f"{get_absorption_experiments_dir()}/{basename}.{index}.check_absorb.json"
+    output_path = f"{get_absorption_experiments_dir()}/{basename}.k_{k_value}.i_{index}.check_absorb.json"
     if os.path.exists(output_path) and use_cache:
         return json.load(open(output_path))
     proof_path = cnf_path.replace(".cnf",".drat")
@@ -66,7 +67,7 @@ def check_proof_absorb_PD(cnf_path, k_value, index, use_cache=True):
         LOG(f"clause to check: {clause}")
         for j in range(k_value):
             limit = min(int((j+1) / k_value * len(clauses)),len(clauses))
-            literals_absorption = check_formula_absorp_clause(clauses[0:limit], clause, f"{basename}.{index}.check_absorb_{hash_value}.cnf")
+            literals_absorption = check_formula_absorp_clause(clauses[0:limit], clause, f"{basename}.k_{k_value}.{index}.check_absorb_{hash_value}.cnf")
             clause_absorption_map[j] = literals_absorption
         result[str(clause)] = clause_absorption_map
     with open(output_path, 'w') as outfile:
@@ -135,7 +136,7 @@ def get_literal_pass_percentage_trend(cnf_path, k_value):
     draw_greyscale_plot(percentage_for_iterations,f'Literal Absorption Pass Percentage Heatmap {basename}',color='Blues')
     return percentage_for_iterations
 
-def prepare_datas(names,k_value,index=None):
+def prepare_datas(names,k_value,force_refresh=False,index=None):
     if index != None:
         return
     # prepare proofs
@@ -169,8 +170,10 @@ def prepare_datas(names,k_value,index=None):
                 count_and_save(interpolant_path,smt_path)
                 
             dimacs_path = f"{get_interpolant_dimacs_dir()}/{name}.{k_value}.index_{i}.dimacs"
-            if not os.path.exists(dimacs_path) or True:
+            if not os.path.exists(dimacs_path):
                 print(f"Dimacs file {dimacs_path} DNE, regenerating")
+                combine_single_i_interpolant_to_cnf(get_interpolant_cnf_dir(), k_value, i, name)
+            elif force_refresh:
                 combine_single_i_interpolant_to_cnf(get_interpolant_cnf_dir(), k_value, i, name)
             
     # for i in range(k_value):
@@ -180,14 +183,15 @@ def check_and_draw_for_index(names,k_value,index):
     for name in names:
         check_proof_absorb_PD(f"{get_cnfs_dir(k_value)}/{name}.{k_value}.cnf",k_value,index,True)
 
-def check_and_draw(names,k_value,index=None):
+def check_and_draw(names,k_value,force_refresh=False,index=None):
     if index != None:
+        print(f"Checking absorption of {names[0]}.{k_value} for interpolant index {index}")
         check_and_draw_for_index(names,k_value,index)
         return
     for name in names:
         print(f"Checking absorption of {name}.{k_value}")
         for i in range(k_value):
-            check_proof_absorb_PD(f"{get_cnfs_dir(k_value)}/{name}.{k_value}.cnf",k_value,i,False)
+            check_proof_absorb_PD(f"{get_cnfs_dir(k_value)}/{name}.{k_value}.cnf",k_value,i,not force_refresh)
         get_clause_pass_percentage_trend(f"{get_cnfs_dir(k_value)}/{name}.{k_value}.cnf",k_value)
         get_literal_pass_percentage_trend(f"{get_cnfs_dir(k_value)}/{name}.{k_value}.cnf",k_value)
 
@@ -201,18 +205,22 @@ def main():
     parser.add_argument('--target_index', type=int, help='Index of the target instance')
     parser.add_argument('--target_name', type=str, help='Name of the target instance')
     parser.add_argument('--K', type=int, help='Name of the target instance', required=True)
-    parser.add_argument('--index', type=int, help='Name of the target instance', required=False)
+    parser.add_argument('--index', type=int, help='check i_th interpolant', required=False)
+    parser.add_argument('--force_refresh', action='store_true', help='Force refresh', required=False)
+    parser.add_argument('--skip_prepare', action='store_true', help='Skip prepare', required=False)
     args = parser.parse_args()
     target_index = args.target_index
     target_name = args.target_name
     k_value = args.K
+    force_refresh = args.force_refresh
     if target_index != None:
         targets=["6s0","6s4","6s273b37", "6s194"]
-        prepare_datas([targets[target_index]],k_value,args.index)
-        check_and_draw([targets[target_index]],k_value,args.index)
+        if not args.skip_prepare:
+            prepare_datas([targets[target_index]],k_value,force_refresh,args.index)
+        check_and_draw([targets[target_index]],k_value,force_refresh,args.index)
     elif target_name:
-        prepare_datas([target_name],k_value)
-        check_and_draw([target_name],k_value)
+        prepare_datas([target_name],k_value,force_refresh,args.index)
+        check_and_draw([target_name],k_value,force_refresh,args.index)
     else:
         print("Please specify either --target_index or --target_name")
         return

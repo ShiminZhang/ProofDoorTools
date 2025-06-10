@@ -299,6 +299,7 @@ fi
 
 
 if [ -z "$smt_file" ]; then
+    echo "matched to $smt_file"
     echo "No file found for array index $array_index $instance_partition_index $instance_index $instance_name $target_category $k_value"
     exit 0
 fi

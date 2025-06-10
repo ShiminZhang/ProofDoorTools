@@ -8,6 +8,7 @@ from scipy.stats import pearsonr
 from sklearn.metrics import r2_score, mean_squared_error
 import numpy as np
 from z3 import *
+import re
 
 def RewriteMap(InMap):
     OutMap = {}
@@ -137,8 +138,8 @@ def parse_cnf_list(input_file, auxilliary_map=None, original_var_count=0):
                     auxilliary_map[(var_name, input_file)] = next_available_auxilliary_var
                 else:
                     next_available_auxilliary_var = auxilliary_map[(var_name, input_file)]
-                
-                clause = clause.replace(f"k!{var_name}", f"aux_{next_available_auxilliary_var}")
+                # Use regex to match k!var_name as a whole word to avoid partial matches
+                clause = re.sub(r'\bk!' + var_name + r'\b', f"aux_{next_available_auxilliary_var}", clause)
         clauses[i] = clause
     return clauses
 

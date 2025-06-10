@@ -1,30 +1,11 @@
-# [Not(v288),
-#  v3903,
-#  Not(v3393),
-#  Not(v291),
-#  v803,
-#  Not(v293),
-#  Not(v292),
-#  v604,
-#  v1375,
-#  v1288,
-#  v741,
-#  v3373,
-#  Not(v3380),
-#  v637,
-#  v3900,
-#  Not(v3590),
-#  v804,
-#  v3339,
-#  Not(v3354),
-#  v719]
-
 import os
 import sys
 # from utils.categories import get_category
 from tqdm import tqdm
 from utils.utils import convert_to_dimacs, parse_interpolant_cnf_to_dimacs,parse_cnf_list
 from utils.paths import get_interpolant_cnf_dir
+from debug.logging import LOG, TOGGLE_SHOWLOG
+import argparse
 import re
 
 def write_dimacs_file(input_file, output_file=None):
@@ -78,19 +59,42 @@ def group_cnf_files_by_basename(directory, k_value, force_name=None, limit=-1):
                 if basename not in file_groups:
                     file_groups[basename] = []
                 file_groups[basename].append(os.path.join(directory, filename))
+                
+    #check if the file group for each basename is valid
+    invalid_keys = []
+    for basename, files in file_groups.items():
+        if len(files) != limit:
+            # print(f"basename: {basename}")
+            # print(f"files: {files}")
+            invalid_keys.append(basename)
+            
+    for key in invalid_keys:
+        print(f"deleting {key} because it has only {len(file_groups[key])} files while {limit} is expected")
+        del file_groups[key]
     return file_groups
 
-def combine_clauses_from_files(files, original_var_count, n_value):
+def combine_clauses_from_files(files, original_var_count, n_value, previous_parsed_cnf_clauses_for_file, auxilliary_map):
     """Combine all clauses from a list of CNF files, sharing the same auxiliary map."""
     all_clauses = []
-    auxilliary_map = {}
     if n_value != "all":
         files = files[:n_value]
     # print(f"files: {files}")
-    for file_path in files:
-        clauses = parse_cnf_list(file_path, auxilliary_map, original_var_count)
-        all_clauses.extend(clauses)
-    return all_clauses, auxilliary_map
+    # assert(len(previous_parsed_cnf_clauses_for_file) == len(files) - 1)
+    if not (len(previous_parsed_cnf_clauses_for_file) == len(files) - 1):
+        LOG(f"ASSTIONFAIL len(previous_parsed_cnf_clauses_for_file): {len(previous_parsed_cnf_clauses_for_file)}")
+        LOG(f"len(files): {len(files)}")
+        exit(0)
+        
+    for i in range(len(previous_parsed_cnf_clauses_for_file)):
+        all_clauses.extend(previous_parsed_cnf_clauses_for_file[i])
+        
+    # for file_path in files:
+    file_path = files[-1]
+    # print(f"parse_cnf_list: {file_path}")
+    clauses = parse_cnf_list(file_path, auxilliary_map, original_var_count)
+    previous_parsed_cnf_clauses_for_file[len(previous_parsed_cnf_clauses_for_file)] = clauses
+    all_clauses.extend(clauses)
+    return all_clauses, auxilliary_map, previous_parsed_cnf_clauses_for_file
 
 def write_combined_dimacs_file(output_file, all_clauses, var_mapping):
     """Write the combined DIMACS file with header, var mapping, and clauses."""
@@ -191,8 +195,73 @@ def combine_single_i_interpolant_to_cnf(directory, k_value, index, force_name=No
                     f.write(clause + "\n")
             dimacs_files.append(output_file)
             print(f"Combined {len(files)} files: ({files})  for {basename} into {output_file}")                 
-                
-def combine_first_n_interpolant_to_cnf(directory, k_value, n_value=-1, force_name=None):           
+
+def combine_first_n_interpolant_to_cnf_single(
+    basename,files,
+    k_value,
+    n_value,
+    previous_parsed_cnf_clauses,
+    auxilliary_map,
+    ):
+    
+    # create dimacs file first
+    output_dir = f"ProofDoorBenchmark/combined_cnfs/"
+    original_cnf_path = f"ProofDoorBenchmark/cnfs/{k_value}/"
+    original_cnf = f"{original_cnf_path}{basename}.{k_value}.cnf"
+    
+    if n_value == -1:
+        n_value = "all"
+    if n_value == 0:
+        print(f"copyingoriginal_cnf: {original_cnf}")
+        os.system(f"cp {original_cnf} {output_dir}/{basename}.{k_value}.combined.0.cnf")
+        return previous_parsed_cnf_clauses, auxilliary_map
+    
+    if basename not in previous_parsed_cnf_clauses.keys():
+        previous_parsed_cnf_clauses[basename] = {}
+    print(f"original_cnf: {original_cnf}")
+    original_var_count = 0
+    if os.path.exists(original_cnf):
+        with open(original_cnf, 'r') as f:
+            lines = f.readlines()
+        for line in lines:
+            if "p cnf" in line:
+                parts = line.split()
+                original_var_count = int(parts[2])
+                break
+    else:
+        print(f"Original CNF file {original_cnf} not found, skipping combination")
+        exit(0)
+    
+    os.makedirs(output_dir, exist_ok=True)
+    output_file = f"{output_dir}/{basename}.{k_value}.{n_value}.dimacs"
+    files.sort(key=lambda f: int(f.split('.')[-3]))
+    
+    all_clauses, auxilliary_map, new_parsed_cnf_clauses = combine_clauses_from_files(files, original_var_count, n_value, previous_parsed_cnf_clauses[basename], auxilliary_map)
+    previous_parsed_cnf_clauses[basename] = new_parsed_cnf_clauses
+    header, var_mapping, dimacs_clauses = convert_to_dimacs(all_clauses)
+    with open(output_file, 'w') as f:
+        f.write(header + "\n")
+        for mapping in var_mapping:
+            f.write(mapping + "\n")
+        for clause in dimacs_clauses:
+            f.write(clause + "\n")
+    dimacs_file = output_file
+    print(f"Combined {len(files)} files: ({files})  for {basename} into {output_file}")
+    
+    basename = os.path.basename(dimacs_file)
+    basename = basename.split('.')[0]
+    original_cnf = f"{original_cnf_path}{basename}.{k_value}.cnf"
+    if os.path.exists(original_cnf) and os.path.exists(dimacs_file):
+        combined_output = f"{output_dir}/{basename}.{k_value}.combined.{n_value}.cnf"
+        combine_with_original_cnf(dimacs_file, original_cnf, combined_output)
+    else:
+        print(f"Original CNF file {original_cnf} not found, skipping combination") 
+    return previous_parsed_cnf_clauses, auxilliary_map
+    
+           
+def combine_first_n_interpolant_to_cnf(
+    directory, k_value, n_value=-1, force_name=None,
+    previous_parsed_cnf_clauses=None, auxilliary_map=None):            
         if n_value == -1:
             n_value = "all"
         if n_value == 0:
@@ -213,6 +282,8 @@ def combine_first_n_interpolant_to_cnf(directory, k_value, n_value=-1, force_nam
         file_groups = group_cnf_files_by_basename(directory, k_value, force_name, n_value)
         dimacs_files = []
         for basename, files in tqdm(file_groups.items()):
+            if basename not in previous_parsed_cnf_clauses.keys():
+                previous_parsed_cnf_clauses[basename] = {}
             output_dir = f"ProofDoorBenchmark/combined_cnfs/"
             original_cnf_path = f"ProofDoorBenchmark/cnfs/{k_value}/"
             original_cnf = f"{original_cnf_path}{basename}.{k_value}.cnf"
@@ -236,7 +307,8 @@ def combine_first_n_interpolant_to_cnf(directory, k_value, n_value=-1, force_nam
             valid_group = True
             if not valid_group:
                 continue
-            all_clauses, auxilliary_map = combine_clauses_from_files(files, original_var_count, n_value)
+            all_clauses, auxilliary_map, new_parsed_cnf_clauses = combine_clauses_from_files(files, original_var_count, n_value, previous_parsed_cnf_clauses[basename], auxilliary_map)
+            previous_parsed_cnf_clauses[basename] = new_parsed_cnf_clauses
             header, var_mapping, dimacs_clauses = convert_to_dimacs(all_clauses)
             with open(output_file, 'w') as f:
                 f.write(header + "\n")
@@ -257,18 +329,60 @@ def combine_first_n_interpolant_to_cnf(directory, k_value, n_value=-1, force_nam
                 combine_with_original_cnf(file, original_cnf, combined_output)
             else:
                 print(f"Original CNF file {original_cnf} not found, skipping combination")                      
+        return previous_parsed_cnf_clauses, auxilliary_map
                               
 def main():
+    TOGGLE_SHOWLOG(True)
     # only_category = "exponential"
-    force_name = None
-    if len(sys.argv) >= 2:
-        k_value = int(sys.argv[1])
+    # force_name = "6s325rb072"
+    # force_name = None
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--K", type=int, default=40)
+    parser.add_argument("--limit", type=int, default=-1)
+    # parser.add_argument("--start_index", type=int, default=0)
+    parser.add_argument("--force_name", type=str, default=None)
+    parser.add_argument("--start_experiment", action="store_true", default=False)
+    args = parser.parse_args()
+    k_value = args.K
+    limit = args.limit
+    # start_index = args.start_index
+    force_name = args.force_name
+    # print(f"arguments: {limit}")
+    if args.start_experiment:
+        directory = get_interpolant_cnf_dir()
+        file_groups = group_cnf_files_by_basename(directory, k_value, force_name, 40)
+        log_dir = f"./ProofDoorBenchmark/CombineCNFLogs/"
+        os.makedirs(log_dir, exist_ok=True)
+        for basename, files in tqdm(file_groups.items()):
+            activate_python = "source ../general/bin/activate"
+            pythoncmd=f"python ./scripts/combine_proofdoor_to_cnf.py --K {k_value} --limit {limit} --force_name {basename}"
+            wrap=f"{activate_python} && {pythoncmd}"
+            os.system(f"sbatch --mem=10g --output={log_dir}/combine_proofdoor_to_cnf_%j.out --wrap='{wrap}'")
+        sys.exit(0)
+    else:
         # directory = sys.argv[1]
         directory = get_interpolant_cnf_dir()
-        limit = int(sys.argv[2] if len(sys.argv) > 2 else -1)
-        # for n in range(limit):
-        #     combine_first_n_interpolant_to_cnf(directory, k_value, n+1, force_name)
-        combine_first_n_interpolant_to_cnf(directory, k_value, 0, force_name)
+        previous_parsed_cnf_clauses = {}
+        auxilliary_map = {}
+        file_groups = group_cnf_files_by_basename(directory, k_value, force_name, 40)
+        print(f"final file_groups: {file_groups.keys()}")
+            
+        if limit == -1:
+            for basename, files in tqdm(file_groups.items()):
+                combine_first_n_interpolant_to_cnf_single(basename, files, k_value, 0, {},{})
+                for n in range(1,k_value+1):
+                    previous_parsed_cnf_clauses, auxilliary_map = combine_first_n_interpolant_to_cnf_single(basename, files, k_value, n, previous_parsed_cnf_clauses, auxilliary_map)
+        elif limit == 0:
+            for basename, files in tqdm(file_groups.items()):
+                combine_first_n_interpolant_to_cnf_single(basename, files, k_value, 0, {},{})
+        else:
+            LOG(f"limit: {limit}")
+            for basename, files in tqdm(file_groups.items()):
+                combine_first_n_interpolant_to_cnf_single(basename, files, k_value, 0, {},{})
+                for n in range(1,limit+1):
+                    previous_parsed_cnf_clauses, auxilliary_map = combine_first_n_interpolant_to_cnf_single(basename, files, k_value, n, previous_parsed_cnf_clauses, auxilliary_map)
+            
+        # file_groups = group_cnf_files_by_basename(directory, k_value, force_name, limit)# combine_first_n_interpolant_to_cnf(directory, k_value, 17, force_name)
         sys.exit(0)
     # input_file = sys.argv[1]
     # output_file = sys.argv[2] if len(sys.argv) > 2 else None

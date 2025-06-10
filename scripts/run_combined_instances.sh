@@ -25,8 +25,8 @@ for cnf_file in "$directory"/*.cnf; do
         
         # Define the output log file
         log_file="$output_dir/$filename.log"
-        
-        jobid=$(sbatch --priority 0 -o ./Outputs/output_%A_%a.out ./scripts/submit_solver.sh ./solvers/cadical cadical $cnf_file | awk '{print $4}')
+        ./solvers/cadical $cnf_file > $log_file
+        # jobid=$(sbatch --priority 0 -o ./Outputs/output_%A_%a.out ./scripts/submit_solver.sh ./solvers/cadical cadical $cnf_file | awk '{print $4}')
         # jobid=$(sbatch --priority 0 -o ./Outputs/output_%A_%a.out ./scripts/submit_solver.sh ./solvers/minisat minisat $cnf_file | awk '{print $4}')
     fi
 done

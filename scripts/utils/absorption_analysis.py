@@ -9,8 +9,8 @@ import json
 
 def check_single_literal(args):
     absorption_dir = get_absorption_experiments_dir()
-    
     literal, rest_of_clause, formula, CNF_output_file = args
+    # print(f"CNF_output_file: {CNF_output_file} for literal: {literal}")
     # solver_binary = "./propagator"
     solver_binary = "./propagator"
     # Create a copy of the formula
@@ -28,18 +28,26 @@ def check_single_literal(args):
     formula_copy.to_dimacs(CNF_output_file)
     LOG(f"CNF_output_file: {CNF_output_file}")
     LOG(f"stdout_output_file: {stdout_save_file}")
-    result = subprocess.run([solver_binary, CNF_output_file], capture_output=True, text=True)
+    checker_stdout = ""
+    if os.path.exists(stdout_save_file):
+        checker_stdout = open(stdout_save_file, 'r').read()
+    else:
+        result = subprocess.run([solver_binary, CNF_output_file], capture_output=True)
+        try:
+            checker_stdout = result.stdout.decode('utf-8')
+        except UnicodeDecodeError:
+            checker_stdout = result.stdout.decode('gbk', errors="replace")
     # Clean up
     # os.remove(temp_file)
     LOG_TAG("--------------------------------", "detailed")
     LOG_TAG(f"literal: {literal}", "detailed")
     LOG_TAG(f"rest_of_clause: {rest_of_clause}", "detailed")
-    LOG_TAG(f"result.stdout: {result.stdout}", "detailed")
+    LOG_TAG(f"checker_stdout: {checker_stdout}", "detailed")
     with open(stdout_save_file, 'w') as f:
-        f.write(result.stdout)
-    lines = result.stdout.split('\n')
+        f.write(checker_stdout)
+    lines = checker_stdout.split('\n')
     
-    if "UNSATISFIABLE" in result.stdout:
+    if "UNSATISFIABLE" in checker_stdout:
         LOG("True because unsat")
         return True
     
@@ -73,6 +81,7 @@ def check_formula_absorp_clause(formula, clause, cachename):
     args_list = [(literal, [-l for l in clause if l != literal], formula, f"{cachename}_{literal}.cnf") for literal in clause]
     # Use number of CPU cores minus 1 to leave some resources for other processes
     num_processes = max(1, cpu_count() - 1)
+    # print(f"num_processes: {num_processes}")
     LOG_TAG(f"formed args_list: {args_list}", "detailed")
     # Create a pool of workers and map the work
     with Pool(processes=num_processes) as pool:
