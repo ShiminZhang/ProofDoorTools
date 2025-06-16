@@ -2,9 +2,10 @@
 #SBATCH --time=0-8:0:0                                                      
 #SBATCH --account=def-vganesh 
 #SBATCH --mem=20G
-sleep 2h
-# source ../general/bin/activate
-./scripts/start_experiment.sh 40 all
+source ../general/bin/activate
+# ./scripts/start_experiment.sh 40 all
+# ./scripts/generate_minisat_proofs.sh 20
+python scripts/pyscripts/start_absorption_experiment.py
 # python scripts/combine_proofdoor_to_cnf.py 40 40
 # sbatch ./scripts/manage_interpolant_jobs.sh 10 linear
 # python check_uncomputed_PDS.py 60 6g

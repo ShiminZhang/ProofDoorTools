@@ -137,10 +137,10 @@ def get_literal_pass_percentage_trend(cnf_path, k_value):
     return percentage_for_iterations
 
 def prepare_datas(names,k_value,force_refresh=False,index=None):
-    if index != None:
-        return
-    # prepare proofs
     solver = "./solvers/cadical"
+    drat_solver = "./solvers/minisat_pf"
+    # prepare proofs
+    print(f"Preparing proofs for {names} with k_value {k_value},index {index}")
     for name in names:
         cnf_path = f"./ProofDoorBenchmark/cnfs/{k_value}/{name}.{k_value}.cnf"
         if not os.path.exists(cnf_path):
@@ -153,8 +153,13 @@ def prepare_datas(names,k_value,force_refresh=False,index=None):
     # prepare interpolants
     for name in names:
         for i in range(k_value):
+            if index != None and i != index:
+                continue
             cnf_path = f"./ProofDoorBenchmark/cnfs/{k_value}/{name}.{k_value}.cnf"
             smt_path = f"{get_smts_dir(k_value)}/{name}.{k_value}.{i}.smt2"
+            drat_path = f"./ProofDoorBenchmark/cnfs/{k_value}/{name}.{k_value}.drat"
+            if not os.path.exists(drat_path) or os.path.getsize(drat_path) == 0:
+                os.system(f"{drat_solver} {cnf_path} | grep 'PDLOG Learnt clause:' | sed 's/PDLOG Learnt clause: //' > {drat_path}")
             
             if not os.path.exists(smt_path):
                 cnf_to_smt2_n_way(cnf_path,f"{get_smts_dir(k_value)}/{name}.{k_value}")
@@ -174,7 +179,20 @@ def prepare_datas(names,k_value,force_refresh=False,index=None):
                 print(f"Dimacs file {dimacs_path} DNE, regenerating")
                 combine_single_i_interpolant_to_cnf(get_interpolant_cnf_dir(), k_value, i, name)
             elif force_refresh:
+                print(f"Dimacs file {dimacs_path} exists, regenerating due to force_refresh")
                 combine_single_i_interpolant_to_cnf(get_interpolant_cnf_dir(), k_value, i, name)
+    
+    if index != None:
+        if force_refresh:
+            for name in names:
+                cnf_path = f"./ProofDoorBenchmark/cnfs/{k_value}/{name}.{k_value}.cnf"
+                print(f"Force refreshing proofs for {name} with k_value {k_value},index {index}")
+                combine_single_i_interpolant_to_cnf(get_interpolant_cnf_dir(), k_value, index, name)
+                
+                drat_path = f"./ProofDoorBenchmark/cnfs/{k_value}/{name}.{k_value}.drat"
+                if not os.path.exists(drat_path) or os.path.getsize(drat_path) == 0:
+                    os.system(f"{drat_solver} {cnf_path} | grep 'PDLOG Learnt clause:' | sed 's/PDLOG Learnt clause: //' > {drat_path}")
+        return
             
     # for i in range(k_value):
     #     combine_single_i_interpolant_to_cnf(get_interpolant_cnf_dir(), k_value, i)

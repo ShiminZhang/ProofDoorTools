@@ -159,6 +159,10 @@ def combine_with_original_cnf(dimacs_file, original_cnf, output_file):
 
 def combine_single_i_interpolant_to_cnf(directory, k_value, index, force_name=None):             
         file_groups = group_cnf_files_by_index(directory, k_value, index, force_name)
+        if force_name is not None and len(file_groups) == 0:
+            print(f"No files found for {force_name} with index {index}")
+            exit(0)
+
         dimacs_files = []
         for basename, files in tqdm(file_groups.items()):
             output_dir = f"ProofDoorBenchmark/combined_cnfs/"

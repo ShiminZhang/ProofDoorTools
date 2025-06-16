@@ -1,7 +1,6 @@
 #! /bin/bash
-#SBATCH --time=0-6:0:00
+#SBATCH --time=0-12:0:00
 #SBATCH --mem=16g
-#SBATCH --cpus-per-task=1
 #SBATCH --job-name=absorption_experiments
 #SBATCH --output=SlurmLogs/absorption_experiments_%A_%a.out
 #SBATCH --mail-type=ALL
@@ -18,11 +17,12 @@ if [ -z "$k_value" ]; then
     exit 1
 fi
 
-instance_index=$2
-if [ -z "$instance_index" ]; then
-    echo "Error: instance_index must be specified"
-    exit 1
-fi
+force_refresh=$3
+# instance_index=$2
+# if [ -z "$instance_index" ]; then
+#     echo "Error: instance_index must be specified"
+#     exit 1
+# fi
 
 # interested_names=(
 #     "6s277rb292"
@@ -37,4 +37,4 @@ fi
 echo k=$k_value name="${target_name}" index=$SLURM_ARRAY_TASK_ID
 source ../general/bin/activate
 # python scripts/check_proof_absorb_PD.py --K $k_value --target_name ${interested_names[$instance_index]} --index $SLURM_ARRAY_TASK_ID
-python scripts/check_proof_absorb_PD.py --K $k_value --target_name ${target_name} --index $SLURM_ARRAY_TASK_ID
+python scripts/check_proof_absorb_PD.py --K $k_value --target_name ${target_name} --index $SLURM_ARRAY_TASK_ID $force_refresh

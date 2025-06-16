@@ -13,7 +13,7 @@ def main():
     ]
     K_set = [
         # 10,
-        40
+        20
         ]
     
     activate_python = "source ../general/bin/activate"
@@ -21,14 +21,14 @@ def main():
         slurm_ids = []
         for name in interested_names:
             print(f"sbatch --array=0-{K-1} ./scripts/start_absorption_experiments.sh {K} {name}")
-            slurm_output = os.popen(f"sbatch --array=0-{K-1} --mem=10g ./scripts/start_absorption_experiments.sh {K} {name}").read()
+            slurm_output = os.popen(f"sbatch --array=0-{K-1} --mem=10g ./scripts/start_absorption_experiments.sh {K} {name} --force_refresh").read()
             # slurm_output = os.popen("echo 123456").read()
             slurm_id = int(slurm_output.split()[-1])
             # print(f"Slurm id: {slurm_id}")
             # time.sleep(5)
             wrapped = f"{activate_python} && python ./scripts/check_proof_absorb_PD.py --K {K} --target_name {name}"
             print(f"sbatch --dependency=afterany:{slurm_id} --mem=10g --time=2:00:00 --wrap=\"{wrapped}\"/n")
-            os.system(f"sbatch --dependency=afterany:{slurm_id} --mem=10g --time=2:00:00 --wrap=\"{wrapped}\"")
+            os.system(f"sbatch --output=./SlurmLogs/absorption_experiment_{slurm_id}_sum_{K}_{name}.log --dependency=afterany:{slurm_id} --mem=10g --time=2:00:00 --wrap=\"{wrapped}\"")
             slurm_ids.append(slurm_id)
         print(f"Slurm ids: {slurm_ids}")
         
