@@ -24,27 +24,27 @@ def check_single_literal(args):
     if not os.path.exists(f"{absorption_dir}/caches/"):
         os.makedirs(f"{absorption_dir}/caches/")
     CNF_output_file = f"{absorption_dir}/caches/{CNF_output_file}"
-    stdout_save_file = f"{CNF_output_file}.stdout"
+    # stdout_save_file = f"{CNF_output_file}.stdout"
     formula_copy.to_dimacs(CNF_output_file)
     LOG(f"CNF_output_file: {CNF_output_file}")
-    LOG(f"stdout_output_file: {stdout_save_file}")
+    # LOG(f"stdout_output_file: {stdout_save_file}")
     checker_stdout = ""
-    if os.path.exists(stdout_save_file):
-        checker_stdout = open(stdout_save_file, 'r').read()
-    else:
-        result = subprocess.run([solver_binary, CNF_output_file], capture_output=True)
-        try:
-            checker_stdout = result.stdout.decode('utf-8')
-        except UnicodeDecodeError:
-            checker_stdout = result.stdout.decode('gbk', errors="replace")
+    # if os.path.exists(stdout_save_file):
+    #     checker_stdout = open(stdout_save_file, 'r').read()
+    # else:
+    #     result = subprocess.run([solver_binary, CNF_output_file], capture_output=True)
+    #     try:
+    #         checker_stdout = result.stdout.decode('utf-8')
+    #     except UnicodeDecodeError:
+    #         checker_stdout = result.stdout.decode('gbk', errors="replace")
     # Clean up
     # os.remove(temp_file)
     LOG_TAG("--------------------------------", "detailed")
     LOG_TAG(f"literal: {literal}", "detailed")
     LOG_TAG(f"rest_of_clause: {rest_of_clause}", "detailed")
     LOG_TAG(f"checker_stdout: {checker_stdout}", "detailed")
-    with open(stdout_save_file, 'w') as f:
-        f.write(checker_stdout)
+    # with open(stdout_save_file, 'w') as f:
+    #     f.write(checker_stdout)
     lines = checker_stdout.split('\n')
     
     if "UNSATISFIABLE" in checker_stdout:

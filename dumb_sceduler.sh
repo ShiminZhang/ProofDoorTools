@@ -1,7 +1,9 @@
 #!/bin/bash                                                    
-#SBATCH --time=0-8:0:0                                                      
+#SBATCH --time=0-4:0:0                                                      
 #SBATCH --account=def-vganesh 
-#SBATCH --mem=20G
+#SBATCH --mem=10G
+
+sleep 70m
 source ../general/bin/activate
 # ./scripts/start_experiment.sh 40 all
 # ./scripts/generate_minisat_proofs.sh 20
@@ -10,7 +12,6 @@ python scripts/pyscripts/start_absorption_experiment.py
 # sbatch ./scripts/manage_interpolant_jobs.sh 10 linear
 # python check_uncomputed_PDS.py 60 6g
 # ./scripts/start_experiment.sh 60 all
-# sleep 2h
 # rm ./ProofDoorBenchmark/smts/10/*.smt2
 # mv ./ProofDoorBenchmark/cnfs/10/*.smt2 ./ProofDoorBenchmark/smts/10/
 # sbatch ./manage_interpolant_jobs.sh 10

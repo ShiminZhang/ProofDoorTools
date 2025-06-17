@@ -16,6 +16,8 @@ def get_interpolant_dimacs_dir():
     return f"./ProofDoorBenchmark/combined_cnfs/"
 
 def get_PDS_dir(k_value):
+    if not os.path.exists(f"./ProofSizeMap/data/{k_value}/"):
+        os.makedirs(f"./ProofSizeMap/data/{k_value}/")
     return f"./ProofSizeMap/data/{k_value}/"
 
 def get_smts_dir(k_value):

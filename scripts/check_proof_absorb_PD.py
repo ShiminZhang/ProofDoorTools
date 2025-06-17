@@ -46,9 +46,13 @@ def check_proof_absorb_PD(cnf_path, k_value, index, use_cache=True):
     if os.path.exists(output_path) and use_cache:
         return json.load(open(output_path))
     proof_path = cnf_path.replace(".cnf",".drat")
+    print(f"using proof path {proof_path}")
     clauses = []
     with open(proof_path, "r") as file:
         lines = file.readlines()
+        if len(lines) == 0:
+            print(f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! proof file {proof_path} is empty")
+            # return {}
         for line in lines:
             if line.startswith("d "):
                 continue
@@ -60,6 +64,7 @@ def check_proof_absorb_PD(cnf_path, k_value, index, use_cache=True):
     interpolant_dir = get_interpolant_dimacs_dir()
     interpolant_cnf_path = f"{interpolant_dir}/{basename}.{k_value}.index_{index}.dimacs"
     interpolant_cnf = CNF.from_file(interpolant_cnf_path)
+    print(f"using interpolant_cnf path {interpolant_cnf_path}")
     result = {}
     for clause in tqdm(interpolant_cnf.clauses):
         clause_absorption_map = {}
@@ -103,7 +108,8 @@ def get_clause_pass_percentage_trend(cnf_path, k_value):
     percentage_for_iterations = []
     for index in range(k_value):
         percentage_for_interpolant_per_iteration = []
-        result = json.load(open(f"{get_absorption_experiments_dir()}/{basename}.{index}.check_absorb.json"))
+        output_path = f"{get_absorption_experiments_dir()}/{basename}.k_{k_value}.i_{index}.check_absorb.json"
+        result = json.load(open(output_path))
         for j in range(k_value):
             pass_count = 0
             total_count = 0
@@ -122,7 +128,8 @@ def get_literal_pass_percentage_trend(cnf_path, k_value):
     percentage_for_iterations = []
     for index in range(k_value):
         percentage_for_interpolant_per_iteration = []
-        result = json.load(open(f"{get_absorption_experiments_dir()}/{basename}.{index}.check_absorb.json"))
+        output_path = f"{get_absorption_experiments_dir()}/{basename}.k_{k_value}.i_{index}.check_absorb.json"
+        result = json.load(open(output_path))
         for j in range(k_value):
             pass_count = 0
             total_count = 0

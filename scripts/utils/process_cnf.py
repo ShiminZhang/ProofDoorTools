@@ -105,10 +105,11 @@ class CNF:
         LOG_TAG(f"init_with_clauses: {clauses}", "detailed")
         self.clauses = clauses
         self.N = len(clauses)
-        # for clause in clauses:
-        #     print(clause)
-        #     print(max(abs(literal) for literal in clause))
-        self.L = max(max(abs(literal) for literal in clause) for clause in clauses)
+        if len(clauses) == 0:
+            self.L = 0   
+            self.iter_map = {}
+            return         
+        self.L = max(max(abs(literal) for literal in clause) for clause in clauses if len(clause) > 0)
         self.iter_map = {}
         self.parse_literals()
     

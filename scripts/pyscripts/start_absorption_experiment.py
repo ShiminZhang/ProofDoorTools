@@ -28,7 +28,7 @@ def main():
             # time.sleep(5)
             wrapped = f"{activate_python} && python ./scripts/check_proof_absorb_PD.py --K {K} --target_name {name}"
             print(f"sbatch --dependency=afterany:{slurm_id} --mem=10g --time=2:00:00 --wrap=\"{wrapped}\"/n")
-            os.system(f"sbatch --output=./SlurmLogs/absorption_experiment_{slurm_id}_sum_{K}_{name}.log --dependency=afterany:{slurm_id} --mem=10g --time=2:00:00 --wrap=\"{wrapped}\"")
+            os.system(f"sbatch --output=./SlurmLogs/absorption_experiments_{slurm_id}_sum_{K}_{name}.log --dependency=afterany:{slurm_id} --mem=10g --time=2:00:00 --wrap=\"{wrapped}\"")
             slurm_ids.append(slurm_id)
         print(f"Slurm ids: {slurm_ids}")
         
