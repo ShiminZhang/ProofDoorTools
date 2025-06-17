@@ -145,7 +145,7 @@ def get_literal_pass_percentage_trend(cnf_path, k_value):
 
 def prepare_datas(names,k_value,force_refresh=False,index=None):
     solver = "./solvers/cadical"
-    drat_solver = "./solvers/minisat_pf"
+    drat_solver = "./solvers/minisat_nodel_test"
     # prepare proofs
     print(f"Preparing proofs for {names} with k_value {k_value},index {index}")
     for name in names:

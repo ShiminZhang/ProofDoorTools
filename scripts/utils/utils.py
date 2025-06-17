@@ -10,6 +10,41 @@ import numpy as np
 from z3 import *
 import re
 
+        
+def group_files_by_basename(directory, k_value, force_name=None, limit=-1, file_extension='.cnf'):
+    """Group CNF files by basename for a given k value."""
+    file_groups = {}
+    count = 0
+    for filename in tqdm(os.listdir(directory)):
+        if filename.endswith(file_extension):
+            if force_name is not None and force_name not in filename:
+                continue
+            parts = filename.split('.')
+            if len(parts) >= 4 and parts[1].isdigit() and int(parts[1]) == k_value:
+                basename = parts[0]
+                if limit > 0 and int(parts[2]) >= limit:
+                    continue
+                if basename not in file_groups:
+                    file_groups[basename] = []
+                file_groups[basename].append(os.path.join(directory, filename))
+            file_groups[basename].sort(key=lambda x: int(x.split('.')[-2]))
+                
+    #check if the file group for each basename is valid
+    invalid_keys = []
+    if limit > 0:
+        for basename, files in file_groups.items():
+            if len(files) != limit:
+                # print(f"basename: {basename}")
+                # print(f"files: {files}")
+                invalid_keys.append(basename)
+            
+    for key in invalid_keys:
+        print(f"deleting {key} because it has only {len(file_groups[key])} files while {limit} is expected")
+        del file_groups[key]
+    # sort by the index of the name
+    # file_groups = dict(sorted(file_groups.items(), key=lambda item: int(item[0].split('.')[-2])))
+    return file_groups
+
 def RewriteMap(InMap):
     OutMap = {}
     for key, value in InMap.items():

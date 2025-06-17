@@ -72,8 +72,7 @@ Solver::Solver() :
 
     // Parameters (the rest):
     //
-//   , learntsize_factor(1e9), learntsize_inc(1.1)
-  , learntsize_factor((double)1/(double)3), learntsize_inc(1.1)
+  , learntsize_factor(1e9), learntsize_inc(1.1)
 
     // Parameters (experimental):
     //
@@ -298,14 +297,18 @@ Lit Solver::pickBranchLit()
             next = var_Undef;
             break;
         } else {
+            // Create a copy of the heap for processing
+            // next = temp_heap.removeMin();
+            // if (verbosity > 0) printf("PDLOG: default next %d\n", next);
+
+            Heap<int,VarOrderLt> temp_heap = order_heap;
             // Get top 10 variables by activity
+            int verb_limit = 1;
             vec<Var> top_vars;
-            for (int i = 0; i < PDB_top_n && order_heap.size() > 0; i++) {
-                Var v = order_heap.removeMin();
-                // if (value(v) == l_Undef && decision[v]) {
+            for (int i = 0; i < PDB_top_n && temp_heap.size() > 0; i++) {
+                Var v = temp_heap.removeMin();
                 top_vars.push(v);
-                if (verbosity > 1) printf("PDLOG:      top_vars: %d\n", v);
-                // }
+                if (verbosity > verb_limit) printf("PDLOG:      top_vars: %d\n", v);
             }
             
             // Check if any of these variables are in branch_literals
@@ -316,7 +319,7 @@ Lit Solver::pickBranchLit()
                 if (branch_literal_indices.has(v) && branch_literal_indices[v] > 0) {
                     int idx = branch_literal_indices[v];
                     if (idx < lowest_idx) {
-                        if (verbosity > 1) printf("PDLOG:          matched: %d at index %d\n", v, idx);
+                        if (verbosity > verb_limit) printf("PDLOG:          matched: %d at index %d\n", v, idx);
                         lowest_idx = idx;
                         next = v;
                         found = true;
@@ -330,17 +333,13 @@ Lit Solver::pickBranchLit()
             }
 
             if (found) {
-                if (verbosity > 1) printf("PDLOG:      found branch literal %d at lowest index: %d\n", next, lowest_idx);
+                if (verbosity > verb_limit) printf("PDLOG:      found branch literal %d at lowest index: %d\n", next, lowest_idx);
             }else{
-                if (verbosity > 1) printf("PDLOG:      no branch literal found, using highest activity variable %d\n", top_vars[0]);
+                if (verbosity > verb_limit) printf("PDLOG:      no branch literal found, using highest activity variable %d\n", top_vars[0]);
             }
             
-            // Put back the variables we didn't use
-            for (int i = 0; i < top_vars.size(); i++) {
-                if (top_vars[i] != next) {
-                    order_heap.insert(top_vars[i]);
-                }
-            }
+            // Remove the selected variable from the original heap
+            order_heap.remove(next);
         }
 
     // Choose polarity based on different polarity modes (global or per-variable):

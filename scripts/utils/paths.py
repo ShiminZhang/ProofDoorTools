@@ -3,6 +3,11 @@ import os
 def get_interpolant_dir(k_value):
     return f"./ProofDoorBenchmark/interpolants/{k_value}/"
 
+def get_branching_order_dir(k_value):
+    if not os.path.exists(f"./ProofDoorBenchmark/branching_orders/{k_value}/"):
+        os.makedirs(f"./ProofDoorBenchmark/branching_orders/{k_value}/")
+    return f"./ProofDoorBenchmark/branching_orders/{k_value}/"
+
 def get_PDS_data_dir():
     return f"./ProofSizeMap/data/"
 

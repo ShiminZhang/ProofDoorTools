@@ -29,7 +29,7 @@ for cnf_file in "$directory"/*.cnf; do
         log_file=$(echo $cnf_file | sed 's/\.cnf/.drat/')
         # ./solvers/minisat_pf $cnf_file | grep "PDLOG Learnt clause:" | sed 's/PDLOG Learnt clause: //' > $log_file
         echo "saved to $log_file"
-        jobid=$(sbatch --priority 0 -o ./Outputs/output_%A_%a.out --mem=10g --time=1:30:00 --wrap="./solvers/minisat_nodel $cnf_file | grep 'PDLOG Learnt clause:' | sed 's/PDLOG Learnt clause: //' > $log_file")
+        jobid=$(sbatch --priority 0 -o ./Outputs/output_%A_%a.out --mem=10g --time=1:30:00 --wrap="./solvers/minisat_nodel_origin $cnf_file | grep 'PDLOG Learnt clause:' | sed 's/PDLOG Learnt clause: //' > $log_file")
         # jobid=$(sbatch --priority 0 -o ./Outputs/output_%A_%a.out ./scripts/submit_solver.sh ./solvers/minisat minisat $cnf_file | awk '{print $4}')
     fi
 done

@@ -3,17 +3,33 @@ import os
 
 def main():
     interested_names=[
-        "6s277rb292",
-        "6s275rb318",
-        "6s194",
-        "6s271rb045",
-        "6s326rb08",
-        "beembrptwo3b2",
-        "beemcycschd3b1"
+        "6s288",
+        "6s0",
+        "6s31",
+        "6s119",
+        "6s122",
+        "6s134",
+        "6s149",
+        "6s159",
+        "6s164",
+        "6s173",
+        "139444",
+        "139443",
+        "139452",
+        "139453",
+        "beemtrngt4b1",
+        "beemszmsk1f1",
+        "beemtlphn4f1",
+        "beemmsmie1f1",
+        "dspfilters_fastfir_second-p16",
+        "dspfilters_fastfir_second-p21",
+        "dspfilters_fastfir_second-p25",
+        "intel020",
+        "kenoopp1",
     ]
     K_set = [
         # 10,
-        20
+        10
         ]
     
     activate_python = "source ../general/bin/activate"

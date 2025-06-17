@@ -34,6 +34,18 @@ namespace Minisat {
     public:
         explicit IntMap(MkIndex _index = MkIndex()) : index(_index){}
         
+        IntMap(const IntMap& other) : index(other.index) {
+            map.copyTo(other.map);
+        }
+        
+        IntMap& operator=(const IntMap& other) {
+            if (this != &other) {
+                index = other.index;
+                map.copyTo(other.map);
+            }
+            return *this;
+        }
+        
         bool     has       (K k) const { return index(k) < map.size(); }
 
         const V& operator[](K k) const { assert(has(k)); return map[index(k)]; }

@@ -76,9 +76,30 @@ class Heap {
   public:
     Heap(const Comp& c, MkIndex _index = MkIndex()) : indices(_index), lt(c) {}
 
+    // Add copy constructor
+    Heap(const Heap& other) : lt(other.lt) {
+        // Create a new heap and copy elements
+        other.indices.copyTo(indices);
+        heap.clear();
+        heap.growTo(other.heap.size());
+        for (int i = 0; i < other.heap.size(); i++)
+            heap[i] = other.heap[i];
+    }
+
+    // Add copy assignment operator
+    Heap& operator=(const Heap& other) {
+        if (this != &other) {
+            indices = other.indices;
+            lt = other.lt;
+            heap.copyTo(other.heap);
+        }
+        return *this;
+    }
+
     int  size      ()          const { return heap.size(); }
     bool empty     ()          const { return heap.size() == 0; }
     bool inHeap    (K k)       const { return indices.has(k) && indices[k] >= 0; }
+    int  forceGet  (K k)       const { return indices[k]; }
     int  operator[](int index) const { assert(index < heap.size()); return heap[index]; }
 
     void decrease  (K k) { assert(inHeap(k)); percolateUp  (indices[k]); }
