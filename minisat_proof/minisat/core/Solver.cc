@@ -333,9 +333,9 @@ Lit Solver::pickBranchLit()
             }
 
             if (found) {
-                if (verbosity > verb_limit) printf("PDLOG:      found branch literal %d at lowest index: %d\n", next, lowest_idx);
+                if (verbosity > 0) printf("PDLOG:      found branch literal:                                     %d at lowest index:%d\n", next, lowest_idx);
             }else{
-                if (verbosity > verb_limit) printf("PDLOG:      no branch literal found, using highest activity variable %d\n", top_vars[0]);
+                if (verbosity > 0) printf("PDLOG:      no branch literal found, using highest activity variable: %d\n", top_vars[0]);
             }
             
             // Remove the selected variable from the original heap

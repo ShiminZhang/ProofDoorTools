@@ -10,6 +10,8 @@ import numpy as np
 from z3 import *
 import re
 
+def get_python_activate_command():
+    return "source ../general/bin/activate"
         
 def group_files_by_basename(directory, k_value, force_name=None, limit=-1, file_extension='.cnf'):
     """Group CNF files by basename for a given k value."""
@@ -488,7 +490,7 @@ def to_pure_smt2(smt_file_path):
             else:
                 content += line
     return content
-                
+        
 def parse_memory_limit(memory_limit_str):
     """
     Parse memory limit string to bytes.
@@ -511,3 +513,15 @@ def parse_memory_limit(memory_limit_str):
     except (ValueError, AttributeError):
         # Default to 10GB if parsing fails
         return 10 * 1024 * 1024 * 1024
+    
+def generate_cnf(filename):
+    k_value = int(filename.split('.')[1])
+    basename = filename.split('.')[0]
+    aigs = f"./ProofDoorBenchmark/aigs/{basename}.aig"
+    if not os.path.exists(aigs):
+        print(f"AIG file {aigs} does not exist")
+        return
+    cmd=f"./simplecar -bmc -k {k_value} -cnf ./cnfs/{k_value}/{basename}.{k_value}.cnf {aigs}"
+    os.system(cmd)
+    
+    

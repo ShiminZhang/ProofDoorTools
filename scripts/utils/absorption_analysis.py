@@ -32,11 +32,11 @@ def check_single_literal(args):
     # if os.path.exists(stdout_save_file):
     #     checker_stdout = open(stdout_save_file, 'r').read()
     # else:
-    #     result = subprocess.run([solver_binary, CNF_output_file], capture_output=True)
-    #     try:
-    #         checker_stdout = result.stdout.decode('utf-8')
-    #     except UnicodeDecodeError:
-    #         checker_stdout = result.stdout.decode('gbk', errors="replace")
+    result = subprocess.run([solver_binary, CNF_output_file], capture_output=True)
+    try:
+        checker_stdout = result.stdout.decode('utf-8')
+    except UnicodeDecodeError:
+        checker_stdout = result.stdout.decode('gbk', errors="replace")
     # Clean up
     # os.remove(temp_file)
     LOG_TAG("--------------------------------", "detailed")

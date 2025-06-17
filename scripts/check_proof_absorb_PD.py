@@ -1,5 +1,6 @@
 from utils.absorption_analysis import check_clause_absorption,check_formula_absorp_clause
 from utils.process_cnf import CNF
+from utils.utils import generate_cnf
 from utils.tosmt import cnf_to_smt2_n_way
 from utils.paths import get_cnfs_dir,get_interpolant_cnf_dir,get_interpolant_dir,get_smts_dir,get_interpolant_dimacs_dir,get_absorption_experiments_dir,get_figures_dir
 from combine_proofdoor_to_cnf import combine_single_i_interpolant_to_cnf
@@ -151,7 +152,7 @@ def prepare_datas(names,k_value,force_refresh=False,index=None):
     for name in names:
         cnf_path = f"./ProofDoorBenchmark/cnfs/{k_value}/{name}.{k_value}.cnf"
         if not os.path.exists(cnf_path):
-            exit(f"CNF file {cnf_path} does not exist")
+            generate_cnf(f"{name}.{k_value}.cnf")
         proof_path = cnf_path.replace(".cnf",".drat")
         if not os.path.exists(proof_path):
             os.system(f"{solver} {cnf_path} {proof_path} --restart=0 --reduce=0 --restoreall=2 --flush=0 --no-binary")

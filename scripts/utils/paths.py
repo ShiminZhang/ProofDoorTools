@@ -3,6 +3,11 @@ import os
 def get_interpolant_dir(k_value):
     return f"./ProofDoorBenchmark/interpolants/{k_value}/"
 
+def get_branching_order_log_dir():
+    if not os.path.exists(f"./ProofDoorBenchmark/branching_order_logs/"):
+        os.makedirs(f"./ProofDoorBenchmark/branching_order_logs/")
+    return f"./ProofDoorBenchmark/branching_order_logs/"
+
 def get_branching_order_dir(k_value):
     if not os.path.exists(f"./ProofDoorBenchmark/branching_orders/{k_value}/"):
         os.makedirs(f"./ProofDoorBenchmark/branching_orders/{k_value}/")
@@ -30,6 +35,13 @@ def get_smts_dir(k_value):
 
 def get_cnfs_dir(k_value):
     return f"./ProofDoorBenchmark/cnfs/{k_value}/"
+
+def get_exp_pbh_dir(k_value):
+    if not os.path.exists(f"./ProofDoorBenchmark/exp_pbh/"):
+        os.makedirs(f"./ProofDoorBenchmark/exp_pbh/")
+    if not os.path.exists(f"./ProofDoorBenchmark/exp_pbh/{k_value}/"):
+        os.makedirs(f"./ProofDoorBenchmark/exp_pbh/{k_value}/")
+    return f"./ProofDoorBenchmark/exp_pbh/{k_value}/"
 
 def get_wires_dir(k_value):
     if not os.path.exists("./ProofDoorBenchmark/wires/"):

@@ -1,8 +1,9 @@
 import argparse
 import os
 from tqdm import tqdm
-from utils.paths import get_interpolant_dir,get_branching_order_dir
+from utils.paths import get_interpolant_dir,get_branching_order_dir,get_branching_order_log_dir
 from utils.utils import group_files_by_basename
+from utils.utils import get_python_activate_command
 
 def extract_branching_order_from_interpolants(interpolant_file):
     with open(interpolant_file, 'r') as f:
@@ -54,10 +55,14 @@ def main():
     parser.add_argument('--interpolant', type=str, required=False)
     parser.add_argument('--K', type=int, required=True)
     parser.add_argument('--extract_dir', action='store_true', default=False)
+    parser.add_argument('--extract_dir_parallel', action='store_true', default=False)
     parser.add_argument('--use_cache', action='store_true', default=False)
     parser.add_argument('--use_cache_only', action='store_true', default=False)
+    parser.add_argument('--force_name', type=str, required=False)
     args = parser.parse_args()
-
+    # skip_names = ["6s277rb292","6s210b037","139443p5","6s355rb08740"]
+    skip_names = []
+    
     if args.interpolant:
         literals_in_interpolant = extract_branching_order_from_interpolants(args.interpolant)
         save_literals_to_file(
@@ -65,14 +70,33 @@ def main():
             os.path.join(
                 get_branching_order_dir(args.K),
                 args.interpolant.split('/')[-1].replace('.interpolant','.literals')))
-    elif args.extract_dir:
+    elif args.extract_dir_parallel:
         dir = get_interpolant_dir(args.K)
         for file in tqdm(os.listdir(dir)):
+            # if file.split('.')[0] not in skip_names: #skip the files that are already extracted
+            if file.split('.')[0] in skip_names:
+                continue
             if file.endswith('.interpolant'):
                 target_file = os.path.join(
                         get_branching_order_dir(args.K),
                         file.replace('.interpolant','.literals'))
-                if os.path.exists(target_file) and (args.use_cache or args.use_cache_only):
+                activate_python_command = get_python_activate_command()
+                log_file = os.path.join(get_branching_order_log_dir(), f"extract_branching_order_{file}.log")
+                wrapped = f"{activate_python_command} && python ./scripts/extract_branching_order_from_interpolants.py --interpolant {target_file} --K {args.K}"
+                os.system(f"sbatch --time=00:60:00 --output={log_file} --mem=10G --wrap=\"{wrapped}\"")
+    elif args.extract_dir:
+        force_name=args.force_name
+        dir = get_interpolant_dir(args.K)
+        for file in tqdm(os.listdir(dir)):
+            if file.split('.')[0] in skip_names:
+                continue
+            if force_name and file.split('.')[0] != force_name:
+                continue
+            if file.endswith('.interpolant'):
+                target_file = os.path.join(
+                        get_branching_order_dir(args.K),
+                        file.replace('.interpolant','.literals'))
+                if os.path.exists(target_file) and os.path.getsize(target_file) > 0 and (args.use_cache or args.use_cache_only):
                     continue
                 if args.use_cache_only:
                     continue
@@ -83,10 +107,13 @@ def main():
         file_groups = group_files_by_basename(
             get_branching_order_dir(args.K),
             args.K,
+            limit=args.K,
+            force_name=force_name,
             file_extension='.literals')
         print(file_groups)
-        
         for basename, files in file_groups.items():
+            if basename in skip_names:
+                continue
             print(basename)
             print(files)
             literal_sets = []
