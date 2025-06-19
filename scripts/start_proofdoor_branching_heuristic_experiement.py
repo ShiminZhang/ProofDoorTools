@@ -1,7 +1,7 @@
 import argparse
 import os
 from utils.paths import get_branching_order_dir,get_cnfs_dir,get_exp_pbh_dir
-from utils.utils import get_python_activate_command,generate_cnf
+from utils.utils import PolynomialRegression,get_python_activate_command,generate_cnf,GetData,RewriteMap,ComputeCorrelation  
 
 def main():
     parser = argparse.ArgumentParser()
@@ -10,12 +10,23 @@ def main():
     parser.add_argument("--top_n", type=int, default=100)
     parser.add_argument("--original", action="store_true", default=False)
     parser.add_argument("--compose", action="store_true", default=False)
+    parser.add_argument("--analyze", action="store_true", default=False)
     args = parser.parse_args()
     if args.compose:
         activate_python_command = get_python_activate_command()
         os.system(f"{activate_python_command} && python scripts/extract_branching_order_from_interpolants.py --K {args.K} --use_cache --extract_dir --force_name {args.force_name}")
         os.system(f"{activate_python_command} && python scripts/start_proofdoor_branching_heuristic_experiement.py --K {args.K} --force_name={args.force_name} --top_n {args.top_n}")
         os.system(f"{activate_python_command} && python scripts/start_proofdoor_branching_heuristic_experiement.py --K {args.K} --force_name={args.force_name} --top_n {args.top_n} --original")
+        return
+    if args.analyze:
+        dir = get_exp_pbh_dir(args.K)
+        data_pbh,map_pbh,par2_pbh,mem_pbh = GetData(dir,"top_100.minisat")
+        data_original,map_original,par2_original,mem_original = GetData(dir,"original.minisat")
+        print(len(data_pbh))
+        print(len(data_original))
+        normal_pbh = RewriteMap(map_pbh)
+        normal_original = RewriteMap(map_original)
+        PolynomialRegression(normal_pbh,normal_original,1)
         return
     branching_order_dir = get_branching_order_dir(args.K)
     for file in os.listdir(branching_order_dir):

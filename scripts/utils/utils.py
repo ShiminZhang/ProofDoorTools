@@ -521,7 +521,8 @@ def generate_cnf(filename):
     if not os.path.exists(aigs):
         print(f"AIG file {aigs} does not exist")
         return
-    cmd=f"./simplecar -bmc -k {k_value} -cnf ./cnfs/{k_value}/{basename}.{k_value}.cnf {aigs}"
+    cmd=f"./simplecar -bmc -k {k_value} -cnf ./ProofDoorBenchmark/cnfs/{k_value}/ {aigs}"
+    print(cmd)
     os.system(cmd)
     
     

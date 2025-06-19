@@ -152,7 +152,10 @@ def prepare_datas(names,k_value,force_refresh=False,index=None):
     for name in names:
         cnf_path = f"./ProofDoorBenchmark/cnfs/{k_value}/{name}.{k_value}.cnf"
         if not os.path.exists(cnf_path):
+            print(f"CNF file {cnf_path} DNE, regenerating")
             generate_cnf(f"{name}.{k_value}.cnf")
+        else:
+            print(f"CNF file {cnf_path} exists, skipping")
         proof_path = cnf_path.replace(".cnf",".drat")
         if not os.path.exists(proof_path):
             os.system(f"{solver} {cnf_path} {proof_path} --restart=0 --reduce=0 --restoreall=2 --flush=0 --no-binary")
@@ -170,15 +173,20 @@ def prepare_datas(names,k_value,force_refresh=False,index=None):
                 os.system(f"{drat_solver} {cnf_path} | grep 'PDLOG Learnt clause:' | sed 's/PDLOG Learnt clause: //' > {drat_path}")
             
             if not os.path.exists(smt_path):
+                print(f"SMT file {smt_path} DNE, regenerating")
                 cnf_to_smt2_n_way(cnf_path,f"{get_smts_dir(k_value)}/{name}.{k_value}")
-                
+            else:
+                print(f"SMT file {smt_path} exists, skipping")
             interpolant_path = f"{get_interpolant_dir(k_value)}/{name}.{k_value}.{i}.interpolant"
             if not os.path.exists(interpolant_path):
+                print(f"Interpolant file {interpolant_path} DNE, regenerating")
                 os.system(f"./z3 {smt_path} > {interpolant_path}")
+            else:
+                print(f"Interpolant file {interpolant_path} exists, skipping")
                 # exit(f"Interpolant file {interpolant_path} does not exist")
             interpolant_cnf_path = f"{get_interpolant_cnf_dir()}/{name}.{k_value}.{i}.smt2.cnf"
             
-            if not os.path.exists(interpolant_cnf_path):
+            if not os.path.exists(interpolant_cnf_path) or force_refresh:
                 print(f"Interpolant CNF file {interpolant_cnf_path} DNE, regenerating")
                 count_and_save(interpolant_path,smt_path)
                 
@@ -193,9 +201,12 @@ def prepare_datas(names,k_value,force_refresh=False,index=None):
     if index != None:
         if force_refresh:
             for name in names:
-                cnf_path = f"./ProofDoorBenchmark/cnfs/{k_value}/{name}.{k_value}.cnf"
-                print(f"Force refreshing proofs for {name} with k_value {k_value},index {index}")
-                combine_single_i_interpolant_to_cnf(get_interpolant_cnf_dir(), k_value, index, name)
+                # smt_path = f"{get_smts_dir(k_value)}/{name}.{k_value}.{index}.smt2"
+                # cnf_path = f"./ProofDoorBenchmark/cnfs/{k_value}/{name}.{k_value}.cnf"
+                # interpolant_cnf_path = f"{get_interpolant_cnf_dir()}/{name}.{k_value}.{index}.smt2.cnf"
+                # count_and_save(interpolant_path,smt_path)
+                # print(f"Force refreshing proofs for {name} with k_value {k_value},index {index}")
+                # combine_single_i_interpolant_to_cnf(get_interpolant_cnf_dir(), k_value, index, name)
                 
                 drat_path = f"./ProofDoorBenchmark/cnfs/{k_value}/{name}.{k_value}.drat"
                 if not os.path.exists(drat_path) or os.path.getsize(drat_path) == 0:
