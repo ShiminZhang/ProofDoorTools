@@ -1,13 +1,20 @@
 #!/bin/bash                                                    
-#SBATCH --time=0-4:0:0                                                      
+#SBATCH --time=0-8:0:0                                                      
 #SBATCH --account=def-vganesh 
-#SBATCH --mem=10G
+#SBATCH --mem=16G
 
-sleep 70m
 source ../general/bin/activate
+# cd ../
+rm ./ProofDoorBenchmark/interpolants/10/*
+rm ./ProofDoorBenchmark/smts/10/*
+# mkdir newPDT
+# cd newPDT/
+# git clone git@github.com:ShiminZhang/ProofDoorTools.git
+# cd ../ProofDoorTools/
+# cp ../original/ProofDoorTools/ProofDoorBnchmark/aigs/* ProofDoorBenchmark/aigs/
 # ./scripts/start_experiment.sh 40 all
 # ./scripts/generate_minisat_proofs.sh 20
-python scripts/pyscripts/start_absorption_experiment.py
+python scripts/pyscripts/start_absorption_experiment.py --clean
 # python scripts/combine_proofdoor_to_cnf.py 40 40
 # sbatch ./scripts/manage_interpolant_jobs.sh 10 linear
 # python check_uncomputed_PDS.py 60 6g

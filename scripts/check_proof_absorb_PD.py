@@ -156,11 +156,19 @@ def prepare_datas(names,k_value,force_refresh=False,index=None):
             generate_cnf(f"{name}.{k_value}.cnf")
         else:
             print(f"CNF file {cnf_path} exists, skipping")
-        proof_path = cnf_path.replace(".cnf",".drat")
-        if not os.path.exists(proof_path):
-            os.system(f"{solver} {cnf_path} {proof_path} --restart=0 --reduce=0 --restoreall=2 --flush=0 --no-binary")
+        drat_path = f"./ProofDoorBenchmark/cnfs/{k_value}/{name}.{k_value}.drat"
+        if not os.path.exists(drat_path) or os.path.getsize(drat_path) == 0:
+            print(f"Drat file {drat_path} DNE or empty, regenerating")
+            os.system(f"{drat_solver} {cnf_path} > {drat_path}.raw")
+            if os.path.getsize(f"{drat_path}.raw") == 0:
+                print(f"proof raw file {drat_path}.raw is empty, regenerating")
+                exit(f"proof raw file {drat_path}.raw is empty")
+            os.system(f"cat {drat_path}.raw | grep 'PDLOG Learnt clause:' | sed 's/PDLOG Learnt clause: //' > {drat_path}")
+        else:
+            print(f"Drat file {drat_path} exists, skipping")
+        # if not os.path.exists(proof_path):
+        #     os.system(f"{solver} {cnf_path} {proof_path} --restart=0 --reduce=0 --restoreall=2 --flush=0 --no-binary")
         
-            
     # prepare interpolants
     for name in names:
         for i in range(k_value):
@@ -188,7 +196,7 @@ def prepare_datas(names,k_value,force_refresh=False,index=None):
             
             if not os.path.exists(interpolant_cnf_path) or force_refresh:
                 print(f"Interpolant CNF file {interpolant_cnf_path} DNE, regenerating")
-                count_and_save(interpolant_path,smt_path)
+                count_and_save(interpolant_path,smt_path,-1)
                 
             dimacs_path = f"{get_interpolant_dimacs_dir()}/{name}.{k_value}.index_{i}.dimacs"
             if not os.path.exists(dimacs_path):
