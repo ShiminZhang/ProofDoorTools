@@ -487,13 +487,6 @@ void Solver::uncheckedEnqueue(Lit p, CRef from)
 {
     assert(value(p) == l_Undef);
     assigns[var(p)] = lbool(!sign(p));
-
-    //  Report absorption
-    if (lbool(!sign(p)) == l_True){
-        printf("PDLOG propagated to %d\n", var(p) +1);
-    } else {
-        printf("PDLOG propagated to -%d\n", var(p) +1);
-    }
     vardata[var(p)] = mkVarData(from, decisionLevel());
     trail.push_(p);
 }
@@ -706,8 +699,6 @@ bool Solver::simplify()
 |    all variables are decision variables, this means that the clause set is satisfiable. 'l_False'
 |    if the clause set is unsatisfiable. 'l_Undef' if the bound on number of conflicts is reached.
 |________________________________________________________________________________________________@*/
-
-
 lbool Solver::search(int nof_conflicts)
 {
     assert(ok);
@@ -720,45 +711,39 @@ lbool Solver::search(int nof_conflicts)
         CRef confl = propagate();
         if (confl != CRef_Undef){
             // CONFLICT
-            //  Report absorption
-            printf("PDLOG conflict");
-            exit(0);
+            conflicts++; conflictC++;
+            if (decisionLevel() == 0) return l_False;
 
-            // conflicts++; conflictC++;
-            // if (decisionLevel() == 0) return l_False;
+            learnt_clause.clear();
+            analyze(confl, learnt_clause, backtrack_level);
+            cancelUntil(backtrack_level);
 
-            // learnt_clause.clear();
-            // analyze(confl, learnt_clause, backtrack_level);
-            // cancelUntil(backtrack_level);
+            if (learnt_clause.size() == 1){
+                uncheckedEnqueue(learnt_clause[0]);
+            }else{
+                CRef cr = ca.alloc(learnt_clause, true);
+                learnts.push(cr);
+                attachClause(cr);
+                claBumpActivity(ca[cr]);
+                uncheckedEnqueue(learnt_clause[0], cr);
+            }
 
-            // if (learnt_clause.size() == 1){
-            //     uncheckedEnqueue(learnt_clause[0]);
-            // }else{
-            //     CRef cr = ca.alloc(learnt_clause, true);
-            //     learnts.push(cr);
-            //     attachClause(cr);
-            //     claBumpActivity(ca[cr]);
-            //     uncheckedEnqueue(learnt_clause[0], cr);
-            // }
+            varDecayActivity();
+            claDecayActivity();
 
-            // varDecayActivity();
-            // claDecayActivity();
+            if (--learntsize_adjust_cnt == 0){
+                learntsize_adjust_confl *= learntsize_adjust_inc;
+                learntsize_adjust_cnt    = (int)learntsize_adjust_confl;
+                max_learnts             *= learntsize_inc;
 
-            // if (--learntsize_adjust_cnt == 0){
-            //     learntsize_adjust_confl *= learntsize_adjust_inc;
-            //     learntsize_adjust_cnt    = (int)learntsize_adjust_confl;
-            //     max_learnts             *= learntsize_inc;
-
-            //     if (verbosity >= 1)
-            //         printf("| %9d | %7d %8d %8d | %8d %8d %6.0f | %6.3f %% |\n", 
-            //                (int)conflicts, 
-            //                (int)dec_vars - (trail_lim.size() == 0 ? trail.size() : trail_lim[0]), nClauses(), (int)clauses_literals, 
-            //                (int)max_learnts, nLearnts(), (double)learnts_literals/nLearnts(), progressEstimate()*100);
-            // }
+                if (verbosity >= 1)
+                    printf("| %9d | %7d %8d %8d | %8d %8d %6.0f | %6.3f %% |\n", 
+                           (int)conflicts, 
+                           (int)dec_vars - (trail_lim.size() == 0 ? trail.size() : trail_lim[0]), nClauses(), (int)clauses_literals, 
+                           (int)max_learnts, nLearnts(), (double)learnts_literals/nLearnts(), progressEstimate()*100);
+            }
 
         }else{
-            printf("PDLOG decision\n");
-            exit(0);
             // NO CONFLICT
             if ((nof_conflicts >= 0 && conflictC >= nof_conflicts) || !withinBudget()){
                 // Reached bound on number of conflicts:

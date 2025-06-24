@@ -38,15 +38,21 @@ def test3():
     assert(check_clause_absorption([1,6,10],cnf_path) == False)
     assert(check_clause_absorption([1,2,-3,5,-10],cnf_path) == True)
     
-def check_proof_absorb_PD(cnf_path, k_value, index, use_cache=True):
+def check_proof_absorb_PD(cnf_path, k_value, index, use_cache=True, use_minisat_proof=False):
     original_cnf = CNF.from_file(cnf_path)
     basename = os.path.basename(cnf_path)
     basename = basename.split(".")[0]
     # output_path = f"{get_absorption_experiments_dir()}/{basename}.{index}.check_absorb.json"
-    output_path = f"{get_absorption_experiments_dir()}/{basename}.k_{k_value}.i_{index}.check_absorb.json"
+    output_dir = f"{get_absorption_experiments_dir()}/k_{k_value}/"
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+    output_path = f"{output_dir}/{basename}.i_{index}.check_absorb.json"
     if os.path.exists(output_path) and use_cache:
         return json.load(open(output_path))
-    proof_path = cnf_path.replace(".cnf",".drat")
+    if use_minisat_proof:
+        proof_path = cnf_path.replace(".cnf",".minisat_proof")
+    else:
+        proof_path = cnf_path.replace(".cnf",".cadical_proof")
     print(f"using proof path {proof_path}")
     clauses = []
     with open(proof_path, "r") as file:
@@ -88,7 +94,7 @@ def check_pass_percent(in_list):
             pass_count += 1
     return float(pass_count) / len(in_list)
 
-def draw_greyscale_plot(percentage_trend, title, color='Greys'):
+def draw_greyscale_plot(percentage_trend, title, color='Greys', k_value=10):
     plt.figure(figsize=(10, 6))
     plt.xticks(range(len(percentage_trend[0])), [f"{i*(100/len(percentage_trend))}%" for i in range(len(percentage_trend[0]))])
     plt.imshow(percentage_trend, cmap=color, aspect='auto')
@@ -96,7 +102,9 @@ def draw_greyscale_plot(percentage_trend, title, color='Greys'):
     plt.xlabel('Proof progress percentage')
     plt.ylabel('Interpolant index')
     plt.title(title)
-    plt.savefig(f"{get_figures_dir()}/{title}.png")
+    if not os.path.exists(f"{get_figures_dir()}/absorption_experiments/{k_value}"):
+        os.makedirs(f"{get_figures_dir()}/absorption_experiments/{k_value}")
+    plt.savefig(f"{get_figures_dir()}/absorption_experiments/{k_value}/{title}.png")
 
 def pretty_print_percentage_trend(percentage_trend):
     for iteration in percentage_trend:
@@ -109,7 +117,11 @@ def get_clause_pass_percentage_trend(cnf_path, k_value):
     percentage_for_iterations = []
     for index in range(k_value):
         percentage_for_interpolant_per_iteration = []
-        output_path = f"{get_absorption_experiments_dir()}/{basename}.k_{k_value}.i_{index}.check_absorb.json"
+        output_dir = f"{get_absorption_experiments_dir()}/k_{k_value}/"
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        output_path = f"{output_dir}/{basename}.i_{index}.check_absorb.json"
+        # output_path = f"{get_absorption_experiments_dir()}/{basename}.k_{k_value}.i_{index}.check_absorb.json"
         result = json.load(open(output_path))
         for j in range(k_value):
             pass_count = 0
@@ -129,7 +141,11 @@ def get_literal_pass_percentage_trend(cnf_path, k_value):
     percentage_for_iterations = []
     for index in range(k_value):
         percentage_for_interpolant_per_iteration = []
-        output_path = f"{get_absorption_experiments_dir()}/{basename}.k_{k_value}.i_{index}.check_absorb.json"
+        output_dir = f"{get_absorption_experiments_dir()}/k_{k_value}/"
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        output_path = f"{output_dir}/{basename}.i_{index}.check_absorb.json"
+        # output_path = f"{get_absorption_experiments_dir()}/{basename}.k_{k_value}.i_{index}.check_absorb.json"
         result = json.load(open(output_path))
         for j in range(k_value):
             pass_count = 0
@@ -145,8 +161,9 @@ def get_literal_pass_percentage_trend(cnf_path, k_value):
     return percentage_for_iterations
 
 def prepare_datas(names,k_value,force_refresh=False,index=None):
-    solver = "./solvers/cadical"
-    drat_solver = "./solvers/minisat_nodel_test"
+    cadical_solver = "./solvers/cadical"
+    drat_solver = "./solvers/cadical"
+    minisat_solver = "./solvers/minisat_nodel_test"
     # prepare proofs
     print(f"Preparing proofs for {names} with k_value {k_value},index {index}")
     for name in names:
@@ -156,18 +173,30 @@ def prepare_datas(names,k_value,force_refresh=False,index=None):
             generate_cnf(f"{name}.{k_value}.cnf")
         else:
             print(f"CNF file {cnf_path} exists, skipping")
-        drat_path = f"./ProofDoorBenchmark/cnfs/{k_value}/{name}.{k_value}.drat"
-        if not os.path.exists(drat_path) or os.path.getsize(drat_path) == 0:
-            print(f"Drat file {drat_path} DNE or empty, regenerating")
-            os.system(f"{drat_solver} {cnf_path} > {drat_path}.raw")
-            if os.path.getsize(f"{drat_path}.raw") == 0:
-                print(f"proof raw file {drat_path}.raw is empty, regenerating")
-                exit(f"proof raw file {drat_path}.raw is empty")
-            os.system(f"cat {drat_path}.raw | grep 'PDLOG Learnt clause:' | sed 's/PDLOG Learnt clause: //' > {drat_path}")
+        cadical_proof_path = f"./ProofDoorBenchmark/cnfs/{k_value}/{name}.{k_value}.cadical_proof"
+        # minisat_proof_path = f"./ProofDoorBenchmark/cnfs/{k_value}/{name}.{k_value}.minisat_proof"
+        should_regenerate_proof = False
+        if not os.path.exists(cadical_proof_path) or os.path.getsize(cadical_proof_path) == 0:
+            print(f"Drat file {cadical_proof_path} DNE or empty, regenerating")
+            should_regenerate_proof = True
+        # else:
+        #     with open(cadical_proof_path, "r") as file:
+        #         content = file.read()
+        #         if "d" in content or "a" in content:
+        #             print(f"Drat file {cadical_proof_path} contains 'd' or 'a', regenerating")
+        #             should_regenerate_proof = True
+        if should_regenerate_proof:
+            os.system(f"{cadical_solver} {cnf_path} {cadical_proof_path} --no-binary --reduce=0 --restoreall=2 --flush=0 ")
+            # os.system(f"{cadical_solver} {cnf_path} > {cadical_proof_path}")
+            # if os.path.getsize(f"{cadical_proof_path}.raw") == 0:
+            #     print(f"proof raw file {cadical_proof_path}.raw is empty, regenerating")
+            #     exit(f"proof raw file {cadical_proof_path}.raw is empty")
+            # os.system(f"cat {cadical_proof_path}.raw | grep 'PDLOG Learnt clause:' | sed 's/PDLOG Learnt clause: //' > {cadical_proof_path}")
+            # os.system(f"cat {cadical_proof_path}.raw | grep 'PDLOG Learnt clause:' | sed 's/PDLOG Learnt clause: //' > {cadical_proof_path}")
         else:
-            print(f"Drat file {drat_path} exists, skipping")
+            print(f"Drat file {cadical_proof_path} exists, skipping")
         # if not os.path.exists(proof_path):
-        #     os.system(f"{solver} {cnf_path} {proof_path} --restart=0 --reduce=0 --restoreall=2 --flush=0 --no-binary")
+        #     os.system(f"{solver} {cnf_path} {proof_path} --restart=0 --no-binary --reduce=0 --restoreall=2 --flush=0 --no-binary")
         
     # prepare interpolants
     for name in names:
@@ -176,9 +205,10 @@ def prepare_datas(names,k_value,force_refresh=False,index=None):
                 continue
             cnf_path = f"./ProofDoorBenchmark/cnfs/{k_value}/{name}.{k_value}.cnf"
             smt_path = f"{get_smts_dir(k_value)}/{name}.{k_value}.{i}.smt2"
-            drat_path = f"./ProofDoorBenchmark/cnfs/{k_value}/{name}.{k_value}.drat"
-            if not os.path.exists(drat_path) or os.path.getsize(drat_path) == 0:
-                os.system(f"{drat_solver} {cnf_path} | grep 'PDLOG Learnt clause:' | sed 's/PDLOG Learnt clause: //' > {drat_path}")
+            cadical_proof_path = f"./ProofDoorBenchmark/cnfs/{k_value}/{name}.{k_value}.cadical_proof"
+            if not os.path.exists(cadical_proof_path) or os.path.getsize(cadical_proof_path) == 0:
+                os.system(f"{cadical_solver} {cnf_path} {cadical_proof_path} --no-binary --reduce=0 --restoreall=2 --flush=0 ")
+                # os.system(f"{drat_solver} {cnf_path} | grep 'PDLOG Learnt clause:' | sed 's/PDLOG Learnt clause: //' > {cadical_proof_path}")
             
             if not os.path.exists(smt_path):
                 print(f"SMT file {smt_path} DNE, regenerating")
@@ -216,9 +246,9 @@ def prepare_datas(names,k_value,force_refresh=False,index=None):
                 # print(f"Force refreshing proofs for {name} with k_value {k_value},index {index}")
                 # combine_single_i_interpolant_to_cnf(get_interpolant_cnf_dir(), k_value, index, name)
                 
-                drat_path = f"./ProofDoorBenchmark/cnfs/{k_value}/{name}.{k_value}.drat"
-                if not os.path.exists(drat_path) or os.path.getsize(drat_path) == 0:
-                    os.system(f"{drat_solver} {cnf_path} | grep 'PDLOG Learnt clause:' | sed 's/PDLOG Learnt clause: //' > {drat_path}")
+                cadical_proof_path = f"./ProofDoorBenchmark/cnfs/{k_value}/{name}.{k_value}.cadical_proof"
+                if not os.path.exists(cadical_proof_path) or os.path.getsize(cadical_proof_path) == 0:
+                    os.system(f"{cadical_solver} {cnf_path} {cadical_proof_path} --no-binary --reduce=0 --restoreall=2 --flush=0 ")
         return
             
     # for i in range(k_value):

@@ -38,6 +38,7 @@ def check_single_literal(args):
     except UnicodeDecodeError:
         checker_stdout = result.stdout.decode('gbk', errors="replace")
     # Clean up
+    os.remove(CNF_output_file)
     # os.remove(temp_file)
     LOG_TAG("--------------------------------", "detailed")
     LOG_TAG(f"literal: {literal}", "detailed")

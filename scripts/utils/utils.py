@@ -282,6 +282,55 @@ def ComputeCorrelation(SolvingTimeMap,ProofDoorSizeMap,NameLeft="SolvingTime",Na
         "sample_size": len(common_keys)
     }
 
+def GetDataFromLog(log_path):
+    with open(log_path, 'rb') as file:
+        file.seek(0, 2)
+        position = file.tell()
+        line = b''
+        linecnt=0
+        phase=0 # 0 for time, 1 for mem
+        while position >= 0 and linecnt <= 500:        
+            file.seek(position)
+            char = file.read(1)
+            if char == b'\n' and line:
+                linecnt+=1
+                decoded_line = line.decode('utf-8')
+                if "raising signal" in decoded_line:
+                    print(f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!! {log_path}")
+                    continue
+                    # break
+                if "mylog" in decoded_line:
+                    continue
+                if phase ==1:
+                    if "maximum-resident-set-size:" in decoded_line:
+                        match = re.search(r'(\d*)\s+MB', decoded_line)
+                        if match:
+                            time = float(match.group(1))
+                            return time
+                            break
+                    
+                    break
+                if "process-time" in decoded_line or "total process time" in decoded_line:
+                    match = re.search(r'(\d+\.?\d*)\s+seconds', decoded_line) or re.search(r'total process time[^:]*:\s*([0-9]+(?:\.[0-9]+)?)\s*seconds', decoded_line)
+                    if match:
+                        # print(basename)
+                        time = float(match.group(1))
+                        return time
+                        phase = 1
+                    
+                if "CPU time" in decoded_line in decoded_line:
+                    match = re.search(r'CPU time[^:]*:\s*([0-9]+(?:\.[0-9]+)?)\s*s', decoded_line)
+                    if match:
+                        # print(basename)
+                        time = float(match.group(1))
+                        return time
+                        phase = 1
+                line = b''
+            else:
+                line = char + line
+            position -= 1
+    return None
+
 def GetData(folder,name, use_cache = False, bit=None):
     file_name = f'{folder}*{name}.*log'
     cache_name = f'{folder}/{name}.solverCache.json'

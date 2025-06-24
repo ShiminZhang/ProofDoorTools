@@ -297,8 +297,11 @@ Lit Solver::pickBranchLit()
             next = var_Undef;
             break;
         } else {
+            // default VISIDS
+            next = order_heap.removeMin();
+            break;
+
             // Create a copy of the heap for processing
-            // next = temp_heap.removeMin();
             // if (verbosity > 0) printf("PDLOG: default next %d\n", next);
 
             Heap<int,VarOrderLt> temp_heap = order_heap;
@@ -795,11 +798,18 @@ lbool Solver::search(int nof_conflicts)
             learnt_clause.clear();
             analyze(confl, learnt_clause, backtrack_level);
             cancelUntil(backtrack_level);
-
+            if (verbosity >= 0) {
+                printf("PDLOG: New Learnt clauses: ");
+                for (int i = 0; i < learnt_clause.size(); i++) {
+                    printf("%s%d ", sign(learnt_clause[i]) ? "-" : "", var(learnt_clause[i])+1);
+                }
+                printf("\n");
+            }
             if (learnt_clause.size() == 1){
                 uncheckedEnqueue(learnt_clause[0]);
             }else{
                 CRef cr = ca.alloc(learnt_clause, true);
+                
                 learnts.push(cr);
                 attachClause(cr);
                 claBumpActivity(ca[cr]);
@@ -947,7 +957,7 @@ lbool Solver::solve_()
     }
 
     if (verbosity >= 1) {
-        printf("Learnt clauses:\n");
+        printf("Final Learnt clauses:\n");
         for (int i = 0; i < learnts.size(); i++) {
             Clause& c = ca[learnts[i]];
             printf("Clause %d: ", i);
