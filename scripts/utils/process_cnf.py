@@ -43,7 +43,7 @@ class CNF:
                     continue
                 else:
                     # Split the line into literals and remove the trailing 0
-                    literals = [int(x) for x in line.strip().split()[:-1]]
+                    literals = [int(x) for x in line.strip().split() if x != '0']
                     if literals:  # Only add non-empty clauses
                         self.clauses.append(literals)
                         line_count += 1

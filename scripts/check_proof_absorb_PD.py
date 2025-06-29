@@ -132,7 +132,7 @@ def get_clause_pass_percentage_trend(cnf_path, k_value):
                 total_count += 1
             percentage_for_interpolant_per_iteration.append(float(pass_count) / total_count)
         percentage_for_iterations.append(percentage_for_interpolant_per_iteration)
-    draw_greyscale_plot(percentage_for_iterations,f'Clause Absorption Pass Percentage Heatmap {basename}_{k_value}')
+    draw_greyscale_plot(percentage_for_iterations,f'MINISATClause Absorption Pass Percentage Heatmap {basename}_{k_value}')
     return percentage_for_iterations
 
 def get_literal_pass_percentage_trend(cnf_path, k_value):
@@ -174,8 +174,11 @@ def prepare_datas(names,k_value,force_refresh=False,index=None):
         else:
             print(f"CNF file {cnf_path} exists, skipping")
         cadical_proof_path = f"./ProofDoorBenchmark/cnfs/{k_value}/{name}.{k_value}.cadical_proof"
-        # minisat_proof_path = f"./ProofDoorBenchmark/cnfs/{k_value}/{name}.{k_value}.minisat_proof"
+        minisat_proof_path = f"./ProofDoorBenchmark/cnfs/{k_value}/{name}.{k_value}.minisat_proof"
         should_regenerate_proof = False
+        os.system(f"{minisat_solver} {cnf_path} > {minisat_proof_path}.raw")
+        os.system(f"cat {minisat_proof_path}.raw | grep 'PDLOG Learnt clause:' | sed 's/PDLOG Learnt clause: //' > {minisat_proof_path}")
+        
         if not os.path.exists(cadical_proof_path) or os.path.getsize(cadical_proof_path) == 0:
             print(f"Drat file {cadical_proof_path} DNE or empty, regenerating")
             should_regenerate_proof = True
@@ -246,6 +249,10 @@ def prepare_datas(names,k_value,force_refresh=False,index=None):
                 # print(f"Force refreshing proofs for {name} with k_value {k_value},index {index}")
                 # combine_single_i_interpolant_to_cnf(get_interpolant_cnf_dir(), k_value, index, name)
                 
+                minisat_proof_path = f"./ProofDoorBenchmark/cnfs/{k_value}/{name}.{k_value}.minisat_proof"
+                os.system(f"{minisat_solver} {cnf_path} > {minisat_proof_path}.raw")
+                os.system(f"cat {minisat_proof_path}.raw | grep 'PDLOG Learnt clause:' | sed 's/PDLOG Learnt clause: //' > {minisat_proof_path}")
+        
                 cadical_proof_path = f"./ProofDoorBenchmark/cnfs/{k_value}/{name}.{k_value}.cadical_proof"
                 if not os.path.exists(cadical_proof_path) or os.path.getsize(cadical_proof_path) == 0:
                     os.system(f"{cadical_solver} {cnf_path} {cadical_proof_path} --no-binary --reduce=0 --restoreall=2 --flush=0 ")
@@ -256,7 +263,7 @@ def prepare_datas(names,k_value,force_refresh=False,index=None):
 
 def check_and_draw_for_index(names,k_value,index):
     for name in names:
-        check_proof_absorb_PD(f"{get_cnfs_dir(k_value)}/{name}.{k_value}.cnf",k_value,index,True)
+        check_proof_absorb_PD(f"{get_cnfs_dir(k_value)}/{name}.{k_value}.cnf",k_value,index,True,False)
 
 def check_and_draw(names,k_value,force_refresh=False,index=None):
     if index != None:

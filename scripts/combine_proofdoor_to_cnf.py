@@ -49,29 +49,46 @@ def group_cnf_files_by_basename(directory, k_value, force_name=None, limit=-1):
     count = 0
     for filename in tqdm(os.listdir(directory)):
         if filename.endswith('.cnf'):
-            if force_name is not None and force_name not in filename:
+            basename = filename.split('.')[0]
+            if (force_name is not None) and force_name != basename:
+                # print(f"skipping {filename} because {basename} does not contain {force_name}")
                 continue
             parts = filename.split('.')
-            if len(parts) >= 4 and parts[1].isdigit() and int(parts[1]) == k_value:
+            # print(f"found {filename}")
+            # print(parts)
+            # print(int(parts[1]))
+            # print(int(k_value))
+            if int(parts[1]) == k_value:
+                # print("match")
                 basename = parts[0]
-                if limit > 0 and int(parts[2]) >= limit:
+                if limit != "all" and limit > 0 and int(parts[2]) >= limit:
                     continue
                 if basename not in file_groups:
                     file_groups[basename] = []
                 file_groups[basename].append(os.path.join(directory, filename))
-                
+    # print(f"file_groups: {file_groups}")
+    # exit()
     #check if the file group for each basename is valid
     invalid_keys = []
-    for basename, files in file_groups.items():
-        if len(files) != limit:
-            # print(f"basename: {basename}")
-            # print(f"files: {files}")
-            invalid_keys.append(basename)
+    # if limit > 0:
+    #     for basename, files in file_groups.items():
+    #         if len(files) != limit:
+    #             # print(f"basename: {basename}")
+    #             # print(f"files: {files}")
+    #             invalid_keys.append(basename)
             
     for key in invalid_keys:
         print(f"deleting {key} because it has only {len(file_groups[key])} files while {limit} is expected")
         del file_groups[key]
     return file_groups
+
+def combine_clauses_from_all_files(files, original_var_count, auxilliary_map):
+    """Combine all clauses from a list of CNF files, sharing the same auxiliary map."""
+    all_clauses = []
+    for file_path in files:
+        clauses = parse_cnf_list(file_path, auxilliary_map, original_var_count)
+        all_clauses.extend(clauses)
+    return all_clauses, auxilliary_map
 
 def combine_clauses_from_files(files, original_var_count, n_value, previous_parsed_cnf_clauses_for_file, auxilliary_map):
     """Combine all clauses from a list of CNF files, sharing the same auxiliary map."""
@@ -265,7 +282,11 @@ def combine_first_n_interpolant_to_cnf_single(
            
 def combine_first_n_interpolant_to_cnf(
     directory, k_value, n_value=-1, force_name=None,
-    previous_parsed_cnf_clauses=None, auxilliary_map=None):            
+    previous_parsed_cnf_clauses=None, auxilliary_map=None):      
+        if previous_parsed_cnf_clauses is None:
+            previous_parsed_cnf_clauses = {}
+        if auxilliary_map is None:
+            auxilliary_map = {}
         if n_value == -1:
             n_value = "all"
         if n_value == 0:
@@ -281,7 +302,6 @@ def combine_first_n_interpolant_to_cnf(
                 combined_output = f"{output_dir}/{basename}.{k_value}.combined.0.cnf"
                 os.system(f"cp {original_cnf} {combined_output}")
             return
-                
                 
         file_groups = group_cnf_files_by_basename(directory, k_value, force_name, n_value)
         dimacs_files = []
@@ -311,8 +331,7 @@ def combine_first_n_interpolant_to_cnf(
             valid_group = True
             if not valid_group:
                 continue
-            all_clauses, auxilliary_map, new_parsed_cnf_clauses = combine_clauses_from_files(files, original_var_count, n_value, previous_parsed_cnf_clauses[basename], auxilliary_map)
-            previous_parsed_cnf_clauses[basename] = new_parsed_cnf_clauses
+            all_clauses, auxilliary_map = combine_clauses_from_all_files(files, original_var_count, auxilliary_map)
             header, var_mapping, dimacs_clauses = convert_to_dimacs(all_clauses)
             with open(output_file, 'w') as f:
                 f.write(header + "\n")

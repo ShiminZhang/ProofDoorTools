@@ -134,7 +134,6 @@ def count_by_z3(smt2_content,smt_path=None):
         goal.add(f)
     # Apply the 'tseitin-cnf' tactic to convert to CNF
     cnf_tactic = Tactic('tseitin-cnf', ctx=ctx)
-    cnf_simplify = Tactic('simplify', ctx=ctx)
     tactics_to_use = Then(cnf_tactic, cnf_simplify)
     cnf_result = tactics_to_use(goal)
     basename = os.path.basename(smt_path)

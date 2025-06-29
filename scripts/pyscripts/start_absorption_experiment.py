@@ -7,13 +7,13 @@ def main():
     interested_names=[
         "intel003", # exp
         "intel020", # exp
-        # "intel007", # exp 
-        # "intel031", # exp 
-        # "intel056", # exp 
-        # "intel037", # lin
-        # "intel001", # poly
-        # "intel004", # poly
-        # "intel063", # poly
+        "intel007", # exp 
+        "intel031", # exp 
+        "intel056", # exp 
+        "intel037", # lin
+        "intel001", # poly
+        "intel004", # poly
+        "intel063", # poly
         # # "cal102", # exp
         # # "cal176", # exp
         # # "cal21", # exp
@@ -88,8 +88,8 @@ def main():
         # "beemcycschd3b1"
     ]
     K_set = [
-        # 10,
-        40
+        10,
+        # 40
         ]
     parser = argparse.ArgumentParser()
     parser.add_argument("--clean", action="store_true", default=False)

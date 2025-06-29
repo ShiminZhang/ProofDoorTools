@@ -4,6 +4,7 @@ import argparse
 from utils.utils import group_files_by_basename, GetData, RewriteMap, GetDataFromLog
 from utils.paths import get_absorption_experiments_dir, get_CNF_dir, get_exp_pbh_dir,get_interpolant_cnf_dir,get_interpolant_dimacs_dir
 from utils.process_cnf import compute_cnf_size_for_category
+from combine_proofdoor_to_cnf import combine_first_n_interpolant_to_cnf,group_cnf_files_by_basename
 from debug import logging
 import warnings
 
@@ -23,7 +24,7 @@ class AbsorptionDataAnalyzer:
         data_original,map_original,par2_original,mem_original = GetData(pbh_dir,"original.minisat")
         self.init_pbh_solving_times(map_pbh)
     
-    def run_solver(self,name, override_cnf=None):
+    def run_solver(self,name, override_cnf=None, use_cache=False):
         extra_flags = "--reduce=0 --restoreall=2 --flush=0 --no-binary"
         if override_cnf is None:
             cnf_dir = get_CNF_dir(self.K)
@@ -32,7 +33,11 @@ class AbsorptionDataAnalyzer:
         else:
             cnf_path = override_cnf
             log_path = f"{override_cnf}.{self.solver}.log"
+        if use_cache:
+            if os.path.exists(log_path):
+                return log_path
         cmd = f"{self.solver_bin} {extra_flags} {cnf_path} > {log_path}"
+        logging.LOG(f"Running solver for {name}: {cmd}")
         os.system(cmd)
         return log_path
     
@@ -56,8 +61,8 @@ class AbsorptionDataAnalyzer:
         if name not in self.keys:
             logging.LOG(f"Name {name} not found in the data")
             return None
-        if name not in self.solving_times:
-            output_path = self.run_solver(name)
+        if name not in self.solving_times or True:
+            output_path = self.run_solver(name, use_cache=True)
             res = GetDataFromLog(output_path)
             self.solving_times[name] = res
         return self.solving_times[name]
@@ -79,10 +84,13 @@ class AbsorptionDataAnalyzer:
         return line_count
 
     def get_pd_size(self,name):
+        logging.LOG(f"Getting PD size for {name}")
         pd_size = 0
         for i in range(1,int(self.K)+1):
             interpolant_cnf_path = f"{get_interpolant_dimacs_dir()}/{name}.{self.K}.index_{i-1}.dimacs"
-            assert(os.path.exists(interpolant_cnf_path))
+            if not os.path.exists(interpolant_cnf_path):
+                logging.LOG(f"Interpolant CNF file {interpolant_cnf_path} does not exist")
+                return None
             with open(interpolant_cnf_path, 'r') as f:
                 line_count = sum(1 for line in f)
             pd_size += line_count
@@ -90,11 +98,19 @@ class AbsorptionDataAnalyzer:
 
     def get_solving_time_after_pd_combined(self,name):
         combined_dir = get_interpolant_dimacs_dir()
-        combined_cnf = f"{combined_dir}/{name}.{self.K}.combined.cnf"
-        combined_output = f"{combined_dir}/{name}.{self.K}.combined.cnf.{self.solver}.log"
+        combined_cnf = f"{combined_dir}/{name}.{self.K}.all.dimacs"
+        combined_output = f"{combined_dir}/{name}.{self.K}.all.dimacs.{self.solver}.log"
         if not os.path.exists(combined_cnf):
-            self.run_solver(name,combined_cnf)
-            assert os.path.exists(combined_cnf)
+            print(f"Combined CNF file {combined_cnf} does not exist, try regenerate")
+            interpolant_cnf_dir = get_interpolant_cnf_dir()
+            combine_first_n_interpolant_to_cnf(
+                interpolant_cnf_dir,
+                self.K,
+                force_name=name,
+            )
+            if not os.path.exists(combined_cnf):
+                print(f"Failed to regenerate combined CNF file {combined_cnf}")
+                return None
         if not os.path.exists(combined_output):
             self.run_solver(name,combined_cnf)
             assert os.path.exists(combined_output)
@@ -106,27 +122,55 @@ class AbsorptionDataAnalyzer:
         output={}
         output["name"] = name
         output["solving_time"] = self.get_solving_time(name)
-        # output["pbh_solving_time"] = self.get_pbh_solving_time(name)
+        output["pbh_solving_time"] = self.get_pbh_solving_time(name)
         output["cnf_size"] = self.get_cnf_size(name)
         output["pd_size"] = self.get_pd_size(name)
-        # output["solving_time_after_pd_combined"] = self.get_solving_time_after_pd_combined(name)
+        output["solving_time_after_pd_combined"] = self.get_solving_time_after_pd_combined(name)
         return output
 
+    def analyze_all(self):  
+        output = {}
+        for name in self.keys:
+            output[name] = self.analyze(name)
+        json.dump(output, open("output.json", "w"), indent=4)
+        return output
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--K", type=str, required=True)
+    parser.add_argument("--K", type=int, required=True)
     return parser.parse_args()
 
 def main():
+    # groups=  group_cnf_files_by_basename(
+    #     get_interpolant_cnf_dir(),
+    #     10,
+    #     force_name="intel020",
+    # )
+    # print(groups)
+    # exit()
     interested_names= [
-        "intel020"
+        "intel001",
+        "intel003",
+        "intel020",
+        "intel031",
+        "intel037",
+        "intel063",
+        "139444p0",
+        "139444p0",
+        "139452p0",
+        "139453p0",
+        "6s0",
+        "6s159",
+        "6s4",
+        "6s134",
+        "6s372rb26",
     ]
     logging.TOGGLE_SHOWLOG(True)
     args = parse_args()
     analyzer = AbsorptionDataAnalyzer(interested_names, args.K)
-    output = analyzer.analyze("intel020")
-    json.dump(output, open("output.json", "w"), indent=4)
+    # output = analyzer.analyze()
+    # json.dump(output, open("output.json", "w"), indent=4)
+    analyzer.analyze_all()
 
 if __name__ == "__main__":
     main()
