@@ -1,6 +1,7 @@
 import os
 import json
 import glob
+from tqdm import tqdm
 import sys
 def combine_json_files():
     k = sys.argv[1]
@@ -16,7 +17,7 @@ def combine_json_files():
     json_files = glob.glob(os.path.join(data_dir, "*.json"))
     
     # Read each JSON file and add its contents to the combined data
-    for file_path in json_files:
+    for file_path in tqdm(json_files):
         try:
             with open(file_path, 'r') as file:
                 data = json.load(file)

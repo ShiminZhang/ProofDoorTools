@@ -14,8 +14,24 @@ from utils.process_cnf import compute_cnf_size_for_category
 from utils.utils import GetData
 from collections import defaultdict
 from utils.utils import ComputeCorrelation,RewriteMap,PolynomialRegression
+from utils.catagory import get_instance_list
 from utils.process_cnf import compute_N_map
 from utils.draw import init_plot,draw_scaling_plot_line,finish_plot
+
+def get_interested_instances(category):
+
+    linear = get_instance_list("linear")[0:103]
+    polynomial = get_instance_list("polynomial")[0:100]
+    exponential = get_instance_list("exponential")[0:100]
+
+    if category == "all":
+        return linear + polynomial + exponential
+    elif category == "linear":
+        return linear
+    elif category == "polynomial":
+        return polynomial
+    elif category == "exponential":
+        return exponential
 
 def process_interpolants(k_path,to_cnf=False):
     interpolants_dir = f"ProofDoorBenchmark/interpolants/{k_path}"
@@ -76,7 +92,8 @@ if __name__ == "__main__":
     parser.add_argument('--Solver', type=str, default='cadical', help='SAT solver to use')
     parser.add_argument('--K', type=int, default=80, help='K value')
     parser.add_argument('--EstimatePDSize', action='store_true', help='Estimate PD size')
-    parser.add_argument('--FormulaCategory', type=str, default='linear', help='Formula category')
+    parser.add_argument('--FormulaCategory', type=str, default='all', help='Formula category')
+    parser.add_argument('--FocusName', type=str, default=None, help='Focus name')
     parser.add_argument('--CheckCNFvsInterpolantSizeRatio', action='store_true', help='Check CNF vs Interpolant Size Ratio')
     parser.add_argument('--ToCNF', action='store_true', help='Convert to CNF')
     parser.add_argument('--CheckInterpolantCNFSizeCorrelation', action='store_true', help='Check Interpolant CNF size correlation')
@@ -93,6 +110,11 @@ if __name__ == "__main__":
     check_cnf_vs_interpolant_size_ratio = args.CheckCNFvsInterpolantSizeRatio
     K = args.K
     formula_category = args.FormulaCategory
+    interested_instances = get_interested_instances(formula_category)
+    if args.FocusName:
+        interested_instances = [name for name in interested_instances if name.startswith(args.FocusName)]
+        print(f"Focused on {args.FocusName} with {len(interested_instances)} instances")
+
     if args.ProcessInterpolantOnly:
         results_map = process_interpolants(K,args.ToCNF)
         with open(f'ProofDoorBenchmark/interpolants/{K}/interpolant_sizes.txt', 'w') as f:
@@ -109,15 +131,9 @@ if __name__ == "__main__":
             k_value = key.split('.')[1]
             if k_value != str(K):
                 continue
+            if key.split('.')[0] not in interested_instances:
+                continue
             results_map[key] = value
-        # with open(f'ProofDoorBenchmark/interpolants/{K}/interpolant_sizes.txt', 'r') as f:
-        #     for line in f:
-        #         parts = line.strip().split('\t')
-        #         if len(parts) == 2:
-        #             file_name, size_tuple = parts
-        #             # Parse the tuple string "(90, 'UNSAT')" to get just the size
-        #             size = int(size_tuple.split(',')[0].strip('('))
-        #             results_map[file_name] = size
         if results_map:
             print("Loaded cached interpolant sizes")
     elif not args.ProcessLogOnly:
@@ -130,7 +146,8 @@ if __name__ == "__main__":
             for file, size in results_map.items():
                 f.write(f"{file}\t{size}\n")
     
-    cadical_data,cadical_map,cadical_par2,cadical_mem = GetData(f"./ProofDoorBenchmark/{formula_category}/{K}/", solver, args.UseLogCache or use_cache)
+    # cadical_data,cadical_map,cadical_par2,cadical_mem = GetData(f"./ProofDoorBenchmark/{formula_category}/{K}/", solver, args.UseLogCache or use_cache)
+    cadical_data,cadical_map,cadical_par2,cadical_mem = GetData(f"./ProofDoorBenchmark/cnfs/{K}/", solver, args.UseLogCache or use_cache)
 
     # print(cadical_map)
             
@@ -140,6 +157,8 @@ if __name__ == "__main__":
         # Extract the first part of the key before the first "."
         key_parts = key.split('.')
         new_key = key_parts[0]
+        if new_key not in interested_instances:
+            continue
         rewritten_cadical_map[new_key] = value
     
     if args.CompareCombinedInstances:
@@ -205,12 +224,12 @@ if __name__ == "__main__":
     proof_door_size_map = {}
     interpolant_size_map = results_map
     skip_keys = []
-    max_interpolant_size = {}
-    for key, value in results_map.items():
-        key_parts = key.split('.')
-        new_key = key_parts[0]
-        max_interpolant_size[new_key] = max(max_interpolant_size.get(new_key, 100), value[0])
-    
+    # max_interpolant_size = {}
+    # for key, value in results_map.items():
+    #     key_parts = key.split('.')
+    #     new_key = key_parts[0]
+    #     max_interpolant_size[new_key] = max(max_interpolant_size.get(new_key, 100), value[0])
+    hit_time_map = {}
     for key, value in results_map.items():
         # Extract the first part of the key before the first "."
         if key in skip_keys:
@@ -220,15 +239,23 @@ if __name__ == "__main__":
         k_value = key_parts[1]
         value=value[0]
         if value < 0:
-            if args.EstimatePDSize:
-                value = max_interpolant_size[new_key]
-            else:
-                skip_keys.append(key)
-                continue
+            # if arg.s.EstimatePDSize:
+                # value = max_interpolant_size[new_key]
+            # else:
+            skip_keys.append(key)
+            continue
         if new_key not in proof_door_size_map:
             proof_door_size_map[new_key] = value
+            hit_time_map[new_key] = 1
         else:
             proof_door_size_map[new_key] += value
+            hit_time_map[new_key] += 1
+    
+    print(hit_time_map)
+    for key, value in hit_time_map.items():
+        if value < K:
+            proof_door_size_map.pop(key)
+    print(f"Complete proof door size map size: {len(proof_door_size_map)}")
     # Preparations done ------------------------------------------------------------
 
     # analysis ---------------------------------------------------------------------
@@ -433,6 +460,17 @@ if __name__ == "__main__":
     # print(rewritten_cadical_map)
     print(f"Rewritten interpolants map: {len(proof_door_size_map)}")
     print(proof_door_size_map)
-    ComputeCorrelation(rewritten_cadical_map, proof_door_size_map)
+    instance_category_map = {}
+    linear = get_instance_list("linear")[0:103]
+    polynomial = get_instance_list("polynomial")[0:100]
+    exponential = get_instance_list("exponential")[0:100]
+    for instance in linear:
+        instance_category_map[instance] = "linear"
+    for instance in polynomial:
+        instance_category_map[instance] = "polynomial"
+    for instance in exponential:
+        instance_category_map[instance] = "exponential"
+    print(instance_category_map)
+    ComputeCorrelation(rewritten_cadical_map, proof_door_size_map,additional_tags=instance_category_map)
     print(f"Par2 score: {cadical_par2}")
     

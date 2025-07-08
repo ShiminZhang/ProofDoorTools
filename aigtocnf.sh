@@ -2,8 +2,12 @@
 
 gen() {
     filename=$(basename $1)
-    
-    sbatch --mem=16g -t 03:00:00 --wrap "../simplecar -bmc -k $2 -cnf ./cnfs/${2}/ $1"
+    if [ -f "./cnfs/${2}/${filename}.cnf" ]; then
+        echo "File already exists: ./cnfs/${2}/${filename}.cnf"
+    else
+        echo "File does not exist: ./cnfs/${2}/${filename}.cnf"
+        sbatch --mem=16g -t 03:00:00 --wrap "../simplecar -bmc -k $2 -cnf ./cnfs/${2}/ $1"
+    fi
     # ../simplecar -bmc -k $2 -cnf ./cnfs/${2}/ $1
 }
 
@@ -12,7 +16,7 @@ mkdir ./cnfs/$1/
 for file in ./aigs/*.aig; do
     # echo $file
     if [ -f "$file" ]; then
-        echo "Processing file: $file"
+        # echo "Processing file: $file"
         gen $file $1
     fi
 done

@@ -233,7 +233,7 @@ def parse_interpolant_cnf_to_dimacs(input_file,output_file=None):
                 f.write(clause + "\n")
     return header, dimacs_clauses
 
-def ComputeCorrelation(SolvingTimeMap,ProofDoorSizeMap,NameLeft="SolvingTime",NameRight="ProofDoorSize"):
+def ComputeCorrelation(SolvingTimeMap,ProofDoorSizeMap,NameLeft="SolvingTime",NameRight="ProofDoorSize",additional_tags=None):
     # Compute the correlation between the proof door size and the solving time
     # Use the Pearson correlation coefficient
     
@@ -259,8 +259,11 @@ def ComputeCorrelation(SolvingTimeMap,ProofDoorSizeMap,NameLeft="SolvingTime",Na
     # Extract the values for common keys
     proof_door_sizes = [ProofDoorSizeMap[key] for key in common_keys]
     solving_times = [SolvingTimeMap[key] for key in common_keys]
-    for key in common_keys:
-        print(f"{key}: {ProofDoorSizeMap[key]} {SolvingTimeMap[key]}")
+    for key in sorted(common_keys):
+        if additional_tags and key in additional_tags:
+            print(f"{key}: {ProofDoorSizeMap[key]} {SolvingTimeMap[key]} {additional_tags[key]}")
+        else:
+            print(f"{key}: {ProofDoorSizeMap[key]} {SolvingTimeMap[key]}")
     # Convert to numpy arrays
     proof_door_sizes = np.array(proof_door_sizes)
     solving_times = np.array(solving_times)
@@ -361,7 +364,9 @@ def GetData(folder,name, use_cache = False, bit=None):
             file_counted += 1
             key = basename
             solved = False
-            
+            if not os.path.exists(filename):
+                print(f"File {filename} does not exist")
+                continue
             with open(filename, 'rb') as file:
                 # print(f"processing {filename}")
                 file.seek(0, 2)

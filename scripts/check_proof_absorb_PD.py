@@ -231,13 +231,13 @@ def prepare_datas(names,k_value,force_refresh=False,index=None):
                 print(f"Interpolant CNF file {interpolant_cnf_path} DNE, regenerating")
                 count_and_save(interpolant_path,smt_path,-1)
                 
-            dimacs_path = f"{get_interpolant_dimacs_dir()}/{name}.{k_value}.index_{i}.dimacs"
-            if not os.path.exists(dimacs_path):
-                print(f"Dimacs file {dimacs_path} DNE, regenerating")
-                combine_single_i_interpolant_to_cnf(get_interpolant_cnf_dir(), k_value, i, name)
-            elif force_refresh:
-                print(f"Dimacs file {dimacs_path} exists, regenerating due to force_refresh")
-                combine_single_i_interpolant_to_cnf(get_interpolant_cnf_dir(), k_value, i, name)
+            # dimacs_path = f"{get_interpolant_dimacs_dir()}/{name}.{k_value}.index_{i}.dimacs"
+            # if not os.path.exists(dimacs_path):
+            #     print(f"Dimacs file {dimacs_path} DNE, regenerating")
+            #     combine_single_i_interpolant_to_cnf(get_interpolant_cnf_dir(), k_value, i, name)
+            # elif force_refresh:
+            #     print(f"Dimacs file {dimacs_path} exists, regenerating due to force_refresh")
+            #     combine_single_i_interpolant_to_cnf(get_interpolant_cnf_dir(), k_value, i, name)
     
     if index != None:
         if force_refresh:
@@ -299,10 +299,10 @@ def main():
         targets=["6s0","6s4","6s273b37", "6s194"]
         if not args.skip_prepare:
             prepare_datas([targets[target_index]],k_value,force_refresh,args.index)
-        check_and_draw([targets[target_index]],k_value,force_refresh,args.index)
+        # check_and_draw([targets[target_index]],k_value,force_refresh,args.index)
     elif target_name:
         prepare_datas([target_name],k_value,force_refresh,args.index)
-        check_and_draw([target_name],k_value,force_refresh,args.index)
+        # check_and_draw([target_name],k_value,force_refresh,args.index)
     else:
         print("Please specify either --target_index or --target_name")
         return
