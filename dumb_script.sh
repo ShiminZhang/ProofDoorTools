@@ -50,4 +50,26 @@ echo "Initializing experiment environment..."
 check_and_create_dirs
 
 echo "Starting experiments..."
-run_all_experiments
+# run_all_experiments
+python scripts/process_interpolants.py --AllK --Solver cadicalplain --UseCache --FormulaCategory linear --ExcludeParse > pds_st_correlation/all_K_linear.st_pds_cor_exclude_parse
+python scripts/process_interpolants.py --AllK --Solver cadicalplain --UseCache --FormulaCategory polynomial --ExcludeParse > pds_st_correlation/all_K_polynomial.st_pds_cor_exclude_parse
+python scripts/process_interpolants.py --AllK --Solver cadicalplain --UseCache --FormulaCategory exponential --ExcludeParse > pds_st_correlation/all_K_exponential.st_pds_cor_exclude_parse
+
+python scripts/process_interpolants.py --AllK --Solver cadicalplain --UseCache --FormulaCategory linear > pds_st_correlation/all_K_linear.st_pds_cor
+python scripts/process_interpolants.py --AllK --Solver cadicalplain --UseCache --FormulaCategory polynomial > pds_st_correlation/all_K_polynomial.st_pds_cor
+python scripts/process_interpolants.py --AllK --Solver cadicalplain --UseCache --FormulaCategory exponential > pds_st_correlation/all_K_exponential.st_pds_cor
+
+python scripts/process_interpolants.py --AllK --Solver cadicalplain --UseCache > pds_st_correlation/all_K.st_pds_cor
+python scripts/process_interpolants.py --K 5 --Solver cadicalplain --UseCache > pds_st_correlation/K_5.st_pds_cor
+python scripts/process_interpolants.py --K 8 --Solver cadicalplain --UseCache > pds_st_correlation/K_8.st_pds_cor
+python scripts/process_interpolants.py --K 10 --Solver cadicalplain --UseCache > pds_st_correlation/K_10.st_pds_cor
+python scripts/process_interpolants.py --K 40 --Solver cadicalplain --UseCache > pds_st_correlation/K_40.st_pds_cor
+python scripts/process_interpolants.py --K 40 --Solver cadicalplain --UseCache --FormulaCategory linear > pds_st_correlation/K_40_linear.st_pds_cor
+python scripts/process_interpolants.py --K 40 --Solver cadicalplain --UseCache --FormulaCategory polynomial > pds_st_correlation/K_40_polynomial.st_pds_cor
+python scripts/process_interpolants.py --K 40 --Solver cadicalplain --UseCache --FormulaCategory exponential > pds_st_correlation/K_40_exponential.st_pds_cor
+
+python scripts/process_interpolants.py --AllK --Solver cadicalplain --UseCache --ExcludeParse > pds_st_correlation/all_K.st_pds_cor_exclude_parse
+python scripts/process_interpolants.py --K 5 --Solver cadicalplain --UseCache --ExcludeParse > pds_st_correlation/K_5.st_pds_cor_exclude_parse
+python scripts/process_interpolants.py --K 8 --Solver cadicalplain --UseCache --ExcludeParse > pds_st_correlation/K_8.st_pds_cor_exclude_parse
+python scripts/process_interpolants.py --K 10 --Solver cadicalplain --UseCache --ExcludeParse > pds_st_correlation/K_10.st_pds_cor_exclude_parse
+python scripts/process_interpolants.py --K 40 --Solver cadicalplain --UseCache --ExcludeParse > pds_st_correlation/K_40.st_pds_cor_exclude_parse

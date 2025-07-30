@@ -1,6 +1,8 @@
 import os
 
 def get_interpolant_dir(k_value):
+    if not os.path.exists(f"./ProofDoorBenchmark/interpolants/{k_value}/"):
+        os.makedirs(f"./ProofDoorBenchmark/interpolants/{k_value}/")
     return f"./ProofDoorBenchmark/interpolants/{k_value}/"
 
 def get_branching_order_log_dir():
@@ -17,6 +19,8 @@ def get_PDS_data_dir():
     return f"./ProofSizeMap/data/"
 
 def get_CNF_dir(k_value):
+    if not os.path.exists(f"./ProofDoorBenchmark/cnfs/{k_value}/"):
+        os.makedirs(f"./ProofDoorBenchmark/cnfs/{k_value}/")
     return f"./ProofDoorBenchmark/cnfs/{k_value}/"
 
 def get_interpolant_cnf_dir():
@@ -31,9 +35,13 @@ def get_PDS_dir(k_value):
     return f"./ProofSizeMap/data/{k_value}/"
 
 def get_smts_dir(k_value):
+    if not os.path.exists(f"./ProofDoorBenchmark/smts/{k_value}/"):
+        os.makedirs(f"./ProofDoorBenchmark/smts/{k_value}/")
     return f"./ProofDoorBenchmark/smts/{k_value}/"
 
 def get_cnfs_dir(k_value):
+    if not os.path.exists(f"./ProofDoorBenchmark/cnfs/{k_value}/"):
+        os.makedirs(f"./ProofDoorBenchmark/cnfs/{k_value}/")
     return f"./ProofDoorBenchmark/cnfs/{k_value}/"
 
 def get_exp_pbh_dir(k_value):

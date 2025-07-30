@@ -1,7 +1,9 @@
 import os
 from utils.paths import *
 from count_interpolant_byz3 import count_and_save
+from utils.tosmt import cnf_to_smt2_n_way
 import argparse
+from utils.utils import generate_cnf
 
 def prepare_cnf(name,k_value,force_refresh=False):
     cnf_dir = get_CNF_dir(k_value)
@@ -18,6 +20,7 @@ def prepare_cnf(name,k_value,force_refresh=False):
 def prepare_smt(name,k_value,index,force_refresh=False):
     smt_dir = get_smts_dir(k_value)
     smt_path = f"{smt_dir}/{name}.{k_value}.{index}.smt2"
+    cnf_path = f"{get_CNF_dir(k_value)}/{name}.{k_value}.cnf"
     if not os.path.exists(smt_path):
         print(f"SMT file {smt_path} DNE, regenerating")
         cnf_to_smt2_n_way(cnf_path,smt_path)
@@ -30,6 +33,7 @@ def prepare_smt(name,k_value,index,force_refresh=False):
 def prepare_interpolant(name,k_value,index,force_refresh=False, check_failed=False):
     interpolant_dir = get_interpolant_dir(k_value)
     interpolant_path = f"{interpolant_dir}/{name}.{k_value}.{index}.interpolant"
+    smt_path = f"{get_smts_dir(k_value)}/{name}.{k_value}.{index}.smt2"
     if not os.path.exists(interpolant_path):
         print(f"Interpolant file {interpolant_path} DNE, regenerating")
         os.system(f"./z3 {smt_path} > {interpolant_path}")
@@ -73,14 +77,14 @@ def prepare_datas(name,k_value,index,force_refresh=False):
     prepare_cnf(name,k_value,force_refresh)
     prepare_smt(name,k_value,index,force_refresh)
     interpolant_failed_before = prepare_interpolant(name,k_value,index,force_refresh,check_failed=True)
-    prepare_interpolant_cnf(name,k_value,index,force_refresh or interpolant_failed_before)
+    prepare_interpolant_cnf(name,k_value,index,force_refresh or interpolant_failed_before or True)
 
 def prepare_all_datas_for_one_smt(name,k_value,index,force_refresh=False):
     activate_python = "source ../general/bin/activate"
     slurm_out_dir = "./SlurmLogs/prepare_data/"
     os.makedirs(slurm_out_dir,exist_ok=True)
     wrapped = f"{activate_python} && python ./scripts/prepare_data.py --name {name} --K {k_value} --index {index}"
-    os.system(f"sbatch --output={slurm_out_dir}/{name}.{k_value}.%A_{index}.prepare_data.log --mem=16g --time=20:00:00 --wrap=\"{wrapped}\"")
+    os.system(f"sbatch --job-name=pp_{name}.{k_value}.{index} --output={slurm_out_dir}/{name}.{k_value}.%A_{index}.prepare_data.log --mem=16g --time=20:00:00 --wrap=\"{wrapped}\"")
 
 def prepare_all_datas(name,k_value,force_refresh=False):
     activate_python = "source ../general/bin/activate"

@@ -3,7 +3,7 @@
 # Check if directory is provided
 
 # Get the directory path from command line argument
-directory="./ProofDoorBenchmark/combined_cnfs/"
+directory="./ProofDoorBenchmark/combined_cnfs/10/"
 
 # Check if the directory exists
 if [ ! -d "$directory" ]; then
@@ -18,14 +18,14 @@ output_dir="${directory}"
 echo "Processing CNF files in $directory..."
 
 # Process each CNF file in the directory
-for cnf_file in "$directory"/*.cnf; do
+for cnf_file in "$directory"/*.combined.10.cnf; do
     if [ -f "$cnf_file" ]; then
         # Get the base filename without path and extension
         filename=$(basename "$cnf_file" .cnf)
         
         # Define the output log file
         log_file="$output_dir/$filename.log"
-        ./solvers/cadical $cnf_file > $log_file
+        ./solvers/cadical $cnf_file --plain > $log_file
         # jobid=$(sbatch --priority 0 -o ./Outputs/output_%A_%a.out ./scripts/submit_solver.sh ./solvers/cadical cadical $cnf_file | awk '{print $4}')
         # jobid=$(sbatch --priority 0 -o ./Outputs/output_%A_%a.out ./scripts/submit_solver.sh ./solvers/minisat minisat $cnf_file | awk '{print $4}')
     fi

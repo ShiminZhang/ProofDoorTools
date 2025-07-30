@@ -379,6 +379,8 @@ def get_instance_list(category):
         return polynomial_instances
     elif category == "exponential":
         return exponential_instances
+    elif category == "all":
+        return linear_instances + polynomial_instances + exponential_instances
     else:
         return []
     

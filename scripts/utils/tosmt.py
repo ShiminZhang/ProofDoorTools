@@ -87,37 +87,45 @@ def generate_single_compute_interpolant(blocks):
 
 
 def cnf_to_smt2_n_way(input_path, output_path):
+    basefilename = output_path.split("/")[-1]
+    parts = basefilename.split(".")
+    index = int(parts[2])
+    name = parts[0]
+    k = int(parts[1])
     blocks, max_var = parse_cnf_file(input_path)
     if len(blocks) < 2:
         raise ValueError("At least two clause blocks are required.")
 
     declarations = generate_declarations(max_var)
     interpolants = generate_single_compute_interpolant(blocks)
-    i=0
-    for interpolant in interpolants:
-        smt2_lines = declarations.copy()
-        smt2_lines.append("")
-        smt2_lines.extend(interpolant)
-        # for item in smt2_lines:
-            # print(item)
-        with open(f"{output_path}.{i}.smt2", 'w') as f:
-            f.write("\n".join(smt2_lines))
-        i+=1
+    smt2_lines = declarations.copy()
+    smt2_lines.append("")
+    smt2_lines.extend(interpolants[index])
+    # for item in smt2_lines:
+        # print(item)
+    with open(f"{output_path}", 'w') as f:
+        f.write("\n".join(smt2_lines))
 
 
 # Example usage:
 # cnf_to_smt2_n_way("input.cnf", "output.smt2")
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("Usage: python CNFtoQFBV.py <input_file.cnf>")
-        sys.exit(1)
+    # if len(sys.argv) != 2:
+    #     print("Usage: python CNFtoQFBV.py <input_file.cnf>")
+    #     sys.exit(1)
 
-    input_file = sys.argv[1]
-    if not os.path.isfile(input_file):
-        print(f"Error: File '{input_file}' not found.")
-        sys.exit(1)
+    # input_file = sys.argv[1]
+    # if not os.path.isfile(input_file):
+    #     print(f"Error: File '{input_file}' not found.")
+    #     sys.exit(1)
 
-    output_file = os.path.splitext(input_file)[0]
-    cnf_to_smt2_n_way(input_file, output_file)
-    print(f"SMT2 file written to: {output_file}")
+
+    # output_file = os.path.splitext(input_file)[0]
+    name = "6s4"
+    k = 15
+    index = 0
+    cnf_path = f"ProofDoorBenchmark/cnfs/15/{name}.{k}.cnf"
+    smt_path = f"ProofDoorBenchmark/smts/15/{name}.{k}.{index}.smt2"
+    cnf_to_smt2_n_way(cnf_path, smt_path)
+    print(f"SMT2 file written to: {smt_path}")

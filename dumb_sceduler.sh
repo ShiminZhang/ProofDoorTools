@@ -1,11 +1,16 @@
 #!/bin/bash                                                    
-#SBATCH --time=0-8:0:0                                                      
+#SBATCH --time=0-16:0:0                                                      
 #SBATCH --account=def-vganesh 
 #SBATCH --mem=16G
+#SBATCH --output=./dumb_scheduler.log
 
 
-git add -A; git commit -m "update"; git push
-# source ../general/bin/activate
+# git add -A; git commit -m "update"; git push
+# sleep 2h
+source ../general/bin/activate
+# scancel 46356867
+python scripts/prepare.py --prepare_only --manage
+# python scripts/prepare.py --remove_absorption_result_caches_first --focus_name intel001
 # cd ../
 # rm ./ProofDoorBenchmark/interpolants/10/*
 # rm ./ProofDoorBenchmark/smts/10/*

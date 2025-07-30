@@ -176,8 +176,8 @@ def prepare_datas(names,k_value,force_refresh=False,index=None):
         cadical_proof_path = f"./ProofDoorBenchmark/cnfs/{k_value}/{name}.{k_value}.cadical_proof"
         minisat_proof_path = f"./ProofDoorBenchmark/cnfs/{k_value}/{name}.{k_value}.minisat_proof"
         should_regenerate_proof = False
-        os.system(f"{minisat_solver} {cnf_path} > {minisat_proof_path}.raw")
-        os.system(f"cat {minisat_proof_path}.raw | grep 'PDLOG Learnt clause:' | sed 's/PDLOG Learnt clause: //' > {minisat_proof_path}")
+        # os.system(f"{minisat_solver} {cnf_path} > {minisat_proof_path}.raw")
+        # os.system(f"cat {minisat_proof_path}.raw | grep 'PDLOG Learnt clause:' | sed 's/PDLOG Learnt clause: //' > {minisat_proof_path}")
         
         if not os.path.exists(cadical_proof_path) or os.path.getsize(cadical_proof_path) == 0:
             print(f"Drat file {cadical_proof_path} DNE or empty, regenerating")
@@ -189,11 +189,14 @@ def prepare_datas(names,k_value,force_refresh=False,index=None):
         #             print(f"Drat file {cadical_proof_path} contains 'd' or 'a', regenerating")
         #             should_regenerate_proof = True
         if should_regenerate_proof:
-            os.system(f"{cadical_solver} {cnf_path} {cadical_proof_path} --no-binary --reduce=0 --restoreall=2 --flush=0 ")
-            # os.system(f"{cadical_solver} {cnf_path} > {cadical_proof_path}")
+            
+            # os.system(f"{cadical_solver} {cnf_path} {cadical_proof_path} --no-binary --reduce=0 --restoreall=2 --flush=0 ")
+            os.system(f"{cadical_solver} {cnf_path} --plain --no-binary {cadical_proof_path}")
             # if os.path.getsize(f"{cadical_proof_path}.raw") == 0:
             #     print(f"proof raw file {cadical_proof_path}.raw is empty, regenerating")
             #     exit(f"proof raw file {cadical_proof_path}.raw is empty")
+            os.system(f"{minisat_solver} {cnf_path} > {minisat_proof_path}.raw")
+            os.system(f"cat {minisat_proof_path}.raw | grep 'PDLOG Learnt clause:' | sed 's/PDLOG Learnt clause: //' > {minisat_proof_path}")
             # os.system(f"cat {cadical_proof_path}.raw | grep 'PDLOG Learnt clause:' | sed 's/PDLOG Learnt clause: //' > {cadical_proof_path}")
             # os.system(f"cat {cadical_proof_path}.raw | grep 'PDLOG Learnt clause:' | sed 's/PDLOG Learnt clause: //' > {cadical_proof_path}")
         else:
@@ -215,7 +218,7 @@ def prepare_datas(names,k_value,force_refresh=False,index=None):
             
             if not os.path.exists(smt_path):
                 print(f"SMT file {smt_path} DNE, regenerating")
-                cnf_to_smt2_n_way(cnf_path,f"{get_smts_dir(k_value)}/{name}.{k_value}")
+                cnf_to_smt2_n_way(cnf_path,f"{get_smts_dir(k_value)}/{name}.{k_value}.{i}.smt2")
             else:
                 print(f"SMT file {smt_path} exists, skipping")
             interpolant_path = f"{get_interpolant_dir(k_value)}/{name}.{k_value}.{i}.interpolant"
@@ -231,13 +234,13 @@ def prepare_datas(names,k_value,force_refresh=False,index=None):
                 print(f"Interpolant CNF file {interpolant_cnf_path} DNE, regenerating")
                 count_and_save(interpolant_path,smt_path,-1)
                 
-            # dimacs_path = f"{get_interpolant_dimacs_dir()}/{name}.{k_value}.index_{i}.dimacs"
-            # if not os.path.exists(dimacs_path):
-            #     print(f"Dimacs file {dimacs_path} DNE, regenerating")
-            #     combine_single_i_interpolant_to_cnf(get_interpolant_cnf_dir(), k_value, i, name)
-            # elif force_refresh:
-            #     print(f"Dimacs file {dimacs_path} exists, regenerating due to force_refresh")
-            #     combine_single_i_interpolant_to_cnf(get_interpolant_cnf_dir(), k_value, i, name)
+            dimacs_path = f"{get_interpolant_dimacs_dir()}/{name}.{k_value}.index_{i}.dimacs"
+            if not os.path.exists(dimacs_path):
+                print(f"Dimacs file {dimacs_path} DNE, regenerating")
+                combine_single_i_interpolant_to_cnf(get_interpolant_cnf_dir(), k_value, i, name)
+            elif force_refresh:
+                print(f"Dimacs file {dimacs_path} exists, regenerating due to force_refresh")
+                combine_single_i_interpolant_to_cnf(get_interpolant_cnf_dir(), k_value, i, name)
     
     if index != None:
         if force_refresh:
@@ -299,10 +302,11 @@ def main():
         targets=["6s0","6s4","6s273b37", "6s194"]
         if not args.skip_prepare:
             prepare_datas([targets[target_index]],k_value,force_refresh,args.index)
-        # check_and_draw([targets[target_index]],k_value,force_refresh,args.index)
+        check_and_draw([targets[target_index]],k_value,force_refresh,args.index)
     elif target_name:
-        prepare_datas([target_name],k_value,force_refresh,args.index)
-        # check_and_draw([target_name],k_value,force_refresh,args.index)
+        if not args.skip_prepare:
+            prepare_datas([target_name],k_value,force_refresh,args.index)
+        check_and_draw([target_name],k_value,force_refresh,args.index)
     else:
         print("Please specify either --target_index or --target_name")
         return

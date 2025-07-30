@@ -334,9 +334,12 @@ def GetDataFromLog(log_path):
             position -= 1
     return None
 
-def GetData(folder,name, use_cache = False, bit=None):
+def GetData(folder,name, use_cache = False, bit=None, exclude_parse=False):
     file_name = f'{folder}*{name}.*log'
-    cache_name = f'{folder}/{name}.solverCache.json'
+    if exclude_parse:
+        cache_name = f'{folder}/{name}.solverCache.excludeParse.json'
+    else:
+        cache_name = f'{folder}/{name}.solverCache.json'
     log_files = glob.glob(file_name)
     file_counted = 0
     print(f'{file_name} matched {len(log_files)}')
@@ -396,19 +399,33 @@ def GetData(folder,name, use_cache = False, bit=None):
                                     break
                             
                             break
-                        if "process-time" in decoded_line or "total process time" in decoded_line:
-                            match = re.search(r'(\d+\.?\d*)\s+seconds', decoded_line) or re.search(r'total process time[^:]*:\s*([0-9]+(?:\.[0-9]+)?)\s*seconds', decoded_line)
-                            if match:
-                                # print(basename)
-                                time = float(match.group(1))
-                                sum_time += time
-                                solved = True
-                                data_for_this_solver.append(time)
-                                instance_time_map[key] = time
-                                phase = 1
+                        # sample target line : c         0.01   12.84% solve
+                        if exclude_parse:
+                            if "% solve" in decoded_line:
+                                # print("matched")
+                                match = re.search(r'([0-9]*\.[0-9]+|[0-9]+)\s+.*% solve', decoded_line)
+                                if match:
+                                    time = float(match.group(1))
+                                    sum_time += time
+                                    solved = True
+                                    data_for_this_solver.append(time)
+                                    instance_time_map[key] = time
+                                    phase = 1
+                        else:
+                            if "process-time" in decoded_line or "total process time" in decoded_line:
+                                pass
+                                match = re.search(r'(\d+\.?\d*)\s+seconds', decoded_line) or re.search(r'total process time[^:]*:\s*([0-9]+(?:\.[0-9]+)?)\s*seconds', decoded_line)
+                                if match:
+                                    # print(basename)
+                                    time = float(match.group(1))
+                                    sum_time += time
+                                    solved = True
+                                    data_for_this_solver.append(time)
+                                    instance_time_map[key] = time
+                                    phase = 1
                             
-                        if "CPU time" in decoded_line in decoded_line:
-                            match = re.search(r'CPU time[^:]*:\s*([0-9]+(?:\.[0-9]+)?)\s*s', decoded_line)
+                        if "Simplification time" in decoded_line in decoded_line:
+                            match = re.search(r'Simplification time[^:]*:\s*([0-9]+(?:\.[0-9]+)?)\s*s', decoded_line)
                             if match:
                                 # print(basename)
                                 time = float(match.group(1))
@@ -579,4 +596,10 @@ def generate_cnf(filename):
     print(cmd)
     os.system(cmd)
     
-    
+if __name__ == "__main__":
+    # test get data
+    data_for_this_solver,instance_time_map,par2,instance_mem_map = GetData("./ProofDoorBenchmark/cnfs/10/","cadicalplain")
+    print(data_for_this_solver)
+    print(instance_time_map)
+    print(par2)
+    print(instance_mem_map)

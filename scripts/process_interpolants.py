@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import glob
 import json         
 import re
+from scipy.stats import pearsonr
 from tqdm import tqdm
 import argparse
 import numpy as np
@@ -16,7 +17,7 @@ from collections import defaultdict
 from utils.utils import ComputeCorrelation,RewriteMap,PolynomialRegression
 from utils.catagory import get_instance_list
 from utils.process_cnf import compute_N_map
-from utils.draw import init_plot,draw_scaling_plot_line,finish_plot
+from utils.draw import init_plot,draw_scaling_plot_line,finish_plot,draw_cactus_plot
 
 def get_interested_instances(category):
 
@@ -77,7 +78,36 @@ def ComputeCNFvsInterpolantSizeRatio(CNFMap,InterpolantMap):
     ratio = [cnf_sizes[i] / interpolant_sizes[i] for i in range(len(common_keys))]
     print(ratio)
     return ratio
+
+def ComputePDS(results_map,K):
+    proof_door_size_map = {}
+    interpolant_size_map = results_map
+    skip_keys = []
+    hit_time_map = {}
+    for key, value in results_map.items():
+        # Extract the first part of the key before the first "."
+        if key in skip_keys:
+            continue
+        key_parts = key.split('.')
+        new_key = key_parts[0]
+        k_value = key_parts[1]
+        value=value[0]
+        if value < 0:
+            skip_keys.append(key)
+            continue
+        if new_key not in proof_door_size_map:
+            proof_door_size_map[new_key] = value
+            hit_time_map[new_key] = 1
+        else:
+            proof_door_size_map[new_key] += value
+            hit_time_map[new_key] += 1
     
+    for key, value in hit_time_map.items():
+        if value < K:
+            proof_door_size_map.pop(key)
+            
+    return proof_door_size_map
+
 if __name__ == "__main__":
     # Set up argument parser
     parser = argparse.ArgumentParser(description='Process interpolants')
@@ -96,12 +126,15 @@ if __name__ == "__main__":
     parser.add_argument('--FocusName', type=str, default=None, help='Focus name')
     parser.add_argument('--CheckCNFvsInterpolantSizeRatio', action='store_true', help='Check CNF vs Interpolant Size Ratio')
     parser.add_argument('--ToCNF', action='store_true', help='Convert to CNF')
+    parser.add_argument('--AllK', action='store_true', help='compute correlation among all unfolding depths')
+    parser.add_argument('--ExcludeParse', action='store_true', help='exclude parse time')
     parser.add_argument('--CheckInterpolantCNFSizeCorrelation', action='store_true', help='Check Interpolant CNF size correlation')
     parser.add_argument('--CheckPDCSolvingTimeCorrelation', action='store_true', help='Check PDC solving time correlation')
     parser.add_argument('--CheckFormulaSizeNCorrelation', action='store_true', help='Check formula size N correlation')
     parser.add_argument('--CompareNoRestartWithRestart', action='store_true', help='Compare no restart with restart')
     parser.add_argument('--FitPolynomialRegressionOnFormulaSize', type=int, default=-1, help='Fit polynomial regression on formula size')
     parser.add_argument('--FitPolynomialRegressionOnPDSize', type=int, default=-1, help='Fit polynomial regression on PD size')
+    parser.add_argument('--CompareExcludeParse', action='store_true', help='Compare exclude parse')
     
     # Parse arguments
     args = parser.parse_args()
@@ -121,7 +154,33 @@ if __name__ == "__main__":
             for file, size in results_map.items():
                 f.write(f"{file}\t{size}\n")
         exit()
-        
+    
+    if args.AllK:
+        data_pairs = []
+        for K in [5,8,10,40]:
+            interpolant_map = {}
+            with open(f'./ProofSizeMap/data_{K}.json', 'r') as f:
+                data = json.load(f)
+                for key, value in data.items():
+                    k_value = key.split('.')[1]
+                    if k_value != str(K):
+                        continue
+                    if key.split('.')[0] not in interested_instances:
+                        continue
+                    interpolant_map[key] = value
+            proof_door_size_map = ComputePDS(interpolant_map,K)
+            st_data,st_map,_,_ = GetData(f"./ProofDoorBenchmark/cnfs/{K}/", solver, args.UseLogCache or use_cache, exclude_parse=args.ExcludeParse)
+            st_map = RewriteMap(st_map)
+            # print(st_map.keys())
+            # print(interpolant_map.keys())
+            # exit()
+            for key in proof_door_size_map:
+                if key in st_map:
+                    data_pairs.append((proof_door_size_map[key],st_map[key]))
+                    
+        correlation, p_value = pearsonr([pair[0] for pair in data_pairs], [pair[1] for pair in data_pairs])
+        print(f"Correlation: {correlation}, p-value: {p_value}")
+        exit()
     # If use_cache is True, try to read the interpolants map from file
     if use_cache or args.SkipInterpolant or args.UseInterpolantCache and os.path.exists('./ProofSizeMap/data.json'):
         print("Using cached interpolant sizes from file")
@@ -137,7 +196,8 @@ if __name__ == "__main__":
         if results_map:
             print("Loaded cached interpolant sizes")
     elif not args.ProcessLogOnly:
-        results_map = process_interpolants(K,args.ToCNF)
+        print(f"ERROR: No cached interpolant sizes found, the script will exit")
+        # results_map = process_interpolants(K,args.ToCNF)
     # print(results_map)
     
     # Write results to a file
@@ -147,8 +207,32 @@ if __name__ == "__main__":
                 f.write(f"{file}\t{size}\n")
     
     # cadical_data,cadical_map,cadical_par2,cadical_mem = GetData(f"./ProofDoorBenchmark/{formula_category}/{K}/", solver, args.UseLogCache or use_cache)
-    cadical_data,cadical_map,cadical_par2,cadical_mem = GetData(f"./ProofDoorBenchmark/cnfs/{K}/", solver, args.UseLogCache or use_cache)
+    cadical_data,cadical_map,cadical_par2,cadical_mem = GetData(f"./ProofDoorBenchmark/cnfs/{K}/", solver, args.UseLogCache or use_cache, exclude_parse=args.ExcludeParse)
 
+    if args.CompareExcludeParse:
+        print("-" * 100)
+        print(f"Comparing exclude parse for K={K}")
+        excluded_data,excluded_map,excluded_par2,excluded_mem = GetData(f"./ProofDoorBenchmark/cnfs/{K}/", "cadicalplain", args.UseLogCache or use_cache, exclude_parse=True)
+        included_data,included_map,included_par2,included_mem = GetData(f"./ProofDoorBenchmark/cnfs/{K}/", "cadicalplain", args.UseLogCache or use_cache, exclude_parse=False)
+        excluded_map = RewriteMap(excluded_map)
+        included_map = RewriteMap(included_map)
+        results_map = {}
+        data = json.load(open(f'./ProofSizeMap/data_{K}.json', 'r'))
+        for key, value in data.items():
+            k_value = key.split('.')[1]
+            if k_value != str(K):
+                continue
+            if key.split('.')[0] not in interested_instances:
+                continue
+            results_map[key] = value
+        proof_door_size_map = ComputePDS(results_map,K)
+        percentage_map = {}
+        for key in proof_door_size_map:
+            if key in excluded_map and key in included_map:
+                percentage_map[key] = (included_map[key] - excluded_map[key] + 1e-5) / (included_map[key] + 1e-5)
+                print(f"{key} pds:{proof_door_size_map[key]} excluded:{excluded_map[key]} included:{included_map[key]} parsing_percentage:{percentage_map[key]}")
+        ComputeCorrelation(proof_door_size_map,percentage_map,NameLeft="pds",NameRight="parsing_percentage")
+        exit()
     # print(cadical_map)
             
     # Rewrite cadical_map with keys' first part before "."
@@ -162,16 +246,18 @@ if __name__ == "__main__":
         rewritten_cadical_map[new_key] = value
     
     if args.CompareCombinedInstances:
-        init_plot("Original Formula Solving Time", "Combined Formula Solving Time", "Solving Time Comparison")
         for solver in ["cadical"]:
-            cadical_data,cadical_map,cadical_par2,cadical_mem = GetData(f"./ProofDoorBenchmark/{formula_category}/{K}/", "cadical", args.UseLogCache or use_cache)
+            init_plot("Original Formula Solving Time", "Number of solved instances", f"Original vs Combined formula solving time, K={K}")
+            label = solver if solver != "cadical" else "cadicalplain"
+            cadical_data,cadical_map,cadical_par2,cadical_mem = GetData(f"./ProofDoorBenchmark/cnfs/{K}/", label, args.UseLogCache or use_cache, exclude_parse=args.ExcludeParse)
+            
             rewritten_cadical_map = {}
             for key, value in cadical_map.items():
                 # Extract the first part of the key before the first "."
                 key_parts = key.split('.')
                 new_key = key_parts[0]
                 rewritten_cadical_map[new_key] = value
-            combined_data,combined_map,combined_par2,combined_mem = GetData(f"./ProofDoorBenchmark/combined_cnfs/", solver, False)
+            combined_data,combined_map,combined_par2,combined_mem = GetData(f"./ProofDoorBenchmark/combined_cnfs/{K}/", f"combine_{solver}", args.UseLogCache or use_cache, exclude_parse=args.ExcludeParse)
             # print(cadical_map)
             # print(combined_map)
             for key in combined_map:
@@ -181,7 +267,9 @@ if __name__ == "__main__":
             # Calculate average solving times for both combined and original instances
             combined_times = list(combined_map.values())
             original_times = list(rewritten_cadical_map.values())
-            
+            # print(combined_times)
+            # print(original_times)
+            # exit()
             if combined_times:
                 combined_avg = sum(combined_times) / len(combined_times)
                 print(f"Average solving time for combined instances: {combined_avg:.4f}s")
@@ -202,8 +290,9 @@ if __name__ == "__main__":
                 if rewritten_key in rewritten_cadical_map:
                     common_combined_times.append(combined_map[key])
                     common_original_times.append(rewritten_cadical_map[rewritten_key])
-            
-            draw_scaling_plot_line(rewritten_cadical_map.values(), combined_map.values(), solver)
+            draw_cactus_plot(common_combined_times, "Combined")
+            draw_cactus_plot(common_original_times, "Original")
+            # draw_scaling_plot_line(rewritten_cadical_map.values(), combined_map.values(), solver)
             if common_combined_times:
                 common_combined_avg = sum(common_combined_times) / len(common_combined_times)
                 common_original_avg = sum(common_original_times) / len(common_original_times)
@@ -211,24 +300,28 @@ if __name__ == "__main__":
                 print(f"Number of common instances: {len(common_combined_times)}")
             else:
                 print("No common instances found to calculate average times")
-        finish_plot("SolvingTimeComparison.png")
-        
-        if ratios:
-            average_ratio = sum(ratios) / len(ratios)
-            print(f"Average ratio (combined/original): {average_ratio:.4f}")
-            print(f"Number of instances compared: {len(ratios)}")
-        else:
-            print("No valid instances to compare ratios")
+            if args.ExcludeParse:
+                finish_plot(f"SolvingTimeComparison_{K}_{label}_exclude.png")
+            else:
+                finish_plot(f"SolvingTimeComparison_{K}_{label}.png")
+            print("Done")
+            init_plot("Original Formula Solving Time", "Combined Formula Solving Time", f"Solving Time Scaling Plot, K={K}")
+            draw_scaling_plot_line(common_original_times,common_combined_times, solver)
+            if args.ExcludeParse:
+                finish_plot(f"SolvingTimeComparison_Scaling_{K}_{label}_exclude.png")
+            else:
+                finish_plot(f"SolvingTimeComparison_Scaling_{K}_{label}.png")
+        # if ratios:
+        #     average_ratio = sum(ratios) / len(ratios)
+        #     print(f"Average ratio (combined/original): {average_ratio:.4f}")
+        #     print(f"Number of instances compared: {len(ratios)}")
+        # else:
+        #     print("No valid instances to compare ratios")
         exit()
     # Rewrite results_map (interpolants map) with keys' first part before "."
     proof_door_size_map = {}
     interpolant_size_map = results_map
     skip_keys = []
-    # max_interpolant_size = {}
-    # for key, value in results_map.items():
-    #     key_parts = key.split('.')
-    #     new_key = key_parts[0]
-    #     max_interpolant_size[new_key] = max(max_interpolant_size.get(new_key, 100), value[0])
     hit_time_map = {}
     for key, value in results_map.items():
         # Extract the first part of the key before the first "."
@@ -239,9 +332,6 @@ if __name__ == "__main__":
         k_value = key_parts[1]
         value=value[0]
         if value < 0:
-            # if arg.s.EstimatePDSize:
-                # value = max_interpolant_size[new_key]
-            # else:
             skip_keys.append(key)
             continue
         if new_key not in proof_door_size_map:
