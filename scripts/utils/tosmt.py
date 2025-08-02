@@ -94,9 +94,11 @@ def construct_compute_interpolant_cmd_from_interpolant(interpolants,B):
     for block in B:
         right_cnf.extend(block)
     right_expr = block_to_and_expr(right_cnf)
+    output_lines.extend(f"    (and\n")
     for interpolant in interpolants:
         for line in interpolant:
-            output_lines.append(f"    {line}")
+            output_lines.append(f"      {line.strip()}")
+    output_lines.append("    )\n")
     output_lines.extend(f"    {line}" for line in right_expr)
     output_lines.append(")")
     return output_lines
