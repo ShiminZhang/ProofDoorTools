@@ -1,5 +1,7 @@
 import sys
 import os
+from utils.utils import parse_sexp
+from utils.paths import get_interpolant_dir
 
 def parse_cnf_file(filepath):
     with open(filepath, 'r') as f:
@@ -72,7 +74,6 @@ def generate_single_compute_interpolant(blocks):
             j+=1
         extended_blocks.append((left,right))
         
-        
     for block_tuple in extended_blocks:
         # print(block)
         left,right = block_tuple
@@ -85,6 +86,90 @@ def generate_single_compute_interpolant(blocks):
         output_lines.append(current_interpolant)
     return output_lines
 
+def construct_compute_interpolant_cmd_from_interpolant(interpolants,B):
+    # A and B are lists of clauses
+    output_lines = []
+    output_lines.append("(compute-interpolant")
+    right_cnf = []
+    for block in B:
+        right_cnf.extend(block)
+    right_expr = block_to_and_expr(right_cnf)
+    for interpolant in interpolants:
+        for line in interpolant:
+            output_lines.append(f"    {line}")
+    output_lines.extend(f"    {line}" for line in right_expr)
+    output_lines.append(")")
+    return output_lines
+
+def construct_compute_interpolant_cmd(A,B):
+    # A and B are lists of clauses
+    output_lines = []
+    output_lines.append("(compute-interpolant")
+    left_cnf = []
+    right_cnf = []
+    for block in A:
+        left_cnf.extend(block)
+    for block in B:
+        right_cnf.extend(block)
+    left_expr = block_to_and_expr(left_cnf)
+    right_expr = block_to_and_expr(right_cnf)
+    output_lines.extend(f"    {line}" for line in left_expr)
+    output_lines.extend(f"    {line}" for line in right_expr)
+    output_lines.append(")")
+    return output_lines
+
+def read_interpolant(interpolant_path):
+    with open(interpolant_path, 'r') as f:
+        lines = f.readlines()[2:]
+    # remove the last bracket
+    print(lines[-1])
+    lines[-1] = lines[-1].strip()[:-1]
+    print(lines[-1])
+    return lines
+
+def cnf_to_smt2_def1(input_path, output_path):
+    print(f"Generating {output_path}")
+    basefilename = output_path.split("/")[-1]
+    parts = basefilename.split(".")
+    index = int(parts[2])
+    name = parts[0]
+    k_value = int(parts[1])
+    blocks, max_var = parse_cnf_file(input_path)
+    # interpolants = generate_single_compute_interpolant(blocks)
+    declarations = generate_declarations(max_var)
+    if index == 0:
+        # print(blocks[0:1])
+        # print(blocks[1:])
+        compute_smt = construct_compute_interpolant_cmd(blocks[0:1],blocks[1:])
+    else:
+        interpolants = []
+        for i in range(index):
+            interpolant_path = f"{get_interpolant_dir(k_value,pddef=1)}/{name}.{k_value}.{i}.interpolant"
+            print(f"    reading {i}th interpolant: {interpolant_path}")
+            interpolants.append(read_interpolant(interpolant_path))
+        print(interpolants)
+        compute_smt = construct_compute_interpolant_cmd_from_interpolant(interpolants,blocks[index:])
+        
+    smt2_lines = declarations.copy()
+    smt2_lines.append("")
+    smt2_lines.extend(compute_smt)
+    with open(f"{output_path}", 'w') as f:
+        f.write("\n".join(smt2_lines))
+
+def cnf_to_smt2_def2(input_path, output_path):
+    basefilename = output_path.split("/")[-1]
+    parts = basefilename.split(".")
+    index = int(parts[2])
+    name = parts[0]
+    k = int(parts[1])
+    blocks, max_var = parse_cnf_file(input_path)
+    declarations = generate_declarations(max_var)
+    compute_smt = construct_compute_interpolant_cmd(blocks[0],blocks[1])
+    smt2_lines = declarations.copy()
+    smt2_lines.append("")
+    smt2_lines.extend(compute_smt)
+    with open(f"{output_path}", 'w') as f:
+        f.write("\n".join(smt2_lines))
 
 def cnf_to_smt2_n_way(input_path, output_path):
     basefilename = output_path.split("/")[-1]

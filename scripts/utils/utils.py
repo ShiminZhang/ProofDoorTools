@@ -13,6 +13,30 @@ import re
 def get_python_activate_command():
     return "source ../general/bin/activate"
         
+def tokenize(s):
+    s = re.sub(r'([\(\)])', r' \1 ', s)
+    return s.split()
+
+def parse(tokens):
+    if not tokens:
+        raise SyntaxError("Unexpected EOF")
+    token = tokens.pop(0)
+    if token == '(':
+        expr = []
+        while tokens[0] != ')':
+            expr.append(parse(tokens))
+            if not tokens:
+                raise SyntaxError("Missing ')'")
+        tokens.pop(0)
+        return expr
+    elif token == ')':
+        raise SyntaxError("Unexpected ')'")
+    else:
+        return token
+
+def parse_sexp(s):
+    return parse(tokenize(s))
+    
 def group_files_by_basename(directory, k_value, force_name=None, limit=-1, file_extension='.cnf'):
     """Group CNF files by basename for a given k value."""
     file_groups = {}

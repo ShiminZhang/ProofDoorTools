@@ -1,9 +1,18 @@
 import os
 
-def get_interpolant_dir(k_value):
-    if not os.path.exists(f"./ProofDoorBenchmark/interpolants/{k_value}/"):
-        os.makedirs(f"./ProofDoorBenchmark/interpolants/{k_value}/")
-    return f"./ProofDoorBenchmark/interpolants/{k_value}/"
+def get_interpolant_dir(k_value,pddef=0):
+    if pddef == 0:
+        if not os.path.exists(f"./ProofDoorBenchmark/interpolants/{k_value}/"):
+            os.makedirs(f"./ProofDoorBenchmark/interpolants/{k_value}/")
+        return f"./ProofDoorBenchmark/interpolants/{k_value}/"
+    elif pddef == 1:
+        if not os.path.exists(f"./ProofDoorBenchmark/interpolants_def1/{k_value}/"):
+            os.makedirs(f"./ProofDoorBenchmark/interpolants_def1/{k_value}/")
+        return f"./ProofDoorBenchmark/interpolants_def1/{k_value}/"
+    elif pddef == 2:
+        if not os.path.exists(f"./ProofDoorBenchmark/interpolants_def2/{k_value}/"):
+            os.makedirs(f"./ProofDoorBenchmark/interpolants_def2/{k_value}/")
+        return f"./ProofDoorBenchmark/interpolants_def2/{k_value}/"
 
 def get_branching_order_log_dir():
     if not os.path.exists(f"./ProofDoorBenchmark/branching_order_logs/"):
@@ -34,10 +43,19 @@ def get_PDS_dir(k_value):
         os.makedirs(f"./ProofSizeMap/data/{k_value}/")
     return f"./ProofSizeMap/data/{k_value}/"
 
-def get_smts_dir(k_value):
-    if not os.path.exists(f"./ProofDoorBenchmark/smts/{k_value}/"):
-        os.makedirs(f"./ProofDoorBenchmark/smts/{k_value}/")
-    return f"./ProofDoorBenchmark/smts/{k_value}/"
+def get_smts_dir(k_value,pddef=0):
+    if pddef == 0:
+        if not os.path.exists(f"./ProofDoorBenchmark/smts/{k_value}/"):
+            os.makedirs(f"./ProofDoorBenchmark/smts/{k_value}/")
+        return f"./ProofDoorBenchmark/smts/{k_value}/"
+    elif pddef == 1:
+        if not os.path.exists(f"./ProofDoorBenchmark/smts_def1/{k_value}/"):
+            os.makedirs(f"./ProofDoorBenchmark/smts_def1/{k_value}/")
+        return f"./ProofDoorBenchmark/smts_def1/{k_value}/"
+    elif pddef == 2:
+        if not os.path.exists(f"./ProofDoorBenchmark/smts_def2/{k_value}/"):
+            os.makedirs(f"./ProofDoorBenchmark/smts_def2/{k_value}/")
+        return f"./ProofDoorBenchmark/smts_def2/{k_value}/"
 
 def get_cnfs_dir(k_value):
     if not os.path.exists(f"./ProofDoorBenchmark/cnfs/{k_value}/"):
@@ -57,6 +75,9 @@ def get_wires_dir(k_value):
     if not os.path.exists(f"./ProofDoorBenchmark/wires/{k_value}/"):
         os.makedirs(f"./ProofDoorBenchmark/wires/{k_value}/")
     return f"./ProofDoorBenchmark/wires/{k_value}/"
+
+def get_smt_def1_dir(k_value):
+    return get_smts_dir(k_value,pddef=1)
 
 def get_figures_dir():
     if not os.path.exists("./figures/"):
