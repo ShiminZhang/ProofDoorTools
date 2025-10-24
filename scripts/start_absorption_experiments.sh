@@ -12,12 +12,14 @@
 k_value=$1
 
 target_name=$2
+
 if [ -z "$k_value" ]; then
     echo "Error: k_value must be specified"
     exit 1
 fi
 
-force_refresh=$3
+force_refresh=$4
+pddef=$3
 # instance_index=$2
 # if [ -z "$instance_index" ]; then
 #     echo "Error: instance_index must be specified"
@@ -37,4 +39,4 @@ force_refresh=$3
 echo k=$k_value name="${target_name}" index=$SLURM_ARRAY_TASK_ID
 source ../general/bin/activate
 # python scripts/check_proof_absorb_PD.py --K $k_value --target_name ${interested_names[$instance_index]} --index $SLURM_ARRAY_TASK_ID
-python scripts/check_proof_absorb_PD.py --K $k_value --target_name ${target_name} --index $SLURM_ARRAY_TASK_ID $force_refresh
+python scripts/check_proof_absorb_PD.py --K $k_value --target_name ${target_name} --index $SLURM_ARRAY_TASK_ID $force_refresh --pddef $pddef

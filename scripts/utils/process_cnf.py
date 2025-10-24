@@ -1,7 +1,8 @@
 import os
 import json
-from debug.logging import LOG, LOG_TAG
+# from debug.logging import LOG, LOG_TAG
 from tqdm import tqdm
+from utils.utils import literal_to_expr, clause_to_expr, block_to_and_expr
 import argparse
 import numpy as np
 # from catagory import get_instance_list
@@ -9,20 +10,68 @@ from utils.catagory import get_instance_list
 # from typing import List, Set, Dict, Optional
 
 class CNF:
-    def __init__(self,cnf_path=None):
+    def __init__(self,cnf_path=None, use_cache=False):
         self.cnf_path = cnf_path
+        if cnf_path is not None:
+            self.cnf_obj_path = cnf_path.replace(".cnf", ".cnfobj.json")
+        else:
+            self.cnf_obj_path = None
         self.clauses = []
         self.N = None
         self.L = None
         self.iter_map = {}
         self.literal_set = set()
+        self.literal_map = {}
         self.K = -1
+
         if cnf_path is not None:
             self.parse_cnf()
+            self.parse_literal_map(use_cache)
     
     @classmethod
     def from_file(cls, cnf_path):
         return cls(cnf_path)
+    
+    def get_variables_local_in_A(self, i):
+        literals_in_A = set()
+        for iter_idx in range(i+1):
+            literals_in_A.update(self.literal_map[iter_idx])
+        # print(f"literals_in_A: {literals_in_A}")    
+        literals_in_B = set()
+        for iter_idx in range(i+1, self.K):
+            literals_in_B.update(self.literal_map[iter_idx])
+        # print(f"literals_in_B: {literals_in_B}")
+        # print(self.literal_map)
+        return literals_in_A - literals_in_B
+    
+    def get_smt_definitions(self):
+        smt_definitions = []
+        variables = set()
+        for literal in self.literal_set:
+            variable = abs(literal)
+            variables.add(variable)
+        for variable in variables:
+            smt_definitions.append(f"(declare-const v{variable} Bool)")
+        return smt_definitions
+
+    def to_smt(self):
+        clauses_in_smt = block_to_and_expr(self.clauses)
+        # for clause in self.clauses:
+        #     clauses_in_smt.append(clause_to_expr(clause))
+        return clauses_in_smt
+
+    def get_variables_local_in_B(self, i):
+        literals_in_B = set()
+        for iter_idx in range(i+1, self.K):
+            literals_in_B.update(self.literal_map[iter_idx])
+        literals_in_A = set()
+        for iter_idx in range(i):
+            literals_in_A.update(self.literal_map[iter_idx])
+        return literals_in_B - literals_in_A
+    
+    def get_variables_global(self, i):
+        literals_in_global = self.literal_set
+        return literals_in_global - self.get_variables_local_in_A(i) - self.get_variables_local_in_B(i)
     
     def parse_cnf(self):
         with open(self.cnf_path, 'r') as file:
@@ -49,12 +98,7 @@ class CNF:
                         line_count += 1
             self.K = iter_count - 1
             assert self.N is not None and self.L is not None
-            LOG(f"N: {self.N}, L: {self.L}")
-            LOG(f"Number of clauses: {len(self.clauses)}")
-            # assert len(self.clauses) == self.N
             self.parse_literals()
-            # self.dump_stats()
-            # assert len(self.literal_set) == self.L
 
     def dump_stats(self):
         print(f"N: {self.N}, L: {self.L}")
@@ -79,9 +123,46 @@ class CNF:
     
     def parse_literals(self):
         assert self.clauses is not None
+        for iter_index in range(self.K+1):
+            self.literal_map[iter_index] = set()
         for clause in self.clauses:
             for literal in clause:
                 self.literal_set.add(literal)
+
+    def parse_literal_map(self, use_cache=False):
+        print(f"parse_literal_map")
+        iter_index = 0
+        clause_index = 0
+        if use_cache and os.path.exists(self.cnf_obj_path):
+            print(f"use_cache: {self.cnf_obj_path}")
+            result = json.load(open(self.cnf_obj_path, 'r'))
+            literal_map = result['literal_map']
+            for key in literal_map:
+                self.literal_map[int(key)].update(literal_map[key])
+            self.literal_set = set(result['literal_set'])
+            return
+        
+        for clause in self.clauses:
+            # find which iteration the clause belongs to
+            if self.iter_map[iter_index] <= clause_index and (iter_index == self.K or self.iter_map[iter_index+1] > clause_index):
+                # clause belongs to the current iteration
+                pass
+            else:
+                # clause belongs to the next iteration
+                iter_index += 1
+                assert iter_index <= self.K and clause_index == self.iter_map[iter_index], f"iter_index: {iter_index}, clause_index: {clause_index}, self.iter_map[iter_index]: {self.iter_map[iter_index]}"
+            
+            for literal in clause:
+                self.literal_map[iter_index].add(abs(literal))
+                self.literal_set.add(abs(literal))
+            clause_index += 1
+        cnfobj = {}
+        literal_map_obj = {}
+        for key in self.literal_map:
+            literal_map_obj[key] = list(self.literal_map[key])
+        cnfobj['literal_map'] = literal_map_obj
+        cnfobj['literal_set'] = list(self.literal_set)
+        json.dump(cnfobj, open(self.cnf_obj_path, 'w'))
     
     def get_clauses(self):
         return self.clauses
@@ -102,7 +183,7 @@ class CNF:
         return self.literal_set
     
     def init_with_clauses(self,clauses):
-        LOG_TAG(f"init_with_clauses: {clauses}", "detailed")
+        # LOG_TAG(f"init_with_clauses: {clauses}", "detailed")
         self.clauses = clauses
         self.N = len(clauses)
         if len(clauses) == 0:
@@ -114,13 +195,13 @@ class CNF:
         self.parse_literals()
     
     def get_A(self, i):
-        clauses = self.clauses[0:self.iter_map[i]]
+        clauses = self.clauses[0:self.iter_map[i+1]]
         A = CNF()
         A.init_with_clauses(clauses)
         return A
     
     def get_B(self, i):
-        clauses = self.clauses[self.iter_map[i]:]
+        clauses = self.clauses[self.iter_map[i+1]:]
         B = CNF()
         B.init_with_clauses(clauses)
         return B
@@ -135,8 +216,10 @@ class CNF:
                 f.write(" ".join(str(lit) for lit in clause) + " 0\n")
         return file_path
 
-def compute_cnf_size_for_category(category,K,use_cache=False):
+def compute_cnf_size_for_category(category,K,use_cache=False,interested_instances=None):
     instance_list = get_instance_list(category)
+    if interested_instances is not None:
+        instance_list = interested_instances
     if use_cache and os.path.exists(f'ProofDoorBenchmark/cnfs/{K}/{category}_cnfs_sizes.json'):
         cnf_sizes = json.load(open(f'ProofDoorBenchmark/cnfs/{K}/{category}_cnfs_sizes.json', 'r'))
     else:
@@ -144,7 +227,13 @@ def compute_cnf_size_for_category(category,K,use_cache=False):
         for instance in instance_list:
             cnf_path = f"ProofDoorBenchmark/cnfs/{K}/{instance}.{K}.cnf"
             if os.path.exists(cnf_path):
-                cnf_sizes[instance] = os.path.getsize(cnf_path)
+                with open(cnf_path, 'r') as file:
+                    for line in file:
+                        if line.startswith('p cnf'):
+                            _, _, N , L = line.split()
+                            cnf_sizes[instance] = int(L)
+                            break
+                # cnf_sizes[instance] = 
         json.dump(cnf_sizes, open(f'ProofDoorBenchmark/cnfs/{K}/{category}_cnfs_sizes.json', 'w'))
     return cnf_sizes
 

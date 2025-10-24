@@ -160,21 +160,22 @@ def get_literal_pass_percentage_trend(cnf_path, k_value):
     draw_greyscale_plot(percentage_for_iterations,f'Literal Absorption Pass Percentage Heatmap {basename}',color='Blues')
     return percentage_for_iterations
 
-def prepare_datas(names,k_value,force_refresh=False,index=None):
+def prepare_datas(names,k_value,force_refresh=False,index=None,pddef=0):
     cadical_solver = "./solvers/cadical"
     drat_solver = "./solvers/cadical"
     minisat_solver = "./solvers/minisat_nodel_test"
     # prepare proofs
     print(f"Preparing proofs for {names} with k_value {k_value},index {index}")
+    cnfs_dir = get_cnfs_dir(k_value)
     for name in names:
-        cnf_path = f"./ProofDoorBenchmark/cnfs/{k_value}/{name}.{k_value}.cnf"
+        cnf_path = f"{cnfs_dir}/{name}.{k_value}.cnf"
         if not os.path.exists(cnf_path):
             print(f"CNF file {cnf_path} DNE, regenerating")
             generate_cnf(f"{name}.{k_value}.cnf")
         else:
             print(f"CNF file {cnf_path} exists, skipping")
-        cadical_proof_path = f"./ProofDoorBenchmark/cnfs/{k_value}/{name}.{k_value}.cadical_proof"
-        minisat_proof_path = f"./ProofDoorBenchmark/cnfs/{k_value}/{name}.{k_value}.minisat_proof"
+        cadical_proof_path = f"{cnfs_dir}/{name}.{k_value}.cadical_proof"
+        minisat_proof_path = f"{cnfs_dir}/{name}.{k_value}.minisat_proof"
         should_regenerate_proof = False
         # os.system(f"{minisat_solver} {cnf_path} > {minisat_proof_path}.raw")
         # os.system(f"cat {minisat_proof_path}.raw | grep 'PDLOG Learnt clause:' | sed 's/PDLOG Learnt clause: //' > {minisat_proof_path}")
@@ -210,7 +211,7 @@ def prepare_datas(names,k_value,force_refresh=False,index=None):
             if index != None and i != index:
                 continue
             cnf_path = f"./ProofDoorBenchmark/cnfs/{k_value}/{name}.{k_value}.cnf"
-            smt_path = f"{get_smts_dir(k_value)}/{name}.{k_value}.{i}.smt2"
+            smt_path = f"{get_smts_dir(k_value,pddef)}/{name}.{k_value}.{i}.smt2"
             cadical_proof_path = f"./ProofDoorBenchmark/cnfs/{k_value}/{name}.{k_value}.cadical_proof"
             if not os.path.exists(cadical_proof_path) or os.path.getsize(cadical_proof_path) == 0:
                 os.system(f"{cadical_solver} {cnf_path} {cadical_proof_path} --no-binary --reduce=0 --restoreall=2 --flush=0 ")
@@ -221,7 +222,7 @@ def prepare_datas(names,k_value,force_refresh=False,index=None):
                 cnf_to_smt2_n_way(cnf_path,f"{get_smts_dir(k_value)}/{name}.{k_value}.{i}.smt2")
             else:
                 print(f"SMT file {smt_path} exists, skipping")
-            interpolant_path = f"{get_interpolant_dir(k_value)}/{name}.{k_value}.{i}.interpolant"
+            interpolant_path = f"{get_interpolant_dir(k_value,pddef)}/{name}.{k_value}.{i}.interpolant"
             if not os.path.exists(interpolant_path):
                 print(f"Interpolant file {interpolant_path} DNE, regenerating")
                 os.system(f"./z3 {smt_path} > {interpolant_path}")
@@ -234,13 +235,13 @@ def prepare_datas(names,k_value,force_refresh=False,index=None):
                 print(f"Interpolant CNF file {interpolant_cnf_path} DNE, regenerating")
                 count_and_save(interpolant_path,smt_path,-1)
                 
-            dimacs_path = f"{get_interpolant_dimacs_dir()}/{name}.{k_value}.index_{i}.dimacs"
+            dimacs_path = f"{get_interpolant_dimacs_dir(k_value,pddef)}/{name}.{k_value}.index_{i}.dimacs"
             if not os.path.exists(dimacs_path):
                 print(f"Dimacs file {dimacs_path} DNE, regenerating")
-                combine_single_i_interpolant_to_cnf(get_interpolant_cnf_dir(), k_value, i, name)
+                combine_single_i_interpolant_to_cnf(get_interpolant_cnf_dir(k_value,pddef), k_value, i, name)
             elif force_refresh:
                 print(f"Dimacs file {dimacs_path} exists, regenerating due to force_refresh")
-                combine_single_i_interpolant_to_cnf(get_interpolant_cnf_dir(), k_value, i, name)
+                combine_single_i_interpolant_to_cnf(get_interpolant_cnf_dir(k_value,pddef), k_value, i, name)
     
     if index != None:
         if force_refresh:
@@ -293,6 +294,7 @@ def main():
     parser.add_argument('--index', type=int, help='check i_th interpolant', required=False)
     parser.add_argument('--force_refresh', action='store_true', help='Force refresh', required=False)
     parser.add_argument('--skip_prepare', action='store_true', help='Skip prepare', required=False)
+    parser.add_argument('--pddef', type=int, help='PDDEF', required=False)
     args = parser.parse_args()
     target_index = args.target_index
     target_name = args.target_name
@@ -301,12 +303,12 @@ def main():
     if target_index != None:
         targets=["6s0","6s4","6s273b37", "6s194"]
         if not args.skip_prepare:
-            prepare_datas([targets[target_index]],k_value,force_refresh,args.index)
-        check_and_draw([targets[target_index]],k_value,force_refresh,args.index)
+            prepare_datas([targets[target_index]],k_value,force_refresh,args.index,args.pddef)
+        check_and_draw([targets[target_index]],k_value,force_refresh,args.index,args.pddef)
     elif target_name:
         if not args.skip_prepare:
-            prepare_datas([target_name],k_value,force_refresh,args.index)
-        check_and_draw([target_name],k_value,force_refresh,args.index)
+            prepare_datas([target_name],k_value,force_refresh,args.index,args.pddef)
+        check_and_draw([target_name],k_value,force_refresh,args.index,args.pddef)
     else:
         print("Please specify either --target_index or --target_name")
         return

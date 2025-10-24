@@ -5,8 +5,8 @@ def init_plot(x_label, y_label, title):
     plt.xlabel(x_label)
     plt.ylabel(y_label)
     plt.title(title)
-    plt.gca().xaxis.set_major_locator(plt.MaxNLocator(integer=True))
-    plt.gca().yaxis.set_major_locator(plt.MaxNLocator(integer=True))
+    # plt.gca().xaxis.set_major_locator(plt.MaxNLocator(integer=True))
+    # plt.gca().yaxis.set_major_locator(plt.MaxNLocator(integer=True))
     
 
 def draw_scaling_plot_line(x,y,label):
@@ -15,7 +15,7 @@ def draw_scaling_plot_line(x,y,label):
 
     Args:
     """
-    plt.axis('equal')
+    # plt.axis('equal')
     zipped_data = list(zip(x, y))
     zipped_data.sort(key=lambda x: x[0])
     x, y = zip(*zipped_data)

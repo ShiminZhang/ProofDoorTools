@@ -111,7 +111,7 @@ def check_clause_absorption(clause, cnf_path):
     # return all(results)
 
 def compute_wire_for_formula(formula: CNF,i):
-    if i <= 0:
+    if i < 0:
         print("compute_wire_for_formula: i is less than 0")
         return
     A = formula.get_A(i)
@@ -148,11 +148,17 @@ def compute_wire_and_save(formula: CNF,K=-1):
     if K <= 0:
         print("K is less than 0")
         return
-    for i in range(1,K):
-        wires = compute_wire_for_formula(formula,i)
+    wire_size_map = {}
+    for i in range(0,K):
         basename = os.path.basename(formula.cnf_path)
         basename = basename.split(".")[0]
         output_file = os.path.join(get_wires_dir(K), f"{basename}.{K}.{i}.wires.json")
+        if os.path.exists(output_file):
+            print(f"wires: {output_file} already exists")
+            res = json.load(open(output_file, 'r'))
+            wire_size_map[i] = res["wire_size"]
+            continue
+        wires = compute_wire_for_formula(formula,i)
         res = {}        
         res["wire_size"] = len(wires)
         res["wires"] = wires
@@ -162,8 +168,9 @@ def compute_wire_and_save(formula: CNF,K=-1):
                 f,
                 indent=4
             )
-        
-            
+        wire_size_map[i] = res["wire_size"]
+    return wire_size_map
+
 def main():
     # formula = CNF.from_file("./test/test.cnf")
     # clause = [-1,2]

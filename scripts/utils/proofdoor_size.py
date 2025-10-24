@@ -15,8 +15,8 @@ def relocate_PDS_files(k_value):
             if file_k == k_value:
                 shutil.move(os.path.join(PDS_data_dir, file), os.path.join(PDS_dir, file))
 
-def get_all_interpolant_files(k_value):
-    interpolant_dir = get_interpolant_dir(k_value)
+def get_all_interpolant_files(k_value,pddef):
+    interpolant_dir = get_interpolant_dir(k_value,pddef)
     interpolant_files = sorted(os.listdir(interpolant_dir))
     return interpolant_files
 
@@ -33,10 +33,10 @@ def get_subsumed_PDS_interpolant_files(k_value):
                 interpolant_files.append(name)
     return interpolant_files
 
-def get_uncomputed_interpolant_files(k_value):
-    PDS_dir = get_PDS_dir(k_value)
+def get_uncomputed_interpolant_files(k_value,pddef):
+    PDS_dir = get_PDS_dir(k_value,pddef)
     json_files = os.listdir(PDS_dir)
-    interpolant_files = get_all_interpolant_files(k_value)
+    interpolant_files = get_all_interpolant_files(k_value,pddef)
     uncomputed_files=[]
     
     for file in tqdm(interpolant_files):

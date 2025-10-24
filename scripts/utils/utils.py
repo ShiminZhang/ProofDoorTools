@@ -10,6 +10,64 @@ import numpy as np
 from z3 import *
 import re
 
+def GetPDS(K,pddef,interested_instances,include_step=False):
+    pds_data_path = f'./ProofSizeMap/data/pddef_{pddef}/data_{K}.json'
+    print(f"Using cached interpolant sizes from file {pds_data_path}")
+    results_map = {}
+    sum_step_map = {}
+    data = json.load(open(pds_data_path, 'r'))
+    sum_steps_map_loaded = False
+    if include_step:
+        if os.path.exists(f"ProofSizeMap/resolution_steps/{K}/resolution_steps.json"):
+            sum_steps_data = json.load(open(f"ProofSizeMap/resolution_steps/{K}/resolution_steps.json", 'r'))
+            for key, value in sum_steps_data.items():
+                sum_step_map[key] = value
+            sum_steps_map_loaded = True
+        else:
+            sum_step_map = {}
+    for key, value in data.items():
+        k_value = key.split('.')[1]
+        if k_value != str(K):
+            continue
+        if key.split('.')[0] not in interested_instances:
+            continue
+        basename = key.split('.')[0]
+
+        found_steps = True
+        index = key.split('.')[2]
+        sum_steps = 0
+        if include_step:
+            if key in sum_step_map:
+                sum_steps_map_loaded = True
+                sum_steps = sum_step_map[key]
+            else:
+                if os.path.exists(f"ProofSizeMap/resolution_steps/{K}/{basename}.{K}.{index}.json"):
+                    sum_steps = int(json.load(open(f"ProofSizeMap/resolution_steps/{K}/{basename}.{K}.{index}.json", 'r'))["total_steps"])
+                else:
+                    continue
+        sum_step_map[key] = sum_steps
+
+        interpolant_size = 0
+        if type(value) == list:
+            interpolant_size = value[0]
+        elif type(value) == dict:
+            interpolant_size = value["n_clauses"]
+        else:
+            print(f"Unknown type: {type(value)}")
+            interpolant_size = value
+
+        if pddef == 3 and interpolant_size == 0:
+            continue
+        if include_step:
+            results_map[key] = int(sum_steps) + int(interpolant_size)
+        else:
+            results_map[key] = int(interpolant_size)
+    if include_step and not sum_steps_map_loaded:
+        json.dump(sum_step_map, open(f"ProofSizeMap/resolution_steps/{K}/resolution_steps.json", 'w'))
+    if results_map:
+        print("Loaded cached interpolant sizes")
+    return results_map
+
 def get_python_activate_command():
     return "source ../general/bin/activate"
         
@@ -562,6 +620,26 @@ def read_interpolant(filename, definitions):
     formula = parse_smt2_string(input)[0]
     return formula
 
+
+def literal_to_expr(literal):
+    var = abs(literal)
+    if literal > 0:
+        return f"v{var}"
+    else:
+        return f"(not v{var})"
+    
+def clause_to_expr(clause):
+    return "(or " + " ".join(literal_to_expr(lit) for lit in clause) + ")"
+
+
+
+def block_to_and_expr(block):
+    lines = ["(and"]
+    for clause in block:
+        lines.append(f"    {clause_to_expr(clause)}")
+    lines.append(")")
+    return lines
+
 def to_pure_smt2(smt_file_path):
     # read the smt file
     with open(smt_file_path, 'r') as file:
@@ -619,7 +697,7 @@ def generate_cnf(filename):
     cmd=f"./simplecar -bmc -k {k_value} -cnf ./ProofDoorBenchmark/cnfs/{k_value}/ {aigs}"
     print(cmd)
     os.system(cmd)
-    
+
 if __name__ == "__main__":
     # test get data
     data_for_this_solver,instance_time_map,par2,instance_mem_map = GetData("./ProofDoorBenchmark/cnfs/10/","cadicalplain")

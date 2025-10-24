@@ -1,7 +1,11 @@
 import sys
 import os
-from utils.utils import parse_sexp
-from utils.paths import get_interpolant_dir
+from utils.utils import parse_sexp, literal_to_expr, clause_to_expr, block_to_and_expr
+from utils.paths import get_interpolant_dir, get_wires_dir, get_cnfs_dir
+from utils.process_cnf import CNF
+from utils.absorption_analysis import compute_wire_and_save
+import json
+from interpolant_sanity_check import check_cnf_A_implication
 
 def parse_cnf_file(filepath):
     with open(filepath, 'r') as f:
@@ -31,26 +35,6 @@ def parse_cnf_file(filepath):
         blocks.append(current_block)
 
     return blocks, max_var
-
-
-def literal_to_expr(literal):
-    var = abs(literal)
-    if literal > 0:
-        return f"v{var}"
-    else:
-        return f"(not v{var})"
-
-
-def clause_to_expr(clause):
-    return "(or " + " ".join(literal_to_expr(lit) for lit in clause) + ")"
-
-
-def block_to_and_expr(block):
-    lines = ["(and"]
-    for clause in block:
-        lines.append(f"    {clause_to_expr(clause)}")
-    lines.append(")")
-    return lines
 
 
 def generate_declarations(max_var):
@@ -86,19 +70,26 @@ def generate_single_compute_interpolant(blocks):
         output_lines.append(current_interpolant)
     return output_lines
 
-def construct_compute_interpolant_cmd_from_interpolant(interpolants,B):
+def construct_compute_interpolant_cmd_def1(interpolants,A,B):
     # A and B are lists of clauses
     output_lines = []
     output_lines.append("(compute-interpolant")
+    left_cnf = []
+    for block in A:
+        left_cnf.extend(block)
     right_cnf = []
     for block in B:
         right_cnf.extend(block)
+    left_expr = block_to_and_expr(left_cnf)
     right_expr = block_to_and_expr(right_cnf)
-    output_lines.extend(f"    (and\n")
+    output_lines.append(f"    (and")
     for interpolant in interpolants:
         for line in interpolant:
             output_lines.append(f"      {line.strip()}")
-    output_lines.append("    )\n")
+    for line in left_expr[1:-1]:
+        output_lines.append(line)
+    output_lines.append("    )")
+
     output_lines.extend(f"    {line}" for line in right_expr)
     output_lines.append(")")
     return output_lines
@@ -124,9 +115,7 @@ def read_interpolant(interpolant_path):
     with open(interpolant_path, 'r') as f:
         lines = f.readlines()[2:]
     # remove the last bracket
-    print(lines[-1])
     lines[-1] = lines[-1].strip()[:-1]
-    print(lines[-1])
     return lines
 
 def cnf_to_smt2_def1(input_path, output_path):
@@ -149,8 +138,8 @@ def cnf_to_smt2_def1(input_path, output_path):
             interpolant_path = f"{get_interpolant_dir(k_value,pddef=1)}/{name}.{k_value}.{i}.interpolant"
             print(f"    reading {i}th interpolant: {interpolant_path}")
             interpolants.append(read_interpolant(interpolant_path))
-        print(interpolants)
-        compute_smt = construct_compute_interpolant_cmd_from_interpolant(interpolants,blocks[index:])
+        # print(interpolants)
+        compute_smt = construct_compute_interpolant_cmd_def1(interpolants,[blocks[index]],blocks[index+1:])
         
     smt2_lines = declarations.copy()
     smt2_lines.append("")
@@ -158,15 +147,70 @@ def cnf_to_smt2_def1(input_path, output_path):
     with open(f"{output_path}", 'w') as f:
         f.write("\n".join(smt2_lines))
 
-def cnf_to_smt2_def2(input_path, output_path):
+def compute_interpolant_def3(input_path, output_path):
+    print(f"Generating {output_path}")
     basefilename = output_path.split("/")[-1]
     parts = basefilename.split(".")
     index = int(parts[2])
     name = parts[0]
-    k = int(parts[1])
+    k_value = int(parts[1])
     blocks, max_var = parse_cnf_file(input_path)
+    # interpolants = generate_single_compute_interpolant(blocks)
+    # compute_proof() proofs should already be generated
+    compute_wire_and_save(CNF.from_file(input_path))
+    
+    
+    wire_path = f"{get_wires_dir(k_value)}/{name}.{k_value}.{index}.wires.json"
+    wires = json.load(open(wire_path))["wires"]
+
+    proof_path = f"{get_cnfs_dir(k_value)}/{name}.{k_value}.cadicalplain.drat"
+    print(f"Reading proof from {proof_path}")
+    with open(proof_path, 'r') as f:
+        lines = f.readlines()
+    matched_clauses = []
+    for line in lines:
+        line = line.strip()
+        if line.startswith("c") or line.startswith("d"):
+            continue
+        else:
+            literals = [int(literal) for literal in line.split(" ")[:-1]]
+            not_matched = False
+            for literal in literals:
+                if not literal in wires:
+                    not_matched = True
+                    break
+            if not_matched or len(literals) == 0:
+                continue
+
+            # check if A -> clause
+            if not check_cnf_A_implication(name, k_value, index, literals):
+                continue
+            matched_clauses.append(literals)
+    return matched_clauses
+
+def cnf_to_smt2_def2(input_path, output_path):
+    print(f"Generating {output_path}")
+    basefilename = output_path.split("/")[-1]
+    parts = basefilename.split(".")
+    index = int(parts[2])
+    name = parts[0]
+    k_value = int(parts[1])
+    blocks, max_var = parse_cnf_file(input_path)
+    # interpolants = generate_single_compute_interpolant(blocks)
     declarations = generate_declarations(max_var)
-    compute_smt = construct_compute_interpolant_cmd(blocks[0],blocks[1])
+    if index == 0:
+        # print(blocks[0:1])
+        # print(blocks[1:])
+        compute_smt = construct_compute_interpolant_cmd(blocks[0:1],blocks[1:2])
+    else:
+        interpolants = []
+        for i in range(index):
+            interpolant_path = f"{get_interpolant_dir(k_value,pddef=1)}/{name}.{k_value}.{i}.interpolant"
+            print(f"    reading {i}th interpolant: {interpolant_path}")
+            interpolants.append(read_interpolant(interpolant_path))
+        # print(interpolants)
+        compute_smt = construct_compute_interpolant_cmd_def1(interpolants,[],blocks[index:index+1])
+        
     smt2_lines = declarations.copy()
     smt2_lines.append("")
     smt2_lines.extend(compute_smt)
@@ -194,21 +238,8 @@ def cnf_to_smt2_n_way(input_path, output_path):
         f.write("\n".join(smt2_lines))
 
 
-# Example usage:
-# cnf_to_smt2_n_way("input.cnf", "output.smt2")
 
 if __name__ == "__main__":
-    # if len(sys.argv) != 2:
-    #     print("Usage: python CNFtoQFBV.py <input_file.cnf>")
-    #     sys.exit(1)
-
-    # input_file = sys.argv[1]
-    # if not os.path.isfile(input_file):
-    #     print(f"Error: File '{input_file}' not found.")
-    #     sys.exit(1)
-
-
-    # output_file = os.path.splitext(input_file)[0]
     name = "6s4"
     k = 15
     index = 0
