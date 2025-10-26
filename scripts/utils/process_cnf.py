@@ -7,6 +7,7 @@ import argparse
 import numpy as np
 # from catagory import get_instance_list
 from utils.catagory import get_instance_list
+import logging
 # from typing import List, Set, Dict, Optional
 
 class CNF:
@@ -130,11 +131,12 @@ class CNF:
                 self.literal_set.add(literal)
 
     def parse_literal_map(self, use_cache=False):
-        print(f"parse_literal_map")
+        logger = logging.getLogger("proofdoor.worker")
+        logger.info("parse_literal_map")
         iter_index = 0
         clause_index = 0
         if use_cache and os.path.exists(self.cnf_obj_path):
-            print(f"use_cache: {self.cnf_obj_path}")
+            logger.info("use_cache: %s", self.cnf_obj_path)
             result = json.load(open(self.cnf_obj_path, 'r'))
             literal_map = result['literal_map']
             for key in literal_map:

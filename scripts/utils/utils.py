@@ -94,7 +94,10 @@ def parse(tokens):
 
 def parse_sexp(s):
     return parse(tokenize(s))
-    
+
+def check_aig_file_exists(aig_file_path):
+    return os.path.exists(aig_file_path)
+
 def group_files_by_basename(directory, k_value, force_name=None, limit=-1, file_extension='.cnf'):
     """Group CNF files by basename for a given k value."""
     file_groups = {}
@@ -582,9 +585,9 @@ def read_smt2_file(filename):
             # Extract variable name from declaration
             declarations.append(line)
     
-    print(f"Found {len(declarations)} variable declarations")
+    # print(f"Found {len(declarations)} variable declarations")
     asserts = []
-    print(f"Found {len(formulas)} formulas")
+    # print(f"Found {len(formulas)} formulas")
     for f in formulas:
         if is_and(f):
             asserts.append(f)

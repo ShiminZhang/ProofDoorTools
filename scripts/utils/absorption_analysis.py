@@ -4,6 +4,7 @@ from debug.logging import LOG, LOG_TAG
 import subprocess
 from tqdm import tqdm
 from multiprocessing import Pool, cpu_count
+import logging
 import os
 import json
 
@@ -142,11 +143,12 @@ def construct_all_possible_clauses(literals):
     return clauses
 
 def compute_wire_and_save(formula: CNF,K=-1):
-    print(f"compute_wire_and_save: {formula.cnf_path}")
+    logger = logging.getLogger("proofdoor.worker")
+    logger.info("compute_wire_and_save: %s", formula.cnf_path)
     if K == -1:
         K = formula.K
     if K <= 0:
-        print("K is less than 0")
+        logger.error("K is less than 0")
         return
     wire_size_map = {}
     for i in range(0,K):
@@ -154,7 +156,7 @@ def compute_wire_and_save(formula: CNF,K=-1):
         basename = basename.split(".")[0]
         output_file = os.path.join(get_wires_dir(K), f"{basename}.{K}.{i}.wires.json")
         if os.path.exists(output_file):
-            print(f"wires: {output_file} already exists")
+            logger.info("wires: %s already exists", output_file)
             res = json.load(open(output_file, 'r'))
             wire_size_map[i] = res["wire_size"]
             continue

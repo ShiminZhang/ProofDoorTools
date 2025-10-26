@@ -5,7 +5,7 @@ from utils.paths import get_interpolant_dir, get_wires_dir, get_cnfs_dir
 from utils.process_cnf import CNF
 from utils.absorption_analysis import compute_wire_and_save
 import json
-from interpolant_sanity_check import check_cnf_A_implication
+from utils.interpolant_sanity_check import check_cnf_A_implication
 
 def parse_cnf_file(filepath):
     with open(filepath, 'r') as f:
