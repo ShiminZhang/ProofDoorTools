@@ -4,7 +4,7 @@ import argparse
 from utils.paths import get_CNF_dir,get_interpolant_dir, get_shuffled_cnf_dir, get_solving_time_dir
 from utils.catagory import get_instance_list
 from utils.tosmt import cnf_to_smt2_n_way
-from prepare_data import prepare_all_datas,set_debug, prepare_all_datas_for_one_smt, prepare_all_datas_for_one_smt_with_decompose
+from prepare_single import prepare_all_datas,set_debug, prepare_all_datas_for_one_smt, prepare_all_datas_for_one_smt_with_decompose
 from tqdm import tqdm
 import random
 
@@ -52,7 +52,14 @@ def main():
     if args.debug:
         set_debug(True)
 
-    interested_names = get_instance_list(args.category)
+    #category can be comma separated list of categories
+    if "," in args.category:
+        categories = args.category.split(",")
+        interested_names = []
+        for category in categories:
+            interested_names.extend(get_instance_list(category))
+    else:
+        interested_names = get_instance_list(args.category)
     if args.focus_name is not None:
         interested_names = [name for name in interested_names if name.startswith(args.focus_name)]
     if args.check_interpolants:
@@ -201,6 +208,7 @@ def main():
 
     if args.prepare_sequential:
         K = int(args.K)
+        # interested_names = interested_names[:2]
         if args.manage:
             batch_size = K + 1
             limit = int(args.limit)
@@ -220,20 +228,20 @@ def main():
         exit()
 
     if args.compute_strongest_interpolant:
-        exponential_names = get_instance_list("exponential")[:5]
-        linear_names = get_instance_list("linear")[:5]
+        exponential_names = get_instance_list("exponential")
+        linear_names = get_instance_list("linear")
         interested_names = exponential_names + linear_names
-        K_list = [3,5]
+        K_list = [5]
         activate_python = "source ../general/bin/activate"
         for name in interested_names:
             for K in K_list:
-                prepare_cnf_obj_cmd = f"{activate_python} && python ./scripts/prepare_data.py --name {name} --K {K} --build_cnf_obj"
+                prepare_cnf_obj_cmd = f"{activate_python} && python ./scripts/prepare_single.py --name {name} --K {K} --build_cnf_obj"
                 wrapped = f"{prepare_cnf_obj_cmd}"
                 os.system(f"sbatch --output=./SlurmLogs/compute_strongest_interpolant/{name}.{K}.build_cnf_obj.log --mem=20g --time=10:00:00 --wrap=\"{wrapped}\"")
                 for index in range(K):
                     output=f"./SlurmLogs/compute_strongest_interpolant/{name}.{K}.{index}.log"
-                    wrapped = f"{activate_python} && python ./scripts/prepare_data.py --name {name} --K {K} --compute_strongest_interpolant --index {index}"
-                    os.system(f"sbatch --output={output} --mem=30g --time=72:00:00 --wrap=\"{wrapped}\"")
+                    wrapped = f"{activate_python} && python ./scripts/prepare_single.py --name {name} --K {K} --compute_strongest_interpolant --index {index}"
+                    os.system(f"sbatch --output={output} --mem=30g --time=12:00:00 --wrap=\"{wrapped}\"")
         exit()
 
     if args.prepare_only:

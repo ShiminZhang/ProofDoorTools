@@ -121,7 +121,16 @@ def get_figures_dir():
         os.makedirs("./figures/")
     return f"./figures/"
 
-def get_absorption_experiments_dir():
+def get_absorption_experiments_dir(k_value):
     if not os.path.exists("./ProofDoorBenchmark/absorption_experiments/"):
         os.makedirs("./ProofDoorBenchmark/absorption_experiments/")
-    return f"./ProofDoorBenchmark/absorption_experiments/"
+    if not os.path.exists(f"./ProofDoorBenchmark/absorption_experiments/{k_value}/"):
+        os.makedirs(f"./ProofDoorBenchmark/absorption_experiments/{k_value}/")
+    return f"./ProofDoorBenchmark/absorption_experiments/{k_value}/"
+
+def get_latest_PDC_result(K):
+    return f"./Dashboard/SMTTranslationToCNFExperiment_results_{K}.json"
+
+
+def get_latest_absorption_result(K):
+    return f"./Dashboard/AbsorptionExperiment_results_{K}.json"

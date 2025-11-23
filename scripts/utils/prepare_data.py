@@ -4,10 +4,11 @@ from count_interpolant_byz3 import count_and_save
 from utils.tosmt import cnf_to_smt2_n_way, cnf_to_smt2_def1, cnf_to_smt2_def2, compute_interpolant_def3
 import argparse
 from utils.utils import generate_cnf, literal_to_expr, clause_to_expr
-from interpolant_sanity_check import check_cnf_A_implication
+from utils.interpolant_sanity_check import check_cnf_A_implication
 from utils.process_cnf import CNF
 from z3 import *
 import json
+import logging
 import time
 
 DEBUG=False
@@ -17,16 +18,29 @@ def set_debug(debug):
     DEBUG = debug
 
 def prepare_cnf(name,k_value,force_refresh=False):
+    logger = logging.getLogger("proofdoor.worker")
     cnf_dir = get_CNF_dir(k_value)
     cnf_path = f"{cnf_dir}/{name}.{k_value}.cnf"
+    
     if not os.path.exists(cnf_path):
-        print(f"CNF file {cnf_path} DNE, regenerating")
+        logger.info("CNF file %s DNE, regenerating", cnf_path)
         generate_cnf(f"{name}.{k_value}.cnf")
     elif force_refresh:
-        print(f"CNF file {cnf_path} exists, regenerating due to force_refresh")
+        logger.info("CNF file %s exists, regenerating due to force_refresh", cnf_path)
         generate_cnf(f"{name}.{k_value}.cnf")
     else:
-        print(f"CNF file {cnf_path} exists, skipping")
+        logger.info("CNF file %s exists, skipping", cnf_path)
+
+    log_path = f"{cnf_path}.cadicalplain.log"
+    drat_path = f"{cnf_path}.cadicalplain.drat"
+    # if os.path.exists(drat_path) and os.path.exists(log_path):
+    #     return
+
+    solver = "./solvers/cadical"
+    extra_flags = "--plain --no-binary"
+    cmd = f"{solver} {extra_flags} {cnf_path} {drat_path} > {log_path} 2>&1"
+    logger.info("Running command: %s", cmd)
+    os.system(cmd)
 
 def prepare_smt_def2(name,k_value,force_refresh=False):
     smt_dir = get_smts_dir(k_value,pddef=2)
@@ -325,8 +339,8 @@ def prepare_all_datas(name,k_value,force_refresh=False):
     activate_python = "source ../general/bin/activate"
     slurm_out_dir = "./SlurmLogs/prepare_data/"
     os.makedirs(slurm_out_dir,exist_ok=True)
-    wrapped = f"{activate_python} && python ./scripts/prepare_data.py --name {name} --K {k_value} --index \$\SLURM_ARRAY_TASK_ID"
-    os.system(f"sbatch --array=0-{k_value-1} --output={slurm_out_dir}/{name}.{k_value}.%A_%a.prepare_data.log --mem=16g --time=20:00:00 --wrap=\"{wrapped}\"")
+    # wrapped = f"{activate_python} && python ./scripts/prepare_data.py --name {name} --K {k_value} --index \$\SLURM_ARRAY_TASK_ID"
+    # os.system(f"sbatch --array=0-{k_value-1} --output={slurm_out_dir}/{name}.{k_value}.%A_%a.prepare_data.log --mem=16g --time=20:00:00 --wrap=\"{wrapped}\"")
 
 def build_cnf_obj(name,k_value):
     cnf_path = f"{get_CNF_dir(k_value)}/{name}.{k_value}.cnf"

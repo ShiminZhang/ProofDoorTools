@@ -4,12 +4,61 @@ from debug.logging import LOG, LOG_TAG
 import subprocess
 from tqdm import tqdm
 from multiprocessing import Pool, cpu_count
+import logging
 import os
 import json
 
+def check_negclause_conflict(args):
+    clause, formula, CNF_output_file, K = args
+    absorption_dir = get_absorption_experiments_dir(K)
+    solver_binary = "./propagator"
+    formula_copy = CNF()
+    formula_copy.init_with_clauses(formula)
+    for neg_literal in clause:
+        formula_copy.append_clause([neg_literal])
+    # if len(rest_of_clause) > 0:
+    #     formula_copy.append_clause(rest_of_clause)
+    # Write to temporary file
+    if not os.path.exists(f"{absorption_dir}/caches/"):
+        os.makedirs(f"{absorption_dir}/caches/")
+    CNF_output_file = f"{absorption_dir}/caches/{CNF_output_file}"
+    # stdout_save_file = f"{CNF_output_file}.stdout"
+    formula_copy.to_dimacs(CNF_output_file)
+    LOG(f"CNF_output_file: {CNF_output_file}")
+    # LOG(f"stdout_output_file: {stdout_save_file}")
+    checker_stdout = ""
+    # if os.path.exists(stdout_save_file):
+    #     checker_stdout = open(stdout_save_file, 'r').read()
+    # else:
+    result = subprocess.run([solver_binary, "-no-pre", CNF_output_file], capture_output=True)
+    try:
+        checker_stdout = result.stdout.decode('utf-8')
+    except UnicodeDecodeError:
+        checker_stdout = result.stdout.decode('gbk', errors="replace")
+    # Clean up
+    os.remove(CNF_output_file)
+    lines = checker_stdout.split('\n')
+    if "UNSATISFIABLE" in checker_stdout:
+        LOG("True because unsat")
+        return True
+    
+    for line in lines:
+        if "PDLOG propagated to" in line:
+            # return False
+            continue
+        if "PDLOG decision" in line:
+            return False
+        if "PDLOG conflict" in line:
+            return True
+        if "UNSATISFIABLE" in line:
+            return True
+    return False
+    
+
+
 def check_single_literal(args):
-    absorption_dir = get_absorption_experiments_dir()
-    literal, rest_of_clause, formula, CNF_output_file = args
+    literal, rest_of_clause, formula, CNF_output_file, K = args
+    absorption_dir = get_absorption_experiments_dir(K)
     # print(f"CNF_output_file: {CNF_output_file} for literal: {literal}")
     # solver_binary = "./propagator"
     solver_binary = "./propagator"
@@ -32,7 +81,7 @@ def check_single_literal(args):
     # if os.path.exists(stdout_save_file):
     #     checker_stdout = open(stdout_save_file, 'r').read()
     # else:
-    result = subprocess.run([solver_binary, CNF_output_file], capture_output=True)
+    result = subprocess.run([solver_binary, "-no-pre", CNF_output_file], capture_output=True)
     try:
         checker_stdout = result.stdout.decode('utf-8')
     except UnicodeDecodeError:
@@ -78,8 +127,8 @@ def check_single_literal(args):
 def hashing(clause):
     return hash(tuple(clause))
 
-def check_formula_absorp_clause(formula, clause, cachename):
-    args_list = [(literal, [-l for l in clause if l != literal], formula, f"{cachename}_{literal}.cnf") for literal in clause]
+def check_formula_absorp_clause(formula, clause, cachename, K):
+    args_list = [(literal, [-l for l in clause if l != literal], formula, f"{cachename}_{literal}.cnf", K) for literal in clause]
     # Use number of CPU cores minus 1 to leave some resources for other processes
     num_processes = max(1, cpu_count() - 1)
     # print(f"num_processes: {num_processes}")
@@ -91,14 +140,23 @@ def check_formula_absorp_clause(formula, clause, cachename):
     LOG(f"results: {results}")
     return results
 
-def check_clause_absorption(clause, cnf_path):
+def check_formula_absorp_clause_accelerated(formula, clause, cachename, K):
+    hash_value = hashing(clause)
+    args_list = ([-l for l in clause], formula, f"{cachename}_{hash_value}.cnf", K)
+    results = check_negclause_conflict(args_list)
+    results_literal_level = []
+    for literal in clause:
+        results_literal_level.append(results)
+    return results_literal_level
+
+def check_clause_absorption(clause, cnf_path, K):
     LOG(f"{clause} {cnf_path}")
     # Create arguments for parallel processing
     formula = CNF.from_file(cnf_path)
     basename = os.path.basename(cnf_path)
     basename = basename.split(".")[0]
     hash_value = hashing(clause)
-    return check_formula_absorp_clause(formula, clause, f"{basename}.check_absorb_{hash_value}")
+    return check_formula_absorp_clause(formula, clause, f"{basename}.check_absorb_{hash_value}", K)
     # args_list = [(literal, [-l for l in clause if l != literal], formula, f"{basename}.check_absorb_{hash_value}_{literal}.cnf") for literal in clause]
     # # Use number of CPU cores minus 1 to leave some resources for other processes
     # num_processes = max(1, cpu_count() - 1)
@@ -142,11 +200,12 @@ def construct_all_possible_clauses(literals):
     return clauses
 
 def compute_wire_and_save(formula: CNF,K=-1):
-    print(f"compute_wire_and_save: {formula.cnf_path}")
+    logger = logging.getLogger("proofdoor.worker")
+    logger.info("compute_wire_and_save: %s", formula.cnf_path)
     if K == -1:
         K = formula.K
     if K <= 0:
-        print("K is less than 0")
+        logger.error("K is less than 0")
         return
     wire_size_map = {}
     for i in range(0,K):
@@ -154,7 +213,7 @@ def compute_wire_and_save(formula: CNF,K=-1):
         basename = basename.split(".")[0]
         output_file = os.path.join(get_wires_dir(K), f"{basename}.{K}.{i}.wires.json")
         if os.path.exists(output_file):
-            print(f"wires: {output_file} already exists")
+            logger.info("wires: %s already exists", output_file)
             res = json.load(open(output_file, 'r'))
             wire_size_map[i] = res["wire_size"]
             continue

@@ -94,7 +94,10 @@ def parse(tokens):
 
 def parse_sexp(s):
     return parse(tokenize(s))
-    
+
+def check_aig_file_exists(aig_file_path):
+    return os.path.exists(aig_file_path)
+
 def group_files_by_basename(directory, k_value, force_name=None, limit=-1, file_extension='.cnf'):
     """Group CNF files by basename for a given k value."""
     file_groups = {}
@@ -262,17 +265,49 @@ def parse_cnf_list(input_file, auxilliary_map=None, original_var_count=0):
         clauses[i] = clause
     return clauses
 
+def parse_interpolant_cnf_to_dimacs_nice_format(input_file,output_file=None):
+    with open(input_file, 'r') as f:
+        lines = f.readlines()
+    clauses = []
+    for line in lines:
+        line = line.strip()
+        clause = []
+        chunks = line.split(" ")
+        for chunk in chunks:
+            assert "Or" not in chunk
+            assert "And" not in chunk
+            if chunk.startswith("Not("):
+                chunk = chunk.replace("Not(", "")
+                chunk = chunk.replace(")", "")
+                chunk = chunk.strip()
+                chunk = chunk.replace("v", "")
+                clause.append(-int(chunk))
+            else:
+                chunk = chunk.strip()
+                chunk = chunk.replace("v", "")
+                clause.append(int(chunk))
+        clauses.append(clause)
+    # header, var_mapping, dimacs_clauses = convert_to_dimacs(clauses)
+    header = f"p cnf {max(max(abs(literal) for literal in clause) for clause in clauses)} {len(clauses)}"
+    dimacs_clauses = [f"{' '.join(str(literal) for literal in clause)} 0" for clause in clauses]
+    if output_file:
+        with open(output_file, 'w') as f:
+            f.write(header + "\n") 
+            for clause in dimacs_clauses:
+                f.write(clause + "\n")
+    return header, dimacs_clauses
+
 def parse_interpolant_cnf_to_dimacs(input_file,output_file=None):
     """Parse a CNF list from a file or string."""
     print("Parsing CNF list from file:", input_file)
     clauses = []
     with open(input_file, 'r') as f:
         lines = f.readlines()
-    reading_line=""
+    reading_line=None
     for i in range(len(lines)):
         line = lines[i]
         line = line.strip()
-        if reading_line:
+        if reading_line is not None:
             reading_line += f" {line}"
             if line.endswith(")"):
                 reading_line = reading_line[:-1]
@@ -582,9 +617,9 @@ def read_smt2_file(filename):
             # Extract variable name from declaration
             declarations.append(line)
     
-    print(f"Found {len(declarations)} variable declarations")
+    # print(f"Found {len(declarations)} variable declarations")
     asserts = []
-    print(f"Found {len(formulas)} formulas")
+    # print(f"Found {len(formulas)} formulas")
     for f in formulas:
         if is_and(f):
             asserts.append(f)
@@ -694,6 +729,8 @@ def generate_cnf(filename):
     if not os.path.exists(aigs):
         print(f"AIG file {aigs} does not exist")
         return
+    if not os.path.exists(f"./ProofDoorBenchmark/cnfs/{k_value}/"):
+        os.makedirs(f"./ProofDoorBenchmark/cnfs/{k_value}/")
     cmd=f"./simplecar -bmc -k {k_value} -cnf ./ProofDoorBenchmark/cnfs/{k_value}/ {aigs}"
     print(cmd)
     os.system(cmd)

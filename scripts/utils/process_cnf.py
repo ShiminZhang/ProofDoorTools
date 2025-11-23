@@ -2,18 +2,55 @@ import os
 import json
 # from debug.logging import LOG, LOG_TAG
 from tqdm import tqdm
-from utils.utils import literal_to_expr, clause_to_expr, block_to_and_expr
+from utils.utils import literal_to_expr, clause_to_expr, block_to_and_expr, parse_interpolant_cnf_to_dimacs_nice_format
 import argparse
 import numpy as np
 # from catagory import get_instance_list
 from utils.catagory import get_instance_list
+import logging
 # from typing import List, Set, Dict, Optional
 
+def read_proof(proof_path):
+    clauses = []
+    with open(proof_path, "r") as file:
+        lines = file.readlines()
+        if len(lines) == 0:
+            print(f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! proof file {proof_path} is empty")
+            # return {}
+        for line in lines:
+
+            if line.startswith("d "):
+                continue
+            elif line.startswith("0"):
+                continue
+            elif line.startswith("p "):
+                continue
+            else:
+                clauses.append([int(literal) for literal in line.strip().split(" ") if literal != "" and literal != "0"])
+    return clauses
+
+# def convert_to_cnf(smtcnf_path,cnf_path):
+#     # I should have this logic somewhere in the repo
+#     parse_interpolant_cnf_to_dimacs(smtcnf_path,cnf_path)
+#     pass
 class CNF:
-    def __init__(self,cnf_path=None, use_cache=False):
+    def __init__(self,cnf_path=None, use_cache=False, skip_parse_literal_map=False):
+        if cnf_path is not None and cnf_path.endswith(".smtcnf"):
+            self.smtcnf_format = True
+        else:
+            self.smtcnf_format = False
+
+        if self.smtcnf_format:
+            smtcnf_path = cnf_path
+            cnf_path = cnf_path.replace(".smtcnf", ".cnf")
+            parse_interpolant_cnf_to_dimacs_nice_format(smtcnf_path,cnf_path)
+
         self.cnf_path = cnf_path
         if cnf_path is not None:
-            self.cnf_obj_path = cnf_path.replace(".cnf", ".cnfobj.json")
+            if cnf_path.endswith(".cnf"):
+                self.cnf_obj_path = cnf_path.replace(".cnf", ".cnfobj.json")
+            else:
+                self.cnf_obj_path = cnf_path + ".cnfobj.json"
         else:
             self.cnf_obj_path = None
         self.clauses = []
@@ -26,11 +63,12 @@ class CNF:
 
         if cnf_path is not None:
             self.parse_cnf()
-            self.parse_literal_map(use_cache)
+            if not skip_parse_literal_map:
+                self.parse_literal_map(use_cache)
     
     @classmethod
-    def from_file(cls, cnf_path):
-        return cls(cnf_path)
+    def from_file(cls, cnf_path, **kwargs):
+        return cls(cnf_path, **kwargs)
     
     def get_variables_local_in_A(self, i):
         literals_in_A = set()
@@ -97,7 +135,13 @@ class CNF:
                         self.clauses.append(literals)
                         line_count += 1
             self.K = iter_count - 1
-            assert self.N is not None and self.L is not None
+            if self.N is None or self.L is None:
+                self.L = len(self.clauses)
+                if self.L == 0:
+                    self.N = 0
+                else:
+                    self.N = max(max(abs(literal) for literal in clause) for clause in self.clauses)
+            # assert self.N is not None and self.L is not None
             self.parse_literals()
 
     def dump_stats(self):
@@ -130,11 +174,12 @@ class CNF:
                 self.literal_set.add(literal)
 
     def parse_literal_map(self, use_cache=False):
-        print(f"parse_literal_map")
+        logger = logging.getLogger("proofdoor.worker")
+        logger.info("parse_literal_map from file: %s", self.cnf_path)
         iter_index = 0
         clause_index = 0
         if use_cache and os.path.exists(self.cnf_obj_path):
-            print(f"use_cache: {self.cnf_obj_path}")
+            logger.info("use_cache: %s", self.cnf_obj_path)
             result = json.load(open(self.cnf_obj_path, 'r'))
             literal_map = result['literal_map']
             for key in literal_map:
@@ -160,8 +205,20 @@ class CNF:
         literal_map_obj = {}
         for key in self.literal_map:
             literal_map_obj[key] = list(self.literal_map[key])
+        last_occurrence_map = {}
+        for literal in self.literal_set:
+            last_occurrence_map[literal] = -1
+
+            for i,literals in self.literal_map.items():
+                if abs(literal) in literals:
+                    last_occurrence_map[literal] = i
+                    break
+            
+            assert last_occurrence_map[literal] != -1, f"literal: {literal}"
         cnfobj['literal_map'] = literal_map_obj
         cnfobj['literal_set'] = list(self.literal_set)
+        cnfobj['last_occurrence_map'] = last_occurrence_map
+        self.last_occurrence_map = last_occurrence_map
         json.dump(cnfobj, open(self.cnf_obj_path, 'w'))
     
     def get_clauses(self):
@@ -268,23 +325,34 @@ def compute_cnf_sizes(cnf_path,K,use_cache=False):
     return cnf_sizes
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--K", type=int, required=True)
-    parser.add_argument("--UseCache", action="store_true")
-    parser.add_argument("--Category", type=str, required=False)
-    args = parser.parse_args()
-    if args.Category:
-        print(f"Computing CNF sizes for category: {args.Category}")
-        cnf_sizes = compute_cnf_size_for_category(args.Category,args.K,args.UseCache)
-    else:
-        cnf_sizes = compute_cnf_sizes(f"ProofDoorBenchmark/cnfs/{args.K}",args.K,args.UseCache)
+    K = 10
+    instance = "beembrptwo6b1"
+    CNF_path = f"ProofDoorBenchmark/cnfs/{K}/{instance}.{K}.cnf"
+    cnf = CNF.from_file(CNF_path)
+    print(cnf.get_N())
+    print(cnf.get_L())
+    print(cnf.get_clauses())
+    print(cnf.get_iter_map())
+    print(cnf.get_literals())
+    print(cnf.get_literal_map())
+    print(cnf.get_literal_set())
+    # parser = argparse.ArgumentParser()
+    # parser.add_argument("--K", type=int, required=True)
+    # parser.add_argument("--UseCache", action="store_true")
+    # parser.add_argument("--Category", type=str, required=False)
+    # args = parser.parse_args()
+    # if args.Category:
+    #     print(f"Computing CNF sizes for category: {args.Category}")
+    #     cnf_sizes = compute_cnf_size_for_category(args.Category,args.K,args.UseCache)
+    # else:
+    #     cnf_sizes = compute_cnf_sizes(f"ProofDoorBenchmark/cnfs/{args.K}",args.K,args.UseCache)
         
-    average_cnf_size = sum(cnf_sizes.values()) / len(cnf_sizes)
-    std_cnf_size = np.std(list(cnf_sizes.values()))
-    print(f"Average CNF size: {average_cnf_size}")
-    print(f"Standard deviation of CNF size: {std_cnf_size}")
-    print(f"Median CNF size: {np.median(list(cnf_sizes.values()))}")
-    print(f"Minimum CNF size: {min(list(cnf_sizes.values()))}")
-    print(f"Maximum CNF size: {max(list(cnf_sizes.values()))}")
-    print(f"CNF sizes: {len(cnf_sizes)}")
+    # average_cnf_size = sum(cnf_sizes.values()) / len(cnf_sizes)
+    # std_cnf_size = np.std(list(cnf_sizes.values()))
+    # print(f"Average CNF size: {average_cnf_size}")
+    # print(f"Standard deviation of CNF size: {std_cnf_size}")
+    # print(f"Median CNF size: {np.median(list(cnf_sizes.values()))}")
+    # print(f"Minimum CNF size: {min(list(cnf_sizes.values()))}")
+    # print(f"Maximum CNF size: {max(list(cnf_sizes.values()))}")
+    # print(f"CNF sizes: {len(cnf_sizes)}")
     # print(cnf_sizes)
