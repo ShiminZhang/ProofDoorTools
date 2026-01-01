@@ -4,10 +4,17 @@ import sys
 from tqdm import tqdm
 from utils.utils import convert_to_dimacs, parse_interpolant_cnf_to_dimacs,parse_cnf_list
 from utils.paths import get_interpolant_cnf_dir,get_interpolant_dimacs_dir,get_CNF_dir
+from utils.process_cnf import CNF
+from prepare_single import prepare_cnf
 from debug.logging import LOG, TOGGLE_SHOWLOG
 from utils.catagory import get_instance_list
 import argparse
 import re
+import csv
+from utils.utils import GetDataFromLog
+
+CADICAL_BINARY = "./solvers/cadical"
+SLURM_LOG_DIR = "./SlurmLogs/solve_combine/"
 
 def write_dimacs_file(input_file, output_file=None):
     """Process a CNF file and write to DIMACS format."""
@@ -51,16 +58,12 @@ def group_cnf_files_by_basename(directory, k_value, force_name=None, limit=-1):
     file_groups = {}
     count = 0
     for filename in tqdm(os.listdir(directory)):
-        if filename.endswith('.cnf'):
+        if filename.endswith('.smtcnf'):
             basename = filename.split('.')[0]
             if (force_name is not None) and force_name != basename:
                 # print(f"skipping {filename} because {basename} does not contain {force_name}")
                 continue
             parts = filename.split('.')
-            # print(f"found {filename}")
-            # print(parts)
-            # print(int(parts[1]))
-            # print(int(k_value))
             if int(parts[1]) == k_value:
                 # print("match")
                 basename = parts[0]
@@ -69,9 +72,6 @@ def group_cnf_files_by_basename(directory, k_value, force_name=None, limit=-1):
                 if basename not in file_groups:
                     file_groups[basename] = []
                 file_groups[basename].append(os.path.join(directory, filename))
-    # print(f"file_groups: {file_groups}")
-    # exit()
-    #check if the file group for each basename is valid
     invalid_keys = []
     if limit > 0:
         for basename, files in file_groups.items():
@@ -84,6 +84,36 @@ def group_cnf_files_by_basename(directory, k_value, force_name=None, limit=-1):
         print(f"deleting {key} because it has only {len(file_groups[key])} files while {limit} is expected")
         del file_groups[key]
     return file_groups
+
+def list_smtcnf_files_for_instance(instance: str, k_value: int, pddef: int) -> list:
+    """Return sorted list of .smtcnf file paths for a given instance and K."""
+    directory = get_interpolant_cnf_dir(k_value, pddef)
+    files = []
+    if not os.path.exists(directory):
+        return files
+    for filename in os.listdir(directory):
+        if not filename.endswith(".smtcnf"):
+            continue
+        parts = filename.split(".")
+        if len(parts) < 4:
+            continue
+        if parts[0] != instance:
+            continue
+        try:
+            k_in_name = int(parts[1])
+        except ValueError:
+            continue
+        if k_in_name != k_value:
+            continue
+
+        with open(os.path.join(directory, filename), 'r') as f:
+            # check if false is contained
+            if "False" in f.read():
+                return None
+        files.append(os.path.join(directory, filename))
+    # sort by interpolant index
+    files.sort(key=lambda p: int(os.path.basename(p).split(".")[2]))
+    return files
 
 def combine_clauses_from_all_files(files, original_var_count, auxilliary_map):
     """Combine all clauses from a list of CNF files, sharing the same auxiliary map."""
@@ -228,61 +258,107 @@ def combine_first_n_interpolant_to_cnf_single(
     auxilliary_map,
     pddef=0
     ):
-    
-    # create dimacs file first
+    """
+    For a given instance `basename` and K-level `k_value`, take the original CNF
+    and append clauses from the first `n_value` interpolant files (in index order).
+
+    Steps:
+      1. Use `CNF` to convert selected `.smtcnf` interpolants into `.cnf`.
+      2. Read the original CNF clauses.
+      3. Read the interpolant CNF clauses in order and append them.
+      4. Write a new combined CNF with an updated header.
+
+    This matches the intended semantics: "use CNF class to turn smtcnf into cnf,
+    then directly concatenate the clauses in sequence into the original cnf".
+    """
+    # Directory for combined CNFs (pddef-aware).
     combined_cnf_dir = get_interpolant_dimacs_dir(k_value,pddef)
     output_dir = combined_cnf_dir
+
+    # Path to original CNF.
     original_cnf_path = get_CNF_dir(k_value)
     original_cnf = f"{original_cnf_path}{basename}.{k_value}.cnf"
     
     if n_value == -1:
-        n_value = "all"
+        # Special value meaning "use all interpolants".
+        n_value_label = "all"
+    else:
+        n_value_label = n_value
+
     if n_value == 0:
         print(f"copyingoriginal_cnf: {original_cnf}")
         os.system(f"cp {original_cnf} {output_dir}/{basename}.{k_value}.combined.0.cnf")
         return previous_parsed_cnf_clauses, auxilliary_map
     
+    # Helper: extract the interpolant index from a filename like
+    # "6s339rb22.45.30.smtcnf" or "6s339rb22.45.30.cnf".
+    def _extract_interp_index(path):
+        name = os.path.basename(path)
+        parts = name.split(".")
+        # Expected: <basename>.<K>.<idx>.<ext>
+        if len(parts) >= 3 and parts[2].isdigit():
+            return int(parts[2])
+        # Fallback: scan from the end for a numeric part before the extension.
+        for p in reversed(parts[:-1]):
+            if p.isdigit():
+                return int(p)
+        return 0
+
+    # Sort interpolant files by their index, then select the first n.
+    sorted_smt_files = sorted(files, key=_extract_interp_index)
+    total_interpolants = len(sorted_smt_files)
+    if n_value == -1:
+        n_to_use = total_interpolants
+    else:
+        n_to_use = min(n_value, total_interpolants)
+
+    selected_smt_files = sorted_smt_files[:n_to_use]
+
+    # Convert selected .smtcnf interpolants to .cnf via CNF class.
+    cnf_files = []
+    for smt_cnf_file in selected_smt_files:
+        cnf_obj = CNF(smt_cnf_file)
+        cnf_files.append(cnf_obj.cnf_path)
+
+    # Ensure bookkeeping map has an entry for this basename (even though
+    # we no longer rely on incremental caching inside this function).
     if basename not in previous_parsed_cnf_clauses.keys():
         previous_parsed_cnf_clauses[basename] = {}
+
     print(f"original_cnf: {original_cnf}")
-    original_var_count = 0
-    if os.path.exists(original_cnf):
-        with open(original_cnf, 'r') as f:
-            lines = f.readlines()
-        for line in lines:
-            if "p cnf" in line:
-                parts = line.split()
-                original_var_count = int(parts[2])
-                break
-    else:
+    if not os.path.exists(original_cnf):
         print(f"Original CNF file {original_cnf} not found, skipping combination")
         exit(0)
-    
+
+    # Read original CNF clauses.
+    original_var_count, original_clause_count, original_clauses = parse_cnf_file(original_cnf)
+    max_var = original_var_count
+    combined_clauses = list(original_clauses)
+
+    # Append interpolant CNF clauses in order.
+    for cnf_path in cnf_files:
+        interp_var_count, interp_clause_count, interp_clauses = parse_cnf_file(cnf_path)
+        max_var = max(max_var, interp_var_count)
+        combined_clauses.extend(interp_clauses)
+
     os.makedirs(output_dir, exist_ok=True)
-    output_file = f"{output_dir}/{basename}.{k_value}.{n_value}.dimacs"
-    files.sort(key=lambda f: int(f.split('.')[-3]))
-    
-    all_clauses, auxilliary_map, new_parsed_cnf_clauses = combine_clauses_from_files(files, original_var_count, n_value, previous_parsed_cnf_clauses[basename], auxilliary_map)
-    
-    previous_parsed_cnf_clauses[basename] = new_parsed_cnf_clauses
-    header, var_mapping, dimacs_clauses = convert_to_dimacs(all_clauses)
-    with open(output_file, 'w') as f:
-        f.write(header + "\n")
-        for mapping in var_mapping:
-            f.write(mapping + "\n")
-        for clause in dimacs_clauses:
+
+    # Decide suffix for the combined file name.
+    suffix = n_value_label
+    combined_output = f"{output_dir}/{basename}.{k_value}.combined.{suffix}.cnf"
+
+    # Write the combined CNF with updated header.
+    new_header = f"p cnf {max_var} {len(combined_clauses)}"
+    with open(combined_output, 'w') as f:
+        f.write(new_header + "\n")
+        for clause in combined_clauses:
             f.write(clause + "\n")
-    dimacs_file = output_file
-    print(f"Combined {len(files)} files: ({files})  for {basename} into {output_file}")
-    
-    basename = os.path.basename(dimacs_file)
-    basename = basename.split('.')[0]
-    original_cnf = f"{original_cnf_path}{basename}.{k_value}.cnf"
-    if os.path.exists(original_cnf) and os.path.exists(dimacs_file):
-        combined_output = f"{output_dir}/{basename}.{k_value}.combined.{n_value}.cnf"
-        combine_with_original_cnf(dimacs_file, original_cnf, combined_output)
-    else:
-        print(f"Original CNF file {original_cnf} not found, skipping combination") 
+
+    print(
+        f"Combined original CNF {original_cnf} with {len(cnf_files)} interpolant CNFs "
+        f"into {combined_output}"
+    )
+
     return previous_parsed_cnf_clauses, auxilliary_map
     
            
@@ -360,79 +436,132 @@ def combine_first_n_interpolant_to_cnf(
             else:
                 print(f"Original CNF file {original_cnf} not found, skipping combination")                      
         return previous_parsed_cnf_clauses, auxilliary_map
-                              
+
+def contain_false(name, K):
+    smtcnf_path = f"ProofDoorBenchmark/interpolant_cnfs/{K}/{name}.{K}.smtcnf"
+
 def main():
     TOGGLE_SHOWLOG(True)
-    # only_category = "exponential"
-    # force_name = "6s325rb072"
-    # force_name = None
     parser = argparse.ArgumentParser()
-    parser.add_argument("--K", type=int, default=40)
-    parser.add_argument("--limit", type=int, default=-1)
-    # parser.add_argument("--start_index", type=int, default=0)
-    parser.add_argument("--pddef", type=int, default=0)
-    parser.add_argument("--all", action="store_true", default=False)
-    parser.add_argument("--force_name", type=str, default=None)
-    parser.add_argument("--start_experiment", action="store_true", default=False)
-    parser.add_argument("--category", type=str, default="all")
+    parser.add_argument("--csv_path", type=str, default="category.csv", help="CSV with columns: instance_name,K,smt2cnf_status")
+    parser.add_argument("--pddef", type=int, default=1)
+    parser.add_argument("--copy_original_only", action="store_true", default=False, help="Only copy original CNF as combined.0.cnf")
+    parser.add_argument("--run", action="store_true", default=False, help="Submit slurm jobs to solve original and combined CNFs")
+    parser.add_argument("--compare", action="store_true", default=False, help="Compare solving time between original and combined CNFs and print improvement ratio")
     args = parser.parse_args()
-    k_value = args.K
-    limit = args.limit
-    # start_index = args.start_index
-    force_name = args.force_name
-    category = args.category
-    interested_instances = get_instance_list(category)
-    # print(f"arguments: {limit}")
-    if args.start_experiment:
-        # this option starts the whole combined_cnf generations using slurm scripts
-        directory = get_interpolant_cnf_dir(k_value, args.pddef)
-        print(f"directory: {directory}")
-        print(k_value, args.pddef)
-        file_groups = group_cnf_files_by_basename(directory, k_value, force_name)
-        log_dir = f"./ProofDoorBenchmark/CombineCNFLogs/"
-        os.makedirs(log_dir, exist_ok=True)
-        
-        for basename, files in tqdm(file_groups.items()):
-            if basename not in interested_instances:
+
+    # Read CSV and collect instances where smt2cnf_status == 'done'
+    targets = []
+    with open(args.csv_path, "r") as f:
+        reader = csv.DictReader(f)
+        required = {"instance_name", "K", "smt2cnf_status"}
+        missing = required - set(reader.fieldnames or [])
+        if missing:
+            raise ValueError(f"CSV missing required columns: {sorted(missing)}")
+        for row in reader:
+            if (row.get("smt2cnf_status") or "").strip().lower() != "done":
                 continue
-            activate_python = "source ../general/bin/activate"
-            if args.all:
-                pythoncmd=f"python ./scripts/combine_proofdoor_to_cnf.py --K {k_value} --limit {limit} --force_name {basename} --all --pddef {args.pddef}"
-            else:
-                pythoncmd=f"python ./scripts/combine_proofdoor_to_cnf.py --K {k_value} --limit {limit} --force_name {basename} --pddef {args.pddef}"
-            wrap=f"{activate_python} && {pythoncmd}"
-            os.system(f"sbatch --mem=10g --output={log_dir}/combine_proofdoor_to_cnf_%j.out --wrap='{wrap}'")
-        sys.exit(0)
-    else:
-        # a single run of combined instance generation
-        directory = get_interpolant_cnf_dir(k_value, args.pddef)
-        previous_parsed_cnf_clauses = {}
-        auxilliary_map = {}
-        file_groups = group_cnf_files_by_basename(directory, k_value, force_name, k_value)
-        print(f"final file_groups: {file_groups.keys()}")
-        
-        if args.all:
-            # for each file, combine all interpolants
-            for basename, files in tqdm(file_groups.items()):
-                combine_first_n_interpolant_to_cnf_single(basename, files, k_value, k_value, {},{}, pddef=args.pddef)
-        else:
-            if limit == -1:
-                for basename, files in tqdm(file_groups.items()):
-                    combine_first_n_interpolant_to_cnf_single(basename, files, k_value, 0, {},{}, pddef=args.pddef)
-                    for n in range(1,k_value+1):
-                        previous_parsed_cnf_clauses, auxilliary_map = combine_first_n_interpolant_to_cnf_single(basename, files, k_value, n, previous_parsed_cnf_clauses, auxilliary_map, pddef=args.pddef)
-            elif limit == 0:
-                for basename, files in tqdm(file_groups.items()):
-                    combine_first_n_interpolant_to_cnf_single(basename, files, k_value, 0, {},{}, pddef=args.pddef)
-            else:
-                LOG(f"limit: {limit}")
-                for basename, files in tqdm(file_groups.items()):
-                    combine_first_n_interpolant_to_cnf_single(basename, files, k_value, 0, {},{}, pddef=args.pddef)
-                    for n in range(1,limit+1):
-                        previous_parsed_cnf_clauses, auxilliary_map = combine_first_n_interpolant_to_cnf_single(basename, files, k_value, n, previous_parsed_cnf_clauses, auxilliary_map, pddef=args.pddef)
+            instance = row["instance_name"].strip()
+            try:
+                K = int(row["K"])
+            except Exception:
+                continue
+            targets.append((instance, K))
+
+    print(f"Found {len(targets)} (instance,K) with SMT→CNF done from {args.csv_path}")
+
+    # Optionally run solvers via slurm
+    if args.run:
+        os.makedirs(SLURM_LOG_DIR, exist_ok=True)
+        for instance, K in tqdm(targets):
+            cnf_dir = get_CNF_dir(K)
+            original_cnf = f"{cnf_dir}{instance}.{K}.cnf"
+            assert(os.path.exists(original_cnf))
+            # original run via prepare_single script (produces standard cadicalplain logs)
+            activate_python = "source ../../general/bin/activate"
+            # combined run: solve combined-K CNF
+            combined_dir = get_interpolant_dimacs_dir(K, args.pddef)
+            combined_full = f"{combined_dir}/{instance}.{K}.combined.{K}.cnf"
+            if not os.path.exists(combined_full):
+                print(f"[SKIP] Combined CNF not found: {combined_full}")
+                continue
+            comb_log = f"{combined_full}.cadicalplain.log"
+            comb_drat = f"{combined_full}.cadicalplain.drat"
+            cadical_cmd = f"{activate_python} && {CADICAL_BINARY} --plain --no-binary {combined_full} {comb_drat} > {comb_log} 2>&1"
+            slurm_out_comb = f"{SLURM_LOG_DIR}/comb_{instance}.{K}.%j.log"
+            os.system(f"sbatch --job-name=solve_comb_{instance}.{K} --time=00:00:5000 --mem=16g --output={slurm_out_comb} --wrap=\"{cadical_cmd}\"")
+        return
+    previous_parsed_cnf_clauses = {}
+    auxilliary_map = {}
+
+    for instance, K in tqdm(targets):
+        # Ensure original CNF exists
+        original_cnf_path = get_CNF_dir(K)
+        original_cnf = f"{original_cnf_path}{instance}.{K}.cnf"
+        if not os.path.exists(original_cnf) or os.path.getsize(original_cnf) == 0:
+            print(f"[REGENERATE] Original CNF missing: {original_cnf}")
+            prepare_cnf(instance, K, force_refresh=True)
+
+        # Copy original to combined.0.cnf
+        combined_dir = get_interpolant_dimacs_dir(K, args.pddef)
+        os.makedirs(combined_dir, exist_ok=True)
+        combined_zero = f"{combined_dir}/{instance}.{K}.combined.0.cnf"
+        os.system(f"cp {original_cnf} {combined_zero}")
+        print(f"[OK] Wrote original-only combined CNF: {combined_zero}")
+        if args.copy_original_only:
+            continue
+
+        # Collect all .smtcnf files for this instance and K
+        smtcnf_files = list_smtcnf_files_for_instance(instance, K, args.pddef)
+        if not smtcnf_files:
+            print(f"[SKIP] No SMT CNF files for {instance}.{K}")
+            continue
+
+        # Combine all interpolants into a full combined CNF
+        previous_parsed_cnf_clauses, auxilliary_map = combine_first_n_interpolant_to_cnf_single(
+            instance, smtcnf_files, K, K, previous_parsed_cnf_clauses, auxilliary_map, pddef=args.pddef
+        )
+    # Optionally compare solving times
+    if args.compare:
+        total = 0
+        improved = 0
+        sum_orig = 0.0
+        sum_comb = 0.0
+        missing = 0
+        details = []
+        for instance, K in tqdm(targets):
+            orig_log = f"{get_CNF_dir(K)}/{instance}.{K}.cnf.cadicalplain.log"
+            comb_log = f"{get_interpolant_dimacs_dir(K, args.pddef)}/{instance}.{K}.combined.{K}.cnf.cadicalplain.log"
+            if not (os.path.exists(orig_log) and os.path.exists(comb_log)):
+                missing += 1
+                continue
+            t_orig = GetDataFromLog(orig_log)
+            t_comb = GetDataFromLog(comb_log)
+            if t_orig is None or t_comb is None:
+                missing += 1
+                continue
+            total += 1
+            sum_orig += t_orig
+            sum_comb += t_comb
+            if t_comb < t_orig:
+                improved += 1
+            red = (t_orig - t_comb) / t_orig if t_orig and t_orig > 0 else 0.0
+            details.append((instance, K, t_orig, t_comb, red))
+
+        print(f"[COMPARE] Valid pairs: {total}, missing/invalid: {missing}")
+        if total > 0:
+            avg_orig = sum_orig / total
+            avg_comb = sum_comb / total
+            overall_reduction = (avg_orig - avg_comb) / avg_orig if avg_orig > 0 else 0.0
+            print(f"[COMPARE] Improved count: {improved}/{total} ({improved/total:.1%})")
+            print(f"[COMPARE] Avg original time: {avg_orig:.3f}s, Avg combined time: {avg_comb:.3f}s, Reduction: {overall_reduction:.1%}")
+            details.sort(key=lambda x: x[4], reverse=True)
+            for instance, K, t_orig, t_comb, red in details[:5]:
+                print(f"[TOP] {instance}.{K}: orig={t_orig:.3f}s, comb={t_comb:.3f}s, reduction={red:.1%}")
+            for instance, K, t_orig, t_comb, red in details[6:]:
+                print(f"[REST] {instance}.{K}: orig={t_orig:.3f}s, comb={t_comb:.3f}s, reduction={red:.1%}")
             
-        # file_groups = group_cnf_files_by_basename(directory, k_value, force_name, limit)# combine_first_n_interpolant_to_cnf(directory, k_value, 17, force_name)
-        sys.exit(0)
+    sys.exit(0)
     # input_file = sys.argv[1]
     # output_file = sys.argv[2] if len(sys.argv) > 2 else None
     # write_dimacs_file(input_file, output_file)

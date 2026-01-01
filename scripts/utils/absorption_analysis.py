@@ -19,12 +19,12 @@ def check_negclause_conflict(args):
     # if len(rest_of_clause) > 0:
     #     formula_copy.append_clause(rest_of_clause)
     # Write to temporary file
-    if not os.path.exists(f"{absorption_dir}/caches/"):
-        os.makedirs(f"{absorption_dir}/caches/")
-    CNF_output_file = f"{absorption_dir}/caches/{CNF_output_file}"
+    cache_dir = os.path.join(absorption_dir, "caches")
+    os.makedirs(cache_dir, exist_ok=True)
+    CNF_output_file = os.path.join(cache_dir, CNF_output_file)
     # stdout_save_file = f"{CNF_output_file}.stdout"
     formula_copy.to_dimacs(CNF_output_file)
-    LOG(f"CNF_output_file: {CNF_output_file}")
+    # print(f"CNF_output_file: {CNF_output_file}")
     # LOG(f"stdout_output_file: {stdout_save_file}")
     checker_stdout = ""
     # if os.path.exists(stdout_save_file):
@@ -36,7 +36,11 @@ def check_negclause_conflict(args):
     except UnicodeDecodeError:
         checker_stdout = result.stdout.decode('gbk', errors="replace")
     # Clean up
-    os.remove(CNF_output_file)
+    if os.path.exists(CNF_output_file):
+        os.remove(CNF_output_file)
+    # with open(CNF_output_file, 'w') as f:
+    #     f.write(checker_stdout)
+    # print(f"checker_stdout: {CNF_output_file}")
     lines = checker_stdout.split('\n')
     if "UNSATISFIABLE" in checker_stdout:
         LOG("True because unsat")
@@ -44,6 +48,7 @@ def check_negclause_conflict(args):
     
     for line in lines:
         if "PDLOG propagated to" in line:
+            
             # return False
             continue
         if "PDLOG decision" in line:
@@ -70,9 +75,9 @@ def check_single_literal(args):
     # if len(rest_of_clause) > 0:
     #     formula_copy.append_clause(rest_of_clause)
     # Write to temporary file
-    if not os.path.exists(f"{absorption_dir}/caches/"):
-        os.makedirs(f"{absorption_dir}/caches/")
-    CNF_output_file = f"{absorption_dir}/caches/{CNF_output_file}"
+    cache_dir = os.path.join(absorption_dir, "caches")
+    os.makedirs(cache_dir, exist_ok=True)
+    CNF_output_file = os.path.join(cache_dir, CNF_output_file)
     # stdout_save_file = f"{CNF_output_file}.stdout"
     formula_copy.to_dimacs(CNF_output_file)
     LOG(f"CNF_output_file: {CNF_output_file}")
@@ -87,7 +92,11 @@ def check_single_literal(args):
     except UnicodeDecodeError:
         checker_stdout = result.stdout.decode('gbk', errors="replace")
     # Clean up
-    os.remove(CNF_output_file)
+    if os.path.exists(CNF_output_file):
+        os.remove(CNF_output_file)
+    # with open(CNF_output_file, 'w') as f:
+    #     f.write(checker_stdout)
+    # print(f"checker_stdout: {CNF_output_file}")
     # os.remove(temp_file)
     LOG_TAG("--------------------------------", "detailed")
     LOG_TAG(f"literal: {literal}", "detailed")
@@ -130,7 +139,7 @@ def hashing(clause):
 def check_formula_absorp_clause(formula, clause, cachename, K):
     args_list = [(literal, [-l for l in clause if l != literal], formula, f"{cachename}_{literal}.cnf", K) for literal in clause]
     # Use number of CPU cores minus 1 to leave some resources for other processes
-    num_processes = max(1, cpu_count() - 1)
+    num_processes = min(max(1, cpu_count() - 1), 8)
     # print(f"num_processes: {num_processes}")
     LOG_TAG(f"formed args_list: {args_list}", "detailed")
     # Create a pool of workers and map the work

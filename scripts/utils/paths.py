@@ -1,5 +1,10 @@
 import os
 
+def get_benchmark_dir():
+    if not os.path.exists(f"./ProofDoorBenchmark/benchmarks/"):
+        os.makedirs(f"./ProofDoorBenchmark/benchmarks/")
+    return f"./ProofDoorBenchmark/benchmarks/"
+
 def get_shuffled_cnf_dir(k_value):
     if not os.path.exists(f"./ProofDoorBenchmark/shuffled_cnfs/{k_value}/"):
         os.makedirs(f"./ProofDoorBenchmark/shuffled_cnfs/{k_value}/")
@@ -48,7 +53,7 @@ def get_sanity_dir(k_value,pddef=0):
 
 def get_CNF_dir(k_value):
     if not os.path.exists(f"./ProofDoorBenchmark/cnfs/{k_value}/"):
-        os.makedirs(f"./ProofDoorBenchmark/cnfs/{k_value}/")
+        os.makedirs(f"./ProofDoorBenchmark/cnfs/{k_value}/", exist_ok=True)
     return f"./ProofDoorBenchmark/cnfs/{k_value}/"
 
 def get_interpolant_cnf_dir(k_value=10, pddef=0):
@@ -123,9 +128,9 @@ def get_figures_dir():
 
 def get_absorption_experiments_dir(k_value):
     if not os.path.exists("./ProofDoorBenchmark/absorption_experiments/"):
-        os.makedirs("./ProofDoorBenchmark/absorption_experiments/")
+        os.makedirs("./ProofDoorBenchmark/absorption_experiments/", exist_ok=True)
     if not os.path.exists(f"./ProofDoorBenchmark/absorption_experiments/{k_value}/"):
-        os.makedirs(f"./ProofDoorBenchmark/absorption_experiments/{k_value}/")
+        os.makedirs(f"./ProofDoorBenchmark/absorption_experiments/{k_value}/", exist_ok=True)
     return f"./ProofDoorBenchmark/absorption_experiments/{k_value}/"
 
 def get_latest_PDC_result(K):

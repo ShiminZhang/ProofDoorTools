@@ -3,8 +3,10 @@ import os
 import argparse
 from utils.paths import get_CNF_dir,get_interpolant_dir, get_shuffled_cnf_dir, get_solving_time_dir
 from utils.catagory import get_instance_list
+from utils.utils import get_python_activate_command
 from utils.tosmt import cnf_to_smt2_n_way
 from prepare_single import prepare_all_datas,set_debug, prepare_all_datas_for_one_smt, prepare_all_datas_for_one_smt_with_decompose
+from prepare_single import prepare_for_interpolant_computation, prepare_interpolant_only
 from tqdm import tqdm
 import random
 
@@ -39,12 +41,14 @@ def main():
     parser.add_argument("--manage", action="store_true", default=False)
     parser.add_argument("--limit", action="store", default=1000)
     parser.add_argument("--max_index",type=int, action="store", default=10000000)
-    parser.add_argument("--pddef", action="store", default=0)
+    parser.add_argument("--pddef", action="store", default=1)
     parser.add_argument("--debug", action="store_true", default=False)
     parser.add_argument("--no_interpolant", action="store_true", default=False)
+    parser.add_argument("--reverse", action="store_true", default=False)
     parser.add_argument("--permute_and_run", action="store_true", default=False)
     parser.add_argument("--prepare_sequential", action="store_true", default=False)
     parser.add_argument("--prepare_scaling", action="store_true", default=False)
+    parser.add_argument("--force_refresh", action="store_true", default=False)
     args = parser.parse_args()
     if args.clean:
         os.system("rm ProofDoorBenchmark/absorption_experiments/*.json")
@@ -61,7 +65,7 @@ def main():
     else:
         interested_names = get_instance_list(args.category)
     if args.focus_name is not None:
-        interested_names = [name for name in interested_names if name.startswith(args.focus_name)]
+        interested_names = [args.focus_name]
     if args.check_interpolants:
         interpolant_dir = get_interpolant_dir(10)
         count = 0
@@ -208,23 +212,39 @@ def main():
 
     if args.prepare_sequential:
         K = int(args.K)
+        # K = int(args.K)
+        # K = 100
+        if args.focus_name is not None:
+            interested_names = [args.focus_name]
+        # interested_names = args
+        # interested_names = ["6s339rb22"]
         # interested_names = interested_names[:2]
         if args.manage:
-            batch_size = K + 1
-            limit = int(args.limit)
-            index = 0
-            while index < batch_size * len(interested_names) and index < args.max_index:
-                queue_size = get_queue_size()
-                print(f"Queue size: {queue_size}, Index: {index}")
-                while get_queue_size() < limit - batch_size and index < batch_size * len(interested_names):
-                    name = interested_names[index // batch_size]
-                    prepare_all_datas_for_one_smt_with_decompose(name,K,args.pddef,force_refresh=False)
-                    index += batch_size
-                print(f"Updated Index: {index}, Queue size: {get_queue_size()}")
-                time.sleep(300)
+            print(f"Preparing {len(interested_names)} instances")
+            cmd = get_python_activate_command()
+            reverse_flag = "--reverse" if args.reverse else ""
+            for instance in interested_names[:10]:
+                cmd = f"{cmd} && python ./scripts/prepare.py --focus_name {instance} --K {K} --prepare_sequential {reverse_flag}"
+                os.system(f"sbatch --output=./SlurmLogs/prepare_sequential/{instance}.{K}.prepare_sequential.log --mem=10g --time=20:00:00 --wrap=\"{cmd}\"")
+            # batch_size = K + 1
+            # limit = int(args.limit)
+            # index = 0
+            # while index < batch_size * len(interested_names) and index < args.max_index:
+            #     queue_size = get_queue_size()
+            #     print(f"Queue size: {queue_size}, Index: {index}")
+            #     while get_queue_size() < limit - batch_size and index < batch_size * len(interested_names):
+            #         name = interested_names[index // batch_size]
+            #         prepare_all_datas_for_one_smt_with_decompose(name,K,args.pddef,force_refresh=False)
+            #         index += batch_size
+            #     print(f"Updated Index: {index}, Queue size: {get_queue_size()}")
+            #     time.sleep(300)
         else:
+            print(f"Preparing {len(interested_names)} instances")
             for name in interested_names:
-                prepare_all_datas_for_one_smt_with_decompose(name,K,args.pddef,force_refresh=False)
+                print(f"Preparing {name}.{K} with pddef {args.pddef}")
+                prepare_for_interpolant_computation(name,K,force_refresh=True,pddef=int(args.pddef),reverse=args.reverse)
+                for index in range(K):
+                    prepare_interpolant_only(name,K,index,pddef=int(args.pddef),force_refresh=True,reverse=args.reverse)
         exit()
 
     if args.compute_strongest_interpolant:

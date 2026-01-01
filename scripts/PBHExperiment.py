@@ -187,18 +187,42 @@ def select_instances_from_csv(csv_path="./dashboard_data.csv"):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--K", type=int, required=True)
+    parser.add_argument("--K", type=int, required=False)
     parser.add_argument("--category", type=str, required=False)
     parser.add_argument("--force_instance", type=str, required=False)
     parser.add_argument("--index", type=int, required=False)
     parser.add_argument("--compare", action="store_true", required=False)
+    parser.add_argument("--use_summary", type=str, required=False)
     args = parser.parse_args()
-    config = PBHExperimentConfig(name="pbh", data_dir="data", result_dir="result", log_dir="log", K=args.K, category=args.category, force_instance=args.force_instance, index=args.index)
-    experiment = PBHExperiment(config)
-    if args.compare:
-        experiment.compare_results()
-    else:
-        experiment.manage()
+    if args.use_summary:
+        summary_path = args.use_summary
+        if not os.path.exists(summary_path):
+            raise FileNotFoundError(f"Summary CSV not found: {summary_path}")
+        targets = []
+        with open(summary_path, "r") as f:
+            reader = csv.DictReader(f)
+            required = {"instance_name", "K", "smt2cnf_status"}
+            missing = required - set(reader.fieldnames or [])
+            if missing:
+                raise ValueError(f"CSV missing required columns: {sorted(missing)}")
+            for row in reader:
+                status = (row.get("smt2cnf_status") or "").strip().lower()
+                if status != "done":
+                    continue
+                instance = (row.get("instance_name") or "").strip()
+                if not instance:
+                    continue
+                try:
+                    K = int(row.get("K"))
+                except Exception:
+                    continue
+                targets.append((instance, K))
+        print(f"[from_summary] Found {len(targets)} (instance,K) with SMT→CNF done from {summary_path}")
+        for instance, K in targets[:20]:
+            config = PBHExperimentConfig(name="pbh", data_dir="data", result_dir="result", log_dir="log", K=K, category=args.category, force_instance=instance, index=args.index)
+            experiment = PBHExperiment(config)
+            experiment.manage()
+        return
 
 if __name__ == "__main__":
     main()

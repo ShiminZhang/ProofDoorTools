@@ -204,11 +204,15 @@ def sanity_check(interpolant,smt_cnf_interpolant):
     return s.check() == unsat
 
 
-def InterpolantToCNF(instance, K, index, simplify=False):
+def InterpolantToCNF(instance, K, index, simplify=False, reverse=False):
     _CNF_CACHE.clear()
     print("simplify in InterpolantToCNF", simplify)
-    SMT_file = f"{get_interpolant_dir(K,1)}/{instance}.{K}.{index}.interpolant"
-    SMT_CNF_file = f"{get_interpolant_cnf_dir(K,1)}/{instance}.{K}.{index}.smtcnf"
+    if reverse:
+        SMT_file = f"{get_interpolant_dir(K,1)}/{instance}.{K}.{index}.reverse.interpolant"
+        SMT_CNF_file = f"{get_interpolant_cnf_dir(K,1)}/{instance}.{K}.{index}.reverse.smtcnf"
+    else:
+        SMT_file = f"{get_interpolant_dir(K,1)}/{instance}.{K}.{index}.interpolant"
+        SMT_CNF_file = f"{get_interpolant_cnf_dir(K,1)}/{instance}.{K}.{index}.smtcnf"
     if not os.path.exists(SMT_file):
         print(f"SMT file {SMT_file} does not exist, skipping")
         return None
@@ -252,6 +256,7 @@ if __name__ == "__main__":
     parser.add_argument("--category", type=str, default="exponential")
     parser.add_argument("--time", type=str, default="8:00:00")
     parser.add_argument("--simplify", action="store_true", default=True)
+    parser.add_argument("--reverse", action="store_true", default=False)
     parser.add_argument("--check_result", type=str, default=None)
     args = parser.parse_args()
     if args.main:
@@ -263,8 +268,10 @@ if __name__ == "__main__":
             K=args.K,
             time=args.time,
             category=args.category,
-            force_instance=None
+            force_instance=args.instance
         )
+        # print(f"Config: {config.instance_list}")
+        # exit()
         experiment = SMTTranslationToCNFExperiment(config)
         experiment.run()
     elif args.check_result is not None:
@@ -337,6 +344,6 @@ if __name__ == "__main__":
         index = args.index
         print(f"Processing {instance}.{K}.{index}")
 
-        SMT_CNF_file = InterpolantToCNF(instance, K, index, args.simplify)
+        SMT_CNF_file = InterpolantToCNF(instance, K, index, args.simplify,reverse=args.reverse)
         print(f"SMT CNF file: {SMT_CNF_file}")
         

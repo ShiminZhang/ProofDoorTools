@@ -69,7 +69,7 @@ def GetPDS(K,pddef,interested_instances,include_step=False):
     return results_map
 
 def get_python_activate_command():
-    return "source ../general/bin/activate"
+    return "source ../../general/bin/activate"
         
 def tokenize(s):
     s = re.sub(r'([\(\)])', r' \1 ', s)
@@ -150,48 +150,78 @@ def convert_to_dimacs(clauses):
     # print(f"clauses: {clauses}")
     for clause in clauses:
         # print(f"clause: {clause}")
-        dimacs_clause = []
-            
+        dimacs_clause_tokens = []
+
         if clause not in var_map:
             var_map[clause] = var_counter
             var_counter += 1
-            
+
         for literal in clause.strip().split(" "):
+            literal = literal.strip()
+            if not literal:
+                continue
+
             is_negated = literal.startswith('Not(')
             is_negated_by_sign = literal.startswith('-')
-            literal = literal.replace("-", "")
-            if "aux_" in literal:
-                if is_negated:
-                    var_name = literal[4:-1]
-                else:
-                    var_name = literal
-                var_name = var_name.split("_")[1]
+
+            # Remove leading sign for easier processing; we will re‑add it later.
+            if is_negated_by_sign:
+                literal_core = literal[1:]
             else:
-                if is_negated:
-                    var_name = literal[5:-1]
+                literal_core = literal
+
+            # For expressions like Not(v123) or Not(v123)),
+            # strip the outer Not(...) wrapper and trailing punctuation.
+            if is_negated:
+                # Drop leading "Not(" if present
+                if literal_core.startswith("Not("):
+                    literal_core = literal_core[4:]
+                # literal_core now starts with something like "v123)" or "v123))"
+                # Remove everything after the first ')'
+                if ')' in literal_core:
+                    literal_core = literal_core.split(')')[0]
+
+            # Strip any trailing commas / parentheses just in case
+            literal_core = literal_core.strip('(),')
+
+            # Handle auxiliary variables of the form aux_<id>
+            if "aux_" in literal_core:
+                var_name = literal_core.split("aux_")[1]
+            else:
+                # Normal variables like v123
+                # Drop leading 'v' if present
+                if literal_core.startswith('v'):
+                    var_name = literal_core[1:]
                 else:
-                    var_name = literal[1:]
-            
+                    var_name = literal_core
+
+            if not var_name:
+                continue
+
             if is_negated or is_negated_by_sign:
-                dimacs_clause.append(f"-{var_name} ")
+                dimacs_clause_tokens.append(f"-{var_name}")
             else:
-                dimacs_clause.append(f"{var_name} ")
-        if len(dimacs_clause) > 0:
-            dimacs_clauses.append("".join(dimacs_clause) + " 0")
-    # after this, we need to replace auxillary variables with new available literals
-    for i in range(len(dimacs_clauses)):
-        clause = dimacs_clauses[i]
-        for literal in clause.strip().split(" "):
-            if "aux_" in literal:
-                var_name = literal.split("aux_")[1]
-                dimacs_clauses[i] = dimacs_clauses[i].replace(literal, f"{var_name}")
-        dimacs_clauses[i] = dimacs_clauses[i].replace("v", "")
+                dimacs_clause_tokens.append(f"{var_name}")
+
+        if dimacs_clause_tokens:
+            # Ensure each clause ends with a terminating 0
+            dimacs_clause_tokens.append("0")
+            dimacs_clauses.append(" ".join(dimacs_clause_tokens))
     max_literal = 0
     for clause in dimacs_clauses:
         for literal in clause.strip().split(" "):
             if literal and literal != "0":
                 # print(literal)
-                abs_value = abs(int(literal))
+                try:
+                    abs_value = abs(int(literal))
+                except ValueError:
+                    # In case any stray characters remain, extract leading integer part.
+                    # This makes the function robust to marginal formatting issues.
+                    import re
+                    m = re.match(r"-?\d+", literal)
+                    if not m:
+                        continue
+                    abs_value = abs(int(m.group(0)))
                 max_literal = max(max_literal, abs_value)
     # Create the DIMACS header
     header = f"p cnf {max_literal} {len(dimacs_clauses)}"

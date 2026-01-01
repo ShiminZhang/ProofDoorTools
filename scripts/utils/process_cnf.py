@@ -65,6 +65,7 @@ class CNF:
             self.parse_cnf()
             if not skip_parse_literal_map:
                 self.parse_literal_map(use_cache)
+        
     
     @classmethod
     def from_file(cls, cnf_path, **kwargs):

@@ -103,7 +103,7 @@ class Experiment(ABC):
 
     def get_complete_command(self, command, mem="24g", time="8:00:00", output=None, dependency=None, ntasks=None, cpus_per_task=None):
         mem_int = int(mem.split("g")[0])
-        activate_python = "source ../general/bin/activate"
+        activate_python = "source ../../general/bin/activate"
         wrapped = f"{activate_python} && {command}"
         output = output if output is not None else f"{self.config.log_dir}/%j.out"
         memory = f"--mem={mem}"
@@ -117,7 +117,7 @@ class Experiment(ABC):
         complete_command = f"sbatch {dependency} --output={output} {memory} --time={time} {tasks} --wrap=\"{wrapped}\""
         return complete_command
 
-    def queue_command_in_slurm(self, command, mem="24g", time="8:00:00", output=None, dependency=None, ntasks=None, cpus_per_task=None):
+    def queue_command_in_slurm(self, command, mem="24g", time="16:00:00", output=None, dependency=None, ntasks=None, cpus_per_task=None):
         complete_command = self.get_complete_command(command, mem, time, output, dependency, ntasks, cpus_per_task)
         print(f"Queued command: {complete_command}")
         self.command_queue.append(complete_command)
@@ -128,7 +128,7 @@ class Experiment(ABC):
         slurm_output =  os.popen(complete_command).read()
         return int(slurm_output.split()[-1])
 
-    def execute_queued_command_in_slurm(self,limit=1000,batch_size=10):
+    def execute_queued_command_in_slurm(self,limit=10000,batch_size=10):
         def get_queue_size():
             return int(os.popen("squeue -u $USER -h -r -t RUNNING,PENDING | wc -l").read())
         while True:

@@ -70,7 +70,7 @@ def generate_single_compute_interpolant(blocks):
         output_lines.append(current_interpolant)
     return output_lines
 
-def construct_compute_interpolant_cmd_def1(interpolants,A,B):
+def construct_compute_interpolant_cmd_def1(interpolants,A,B,reverse=False):
     # A and B are lists of clauses
     output_lines = []
     output_lines.append("(compute-interpolant")
@@ -82,19 +82,38 @@ def construct_compute_interpolant_cmd_def1(interpolants,A,B):
         right_cnf.extend(block)
     left_expr = block_to_and_expr(left_cnf)
     right_expr = block_to_and_expr(right_cnf)
-    output_lines.append(f"    (and")
-    for interpolant in interpolants:
-        for line in interpolant:
-            output_lines.append(f"      {line.strip()}")
-    for line in left_expr[1:-1]:
-        output_lines.append(line)
-    output_lines.append("    )")
-
-    output_lines.extend(f"    {line}" for line in right_expr)
+    if reverse:
+        # Reverse mode: compute J as interpolant for (B_tail, (and I_prev A_i))
+        # Do NOT negate here; we will negate the RESULT after Z3 returns.
+        # Swap roles so left side becomes B_tail, right side becomes A_i
+        left_expr, right_expr = right_expr, left_expr
+        # First argument: just B_tail
+        output_lines.append(f"    (and")
+        for line in left_expr[1:-1]:
+            output_lines.append(line)
+        output_lines.append("    )")
+        # Second argument: (and I_prev A_i)
+        output_lines.append("    (and")
+        for interpolant in interpolants:
+            for line in interpolant:
+                output_lines.append(f"      {line.strip()}")
+        for line in right_expr[1:-1]:
+            output_lines.append(line)
+        output_lines.append("    )")
+    else:
+        # Forward mode: (and I_prev A_i) as left, B_tail as right
+        output_lines.append("    (and")
+        for interpolant in interpolants:
+            for line in interpolant:
+                output_lines.append(f"      {line.strip()}")
+        for line in left_expr[1:-1]:
+            output_lines.append(line)
+        output_lines.append("    )")
+        output_lines.extend(f"    {line}" for line in right_expr)
     output_lines.append(")")
     return output_lines
 
-def construct_compute_interpolant_cmd(A,B):
+def construct_compute_interpolant_cmd(A,B,reverse=False):
     # A and B are lists of clauses
     output_lines = []
     output_lines.append("(compute-interpolant")
@@ -106,6 +125,8 @@ def construct_compute_interpolant_cmd(A,B):
         right_cnf.extend(block)
     left_expr = block_to_and_expr(left_cnf)
     right_expr = block_to_and_expr(right_cnf)
+    if reverse:
+        left_expr, right_expr = right_expr, left_expr
     output_lines.extend(f"    {line}" for line in left_expr)
     output_lines.extend(f"    {line}" for line in right_expr)
     output_lines.append(")")
@@ -113,13 +134,62 @@ def construct_compute_interpolant_cmd(A,B):
 
 def read_interpolant(interpolant_path):
     with open(interpolant_path, 'r') as f:
-        lines = f.readlines()[2:]
-    # remove the last bracket
-    lines[-1] = lines[-1].strip()[:-1]
+        raw_lines = [ln.rstrip("\n") for ln in f.readlines()]
+    if not raw_lines:
+        print(f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! error reading interpolant file {interpolant_path}: empty file")
+        exit()
+    header = raw_lines[0].strip().lower()
+    if header.startswith("sat") or "error" in header or header.startswith("unknown"):
+        print(f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! error reading interpolant file {interpolant_path}: {raw_lines[0]}")
+        exit()
+    # Expect standard z3 output:
+    #   unsat
+    #   (interpolants
+    #     <body>
+    #   )
+    lines = raw_lines[2:]
+    if not lines:
+        print(f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! error reading interpolant file {interpolant_path}: missing interpolant body")
+        exit()
+    # remove the last bracket on the last body line to ease embedding
+    try:
+        lines[-1] = lines[-1].strip()[:-1]
+    except Exception as e:
+        print(f"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! error reading interpolant file {interpolant_path}: {e}")
+        exit()
     return lines
+# def cnf_to_smt2_def1_reverse(input_path, output_path):
+#     # the interpolants must be computed in reverse order, so actually if index of output is 0 we need to compute the last
+#     basefilename = output_path.split("/")[-1]
+#     parts = basefilename.split(".")
+#     k_value = int(parts[1])
+#     index = k_value - 1 - int(parts[2])
+#     name = parts[0]
+#     blocks, max_var = parse_cnf_file(input_path)
+#     # interpolants = generate_single_compute_interpolant(blocks)
+#     declarations = generate_declarations(max_var)
+#     if index == k_value - 1:
+#         # print(blocks[0:1])
+#         # print(blocks[1:])
+#         compute_smt = construct_compute_interpolant_cmd(blocks[-1:],blocks[:-1])
+#     else:
+#         interpolants = []
+#         for i in range(index):
+#             interpolant_path = f"{get_interpolant_dir(k_value,pddef=1)}/{name}.{k_value}.{i}.interpolant"
+#             print(f"    reading {i}th interpolant: {interpolant_path}")
+#             interpolants.append(read_interpolant(interpolant_path))
+#         # print(interpolants)
+#         compute_smt = construct_compute_interpolant_cmd_def1(interpolants,[blocks[index]],blocks[index+1:])
+        
+#     smt2_lines = declarations.copy()
+#     smt2_lines.append("")
+#     smt2_lines.extend(compute_smt)
+#     with open(f"{output_path}", 'w') as f:
+#         f.write("\n".join(smt2_lines))
 
-def cnf_to_smt2_def1(input_path, output_path):
-    print(f"Generating {output_path}")
+
+def cnf_to_smt2_def1(input_path, output_path, reverse=False):
+    print(f"Generating {output_path}, reverse={reverse}")
     basefilename = output_path.split("/")[-1]
     parts = basefilename.split(".")
     index = int(parts[2])
@@ -131,15 +201,15 @@ def cnf_to_smt2_def1(input_path, output_path):
     if index == 0:
         # print(blocks[0:1])
         # print(blocks[1:])
-        compute_smt = construct_compute_interpolant_cmd(blocks[0:1],blocks[1:])
+        compute_smt = construct_compute_interpolant_cmd(blocks[0:1],blocks[1:], reverse=reverse)
     else:
         interpolants = []
         for i in range(index):
-            interpolant_path = f"{get_interpolant_dir(k_value,pddef=1)}/{name}.{k_value}.{i}.interpolant"
+            interpolant_path = f"{get_interpolant_dir(k_value,pddef=1)}/{name}.{k_value}.{i}.reverse.interpolant"
             print(f"    reading {i}th interpolant: {interpolant_path}")
             interpolants.append(read_interpolant(interpolant_path))
         # print(interpolants)
-        compute_smt = construct_compute_interpolant_cmd_def1(interpolants,[blocks[index]],blocks[index+1:])
+        compute_smt = construct_compute_interpolant_cmd_def1(interpolants,[blocks[index]],blocks[index+1:], reverse=reverse)
         
     smt2_lines = declarations.copy()
     smt2_lines.append("")
