@@ -26,7 +26,7 @@ import subprocess
 from utils.paths import get_interpolant_cnf_dir
 from pathlib import Path
 from typing import Dict, Tuple, List, Optional
-
+from utils.scramble import ScrambleType, SCRAMBLE_TYPES, PERMUTE_LIMIT
 # 这些 import 复用你现有的路径工具和 Dashboard 约定
 from utils.paths import (
     get_CNF_dir,
@@ -125,19 +125,31 @@ def sbatch_wrap(
 
 # ----------------- 阶段 1：检查 / 提交 interpolant（顺序计算） -----------------
 
-def was_interpolant_attempted(instance: str, K: int, index: int, pddef: int = PDDEF, reverse: bool = False) -> bool:
+def _perm_suffix(permute: Optional[str], permute_index: int) -> str:
+    return f".perm_{permute}_{permute_index}" if permute else ""
+
+def was_interpolant_attempted(
+    instance: str,
+    K: int,
+    index: int,
+    pddef: int = PDDEF,
+    reverse: bool = False,
+    permute: Optional[str] = None,
+    permute_index: int = 0,
+) -> bool:
     """
     通过 **本调度器自己的 per-index 日志** 判断某个 interpolant 是否“尝试过计算”（可能是 timeout / 被杀掉）。
     只要这些 log 里出现过 `<instance>.<K>.<index>.interpolant` 就认为尝试过。
     """
+    perm_suffix = _perm_suffix(permute, permute_index)
     suffix = ".reverse.interpolant" if reverse else ".interpolant"
-    name_fragment = f"{instance}.{K}.{index}{suffix}"
+    name_fragment = f"{instance}.{K}.{index}{perm_suffix}{suffix}"
 
     # 只看新调度器自己的 per-index 日志
     logs_root = f"./SlurmLogs/prepare_interpolants_def{pddef}/k_{K}"
     if os.path.isdir(logs_root):
         for fname in os.listdir(logs_root):
-            if f"{instance}.{K}." not in fname:
+            if f"{instance}.{K}" not in fname:
                 continue
             if not fname.endswith(f"_{index}.prepare.log"):
                 continue
@@ -165,12 +177,22 @@ def classify_single_interpolant(path: str) -> str:
         return "empty"
     with open(path, "r") as f:
         first = f.readline().strip().lower()
+    # Z3 may print only a status line when no interpolant exists (e.g. "sat"/"unknown").
+    if first in ("sat", "unknown"):
+        return "error"
     if "error" in first:
         return "error"
     return "ok"
 
 
-def classify_interpolants(instance: str, K: int, pddef: int = PDDEF, reverse=False) -> Tuple[str, Dict[int, str]]:
+def classify_interpolants(
+    instance: str,
+    K: int,
+    pddef: int = PDDEF,
+    reverse: bool = False,
+    permute: Optional[str] = None,
+    permute_index: int = 0,
+) -> Tuple[str, Dict[int, str]]:
     """
     检查某个 (instance, K) 的 K 个 interpolant 文件。
     返回:
@@ -178,6 +200,7 @@ def classify_interpolants(instance: str, K: int, pddef: int = PDDEF, reverse=Fal
     - per_index: {index -> 'missing'|'empty'|'error'|'ok'}
     """
     base = get_interpolant_dir(K, pddef)
+    perm_suffix = _perm_suffix(permute, permute_index)
     per_index: Dict[int, str] = {}
     has_ok = False
     has_unattempted_missing_or_empty = False
@@ -185,14 +208,22 @@ def classify_interpolants(instance: str, K: int, pddef: int = PDDEF, reverse=Fal
 
     for i in range(K):
         if reverse:
-            path = os.path.join(base, f"{instance}.{K}.{i}.reverse.interpolant")
+            path = os.path.join(base, f"{instance}.{K}.{i}{perm_suffix}.reverse.interpolant")
         else:
-            path = os.path.join(base, f"{instance}.{K}.{i}.interpolant")
+            path = os.path.join(base, f"{instance}.{K}.{i}{perm_suffix}.interpolant")
         st = classify_single_interpolant(path)
 
         if st in ("missing", "empty"):
             # 需要区分：从未尝试 vs. 曾经尝试（timeout/kill 等）
-            if was_interpolant_attempted(instance, K, i, pddef, reverse=reverse):
+            if was_interpolant_attempted(
+                instance,
+                K,
+                i,
+                pddef,
+                reverse=reverse,
+                permute=permute,
+                permute_index=permute_index,
+            ):
                 # 视为“尝试过但失败”（可能是 timeout）
                 st = "timeout"
                 has_failed = True
@@ -216,7 +247,16 @@ def classify_interpolants(instance: str, K: int, pddef: int = PDDEF, reverse=Fal
     return overall, per_index
 
 
-def submit_compute_interpolants_job(instance: str, K: int, per_index: Dict[int, str], pddef: int = PDDEF, reverse=False) -> Dict[int, str]:
+def submit_compute_interpolants_job(
+    instance: str,
+    K: int,
+    per_index: Dict[int, str],
+    pddef: int = PDDEF,
+    reverse: bool = False,
+    permute: Optional[str] = None,
+    permute_index: int = 0,
+    force_refresh: bool = False,
+) -> Dict[int, str]:
     """
     提交一串有依赖关系的 slurm job，顺序计算 (instance, K) 的所有“尚未成功”的 interpolants。
 
@@ -234,19 +274,90 @@ def submit_compute_interpolants_job(instance: str, K: int, per_index: Dict[int, 
 
     last_job_id = None
     job_ids: Dict[int, str] = {}
-    for i in range(K):
-        status = per_index.get(i, "missing")
-        # 只对“从未尝试过的 missing/empty” 提交补算；timeout/error 交给人工查看
-        if status not in ("missing", "empty"):
-            print(f"[{instance}.{K}.{i}] interpolant already computed or failed, skip")
-            continue
-        job_name = f"interp_{instance}.{K}.{i}{'.rev' if reverse else ''}"
-        log_path = f"{logs_dir}/{instance}.{K}{'.reverse' if reverse else ''}.%A_{i}.prepare.log"
+    perm_suffix = _perm_suffix(permute, permute_index)
+    permute_flag = f"--permute {permute} --permute_index {permute_index}" if permute else ""
+
+    # pddef=3 ("proofgate") interpolants are generated for *all indices at once*
+    # by `prepare_single.prepare_interpolant_def3`, so we must not schedule one job
+    # per index (that would race and overwrite outputs).
+    if pddef == 3:
+        if reverse:
+            raise ValueError("pddef=3/proofgate does not support --reverse")
+        need = force_refresh or any(st in ("missing", "empty") for st in per_index.values())
+        if not need:
+            print(f"[{instance}.{K}] pddef=3 interpolants already present; skip scheduling.")
+            return {}
+
+        job_name = f"interp_def3_{instance}.{K}{perm_suffix}"
+        log_path = f"{logs_dir}/{instance}.{K}{perm_suffix}.%A_all.prepare.log"
+        force_refresh_flag = "--force_refresh" if force_refresh else ""
+        # Run pre-interpolant (CNF/DRAT prep) then interpolant generation in the same job.
+        inner_cmd = (
+            f"python ./scripts/prepare_single.py --name {instance} --K {K} "
+            f"--pre_interpolant --pddef 3 {force_refresh_flag} && "
+            f"python ./scripts/prepare_single.py --name {instance} --K {K} "
+            f"--interpolant_only --pddef 3 {force_refresh_flag}"
+        )
+        last_job_id = sbatch_wrap(
+            inner_cmd,
+            time_limit=TIME_PER_JOB,
+            mem=MEM_INTERP,
+            output_log=log_path,
+            job_name=job_name,
+            dependency=last_job_id,
+        )
+        # Provide per-index dependencies for downstream stage-2 jobs.
+        for i in range(K):
+            job_ids[i] = last_job_id
+        return job_ids
+
+    # IMPORTANT:
+    # - forward(pddef=1): index i may depend on interpolant (i-1)
+    # - reverse(pddef=1): index i may depend on interpolant (i+1)
+    # so the safe scheduling order must follow the dependency direction.
+    #
+    # Also, interpolant generation generally depends on the CNF/SMT prep. We submit
+    # a single `--pre_interpolant` job up front so per-index jobs don't fail when
+    # inputs are missing.
+    if force_refresh or any(st in ("missing", "empty") for st in per_index.values()):
+        prep_job_name = f"prep_interp_{instance}.{K}{perm_suffix}{'.rev' if reverse else ''}"
+        prep_log = f"{logs_dir}/{instance}.{K}{perm_suffix}{'.reverse' if reverse else ''}.%A_prep.prepare.log"
         reverse_flag = "--reverse" if reverse else ""
+        force_refresh_flag = "--force_refresh" if force_refresh else ""
+        prep_cmd = (
+            f"python ./scripts/prepare_single.py "
+            f"--name {instance} --K {K} "
+            f"--pre_interpolant --pddef {pddef} {force_refresh_flag} {reverse_flag} {permute_flag}"
+        )
+        last_job_id = sbatch_wrap(
+            prep_cmd,
+            time_limit=TIME_PER_JOB,
+            mem=MEM_INTERP,
+            output_log=prep_log,
+            job_name=prep_job_name,
+            dependency=last_job_id,
+        )
+
+    indices = range(K - 1, -1, -1) if reverse else range(K)
+    for i in indices:
+        status = per_index.get(i, "missing")
+        # 默认模式：只对“从未尝试过的 missing/empty” 提交补算；timeout/error 交给人工查看
+        if not force_refresh:
+            if status in ("timeout", "error"):
+                # 后续 index 会依赖这个失败点，继续提交也只会失败/浪费资源
+                print(f"[{instance}.{K}.{i}] interpolant is {status}; stop scheduling dependent indices")
+                break
+            if status not in ("missing", "empty"):
+                print(f"[{instance}.{K}.{i}] interpolant already computed or failed, skip")
+                continue
+        job_name = f"interp_{instance}.{K}.{i}{perm_suffix}{'.rev' if reverse else ''}"
+        log_path = f"{logs_dir}/{instance}.{K}{perm_suffix}{'.reverse' if reverse else ''}.%A_{i}.prepare.log"
+        reverse_flag = "--reverse" if reverse else ""
+        force_refresh_flag = "--force_refresh" if force_refresh else ""
         inner_cmd = (
             f"python ./scripts/prepare_single.py "
             f"--name {instance} --K {K} --index {i} "
-            f"--pddef {pddef} --force_refresh {reverse_flag}"
+            f"--interpolant_only --pddef {pddef} {force_refresh_flag} {reverse_flag} {permute_flag}"
         )
         last_job_id = sbatch_wrap(
             inner_cmd,
@@ -263,21 +374,29 @@ def submit_compute_interpolants_job(instance: str, K: int, per_index: Dict[int, 
 
 # ----------------- 阶段 2：SMT → CNF -----------------
 
-def classify_smt_cnf(instance: str, K: int, pddef: int = PDDEF, reverse=False) -> Tuple[str, Dict[int, str]]:
+def classify_smt_cnf(
+    instance: str,
+    K: int,
+    pddef: int = PDDEF,
+    reverse: bool = False,
+    permute: Optional[str] = None,
+    permute_index: int = 0,
+) -> Tuple[str, Dict[int, str]]:
     """
     类似地检查 smtcnf 文件：
     - 'missing' / 'empty' / 'ok'
     """
     base = get_interpolant_cnf_dir(K, pddef)
+    perm_suffix = _perm_suffix(permute, permute_index)
     per_index: Dict[int, str] = {}
     has_ok = False
     has_missing_or_empty = False
 
     for i in range(K):
         if reverse:
-            path = os.path.join(base, f"{instance}.{K}.{i}.reverse.smtcnf")
+            path = os.path.join(base, f"{instance}.{K}.{i}{perm_suffix}.reverse.smtcnf")
         else:
-            path = os.path.join(base, f"{instance}.{K}.{i}.smtcnf")
+            path = os.path.join(base, f"{instance}.{K}.{i}{perm_suffix}.smtcnf")
         if not os.path.exists(path):
             st = "missing"
         elif os.path.getsize(path) == 0:
@@ -319,6 +438,9 @@ def submit_smt_to_cnf_jobs(
     cnf_per_index: Dict[int, str],
     pddef: int = PDDEF,
     reverse: bool = False,
+    permute: Optional[str] = None,
+    permute_index: int = 0,
+    force_refresh: bool = False,
 ) -> Dict[int, str]:
     """
     为所有需要的 index 提交 SMT→CNF 任务：
@@ -332,27 +454,40 @@ def submit_smt_to_cnf_jobs(
     os.makedirs(logs_dir, exist_ok=True)
 
     smt_job_ids: Dict[int, str] = {}
+    perm_suffix = _perm_suffix(permute, permute_index)
+    permute_flag = f"--permute {permute} --permute_index {permute_index}" if permute else ""
     for i in range(K):
         istatus = interp_status.get(i, "missing")
         # 对于明确失败 / timeout 的 index，整个 pipeline 跳过该 index
-        if istatus in ("timeout", "error"):
+        if (not force_refresh) and istatus in ("timeout", "error"):
             continue
 
         cnf_status = cnf_per_index.get(i, "missing")
-        if cnf_status == "ok":
+        if cnf_status == "ok" and not force_refresh:
             continue
 
-        job_name = f"smt2cnf_{instance}.{K}.{i}"
-        log_path = f"{logs_dir}/{instance}.{K}.%A_{i}.log"
+        job_name = f"smt2cnf_{instance}.{K}.{i}{perm_suffix}"
+        log_path = f"{logs_dir}/{instance}.{K}{perm_suffix}.%A_{i}.log"
         reverse_flag = "--reverse" if reverse else ""
-        inner_cmd = (
-            f"python scripts/SMTTranslationToCNFExperiment.py "
-            f"--instance {instance} --K {K} --index {i} {reverse_flag}"
-        )
+        if pddef == 3:
+            if reverse:
+                raise ValueError("pddef=3/proofgate does not support --reverse")
+            force_refresh_flag = "--force_refresh" if force_refresh else ""
+            inner_cmd = (
+                f"python scripts/ProofGateInterpolantToSMTCNF.py "
+                f"--instance {instance} --K {K} --index {i} {force_refresh_flag}"
+            )
+        else:
+            inner_cmd = (
+                f"python scripts/SMTTranslationToCNFExperiment.py "
+                f"--instance {instance} --K {K} --index {i} {reverse_flag} {permute_flag}"
+            )
 
         dependency = None
-        # 如果本轮要先补 interpolant，则 smt2cnf 依赖对应 interpolant job
-        if istatus in ("missing", "empty") and i in interp_job_ids:
+        # 如果本轮提交了 interpolant job，则 smt2cnf 依赖对应 interpolant job
+        if force_refresh and i in interp_job_ids:
+            dependency = interp_job_ids[i]
+        elif istatus in ("missing", "empty") and i in interp_job_ids:
             dependency = interp_job_ids[i]
 
         job_id = sbatch_wrap(
@@ -394,6 +529,10 @@ def submit_absorption_job(
     K: int,
     category: str = None,
     dependency_job_ids: Optional[List[str]] = None,
+    reverse: bool = False,
+    interpolant_pddef: int = PDDEF,
+    permute: Optional[str] = None,
+    permute_index: int = 0,
 ) -> None:
     """
     为单个 (instance, K) 提交 absorption 管理 job：
@@ -405,9 +544,12 @@ def submit_absorption_job(
     job_name = f"absorb_manage_{instance}.{K}"
 
     category_flag = f"--category {category}" if category else ""
+    reverse_flag = "--reverse" if reverse else "--no_reverse"
+    permute_flag = f"--permute {permute} --permute_index {permute_index}" if permute else ""
+    pddef_flag = "" if interpolant_pddef == 1 else f"--interpolant_pddef {interpolant_pddef}"
     inner_cmd = (
         f"python scripts/AbsorptionExperiment.py "
-        f"--K {K} --main --force_instance {instance} {category_flag}"
+        f"--K {K} --main --force_instance {instance} {category_flag} {reverse_flag} {pddef_flag} {permute_flag}"
     )
 
     # 构造依赖：在所有 smt2cnf jobs 完成后再启动（允许部分失败，因此用 afterany）
@@ -423,7 +565,7 @@ def submit_absorption_job(
     )
     run_cmd(cmd)
 
-def check_instance_status(instance: str, K: int) -> str:
+def check_instance_status(instance: str, K: int, pddef: int = PDDEF) -> str:
     """
     汇总某个 (instance, K) 的整体进度，返回简要字符串：
     - interpolants: overall(count_ok/K)
@@ -431,11 +573,11 @@ def check_instance_status(instance: str, K: int) -> str:
     - absorption  : dashboard status
     """
     # Interpolants
-    interp_overall, interp_per_index = classify_interpolants(instance, K, PDDEF)
+    interp_overall, interp_per_index = classify_interpolants(instance, K, pddef)
     num_interp_ok = sum(1 for st in interp_per_index.values() if st == "ok")
 
     # SMT → CNF
-    cnf_overall, cnf_per_index = classify_smt_cnf(instance, K, PDDEF)
+    cnf_overall, cnf_per_index = classify_smt_cnf(instance, K, pddef)
     num_cnf_ok = sum(1 for st in cnf_per_index.values() if st == "ok")
 
     # Absorption (dashboard)
@@ -449,15 +591,35 @@ def check_instance_status(instance: str, K: int) -> str:
 
 # ----------------- 主调度逻辑 -----------------
 
-def schedule_for_instance(instance: str, K: int, category: str = None, reverse=False) -> None:
-    print(f"=== Scheduling pipeline for {instance}, K={K} ===")
+def schedule_for_instance(
+    instance: str,
+    K: int,
+    pddef: int = PDDEF,
+    category: str = None,
+    reverse: bool = False,
+    interpolation: bool = False,
+    permute: Optional[str] = None,
+    permute_index: int = 0,
+    do_absorption: bool = False,
+    force_refresh: bool = False,
+) -> None:
+    print(f"=== Scheduling pipeline for {instance}, K={K}, pddef={pddef} ===")
     # return
     # 0) K 已在上游选定（summary/映射），此处直接使用
 
     # 1) interpolants：按 index 细粒度调度
-    interp_overall, interp_per_index = classify_interpolants(instance, K, PDDEF, reverse=reverse)
+    interp_overall, interp_per_index = classify_interpolants(
+        instance,
+        K,
+        pddef,
+        reverse=reverse,
+        permute=permute,
+        permute_index=permute_index,
+    )
     print(f"[{instance}.{K}] Interpolants status: {interp_overall}")
-    if interp_overall == "failed":
+    # 在 force_refresh 下，即便当前状态是 failed，也应该重算，而不是直接跳过
+    interp_job_ids: Dict[int, str] = {}
+    if interp_overall == "failed" and not force_refresh:
         print(f"[{instance}.{K}] Some interpolants failed (error/timeout); will skip those indices but continue for others.")
         return
 
@@ -466,35 +628,90 @@ def schedule_for_instance(instance: str, K: int, category: str = None, reverse=F
     for st in interp_per_index.values():
         counts[st] = counts.get(st, 0) + 1
     print(f"[{instance}.{K}] Interpolant counts: {counts}")
-    # interp_job_ids = submit_compute_interpolants_job(instance, K, interp_per_index, PDDEF, reverse=reverse)
-    # return
+    # force_refresh 或 interpolation 模式：提交 interpolant 计算（force_refresh 时会覆盖所有 index）
+    if force_refresh or interpolation:
+        interp_job_ids = submit_compute_interpolants_job(
+            instance,
+            K,
+            interp_per_index,
+            pddef,
+            reverse=reverse,
+            permute=permute,
+            permute_index=permute_index,
+            force_refresh=force_refresh,
+        )
+        if interpolation:
+            return
     # 1.5) 输出该 instance 的完成情况
     # num_ok = sum(1 for st in interp_per_index.values() if st == "ok")
     # print(f"[{instance}.{K}] Interpolants ok: {num_ok}/{K}")
 
     # 2) SMT→CNF：对所有index都ok的Interpolant提交smt2cnf job
-    cnf_overall, cnf_per_index = classify_smt_cnf(instance, K, PDDEF, reverse=reverse)
+    cnf_overall, cnf_per_index = classify_smt_cnf(
+        instance,
+        K,
+        pddef,
+        reverse=reverse,
+        permute=permute,
+        permute_index=permute_index,
+    )
     print(f"[{instance}.{K}] SMT→CNF status: {cnf_overall}, interp_per_index: {interp_per_index}")
     print(f"[{instance}.{K}] Submitting SMT→CNF jobs where needed (possibly with dependency on interpolant jobs).")
-    ok_only_interp = {i: st for i, st in interp_per_index.items() if st == "ok"}
-    if not ok_only_interp:
-        print(f"[{instance}.{K}] No 'ok' interpolants; skip SMT→CNF submission for now.")
+    smt_job_ids = {}
+    if force_refresh:
+        # 强制重算：即便某些 index 之前是 error/timeout，也允许继续尝试（由 Z3/资源决定）
+        smt_job_ids = submit_smt_to_cnf_jobs(
+            instance,
+            K,
+            interp_per_index,
+            interp_job_ids,
+            cnf_per_index,
+            pddef,
+            reverse=reverse,
+            permute=permute,
+            permute_index=permute_index,
+            force_refresh=True,
+        )
     else:
-        smt_job_ids = submit_smt_to_cnf_jobs(instance, K, ok_only_interp, {}, cnf_per_index, PDDEF, reverse=reverse)
+        ok_only_interp = {i: st for i, st in interp_per_index.items() if st == "ok"}
+        if not ok_only_interp:
+            print(f"[{instance}.{K}] No 'ok' interpolants; skip SMT→CNF submission for now.")
+        else:
+            smt_job_ids = submit_smt_to_cnf_jobs(
+                instance,
+                K,
+                ok_only_interp,
+                {},
+                cnf_per_index,
+                pddef,
+                reverse=reverse,
+                permute=permute,
+                permute_index=permute_index,
+                force_refresh=False,
+            )
 
-    # # 3) absorption：不再要求 PDC 'success'，只要还没 absorption success，就在所有 smt2cnf job 完成后启动
-    # absorp_status = get_absorption_status(instance, K)
-    # print(f"[{instance}.{K}] Absorption dashboard: {absorp_status}")
-    # if absorp_status == "success":
-    #     print(f"[{instance}.{K}] Absorption already success, skip.")
-    #     return
+    # 3) absorption：按需启动（默认不跑，避免误发大量 job）
+    if do_absorption:
+        absorp_status = get_absorption_status(instance, K)
+        print(f"[{instance}.{K}] Absorption dashboard: {absorp_status}")
+        if absorp_status == "success":
+            print(f"[{instance}.{K}] Absorption already success, skip.")
+            return
+        print(f"[{instance}.{K}] Submitting absorption job (dependent on all scheduled SMT→CNF jobs, if any).")
+        submit_absorption_job(
+            instance,
+            K,
+            category=category,
+            dependency_job_ids=list(smt_job_ids.values()) if smt_job_ids else None,
+            reverse=reverse,
+            interpolant_pddef=pddef,
+            permute=permute,
+            permute_index=permute_index,
+        )
 
-    # print(f"[{instance}.{K}] Submitting absorption job (dependent on all scheduled SMT→CNF jobs, if any).")
-    # submit_absorption_job(instance, K, category=category, dependency_job_ids=list(smt_job_ids.values()))
-
-def get_proofdoor_size(instance: str, K: int) -> int:
+def get_proofdoor_size(instance: str, K: int, pddef: int = PDDEF) -> int:
     interpolant_sizes = []
-    base_dir = get_interpolant_cnf_dir(K, PDDEF)
+    base_dir = get_interpolant_cnf_dir(K, pddef)
     for i in range(K):
         smtcnf_path = os.path.join(base_dir, f"{instance}.{K}.{i}.smtcnf")
         assert os.path.exists(smtcnf_path) and os.path.getsize(smtcnf_path) > 0, (
@@ -538,15 +755,15 @@ def get_formula_size(instance: str, K: int) -> int:
     return header_count if header_count is not None else clauses
 
 
-def check_pds_ratio(instance_k_map: Dict[str, int]) -> None:
+def check_pds_ratio(instance_k_map: Dict[str, int], pddef: int = PDDEF) -> None:
     pds_sizes = {}
     formula_sizes = {}
     ratios = []
     for instance, K in instance_k_map.items():
         # print(f"[{instance}.{K}] Checking PDS ratio, smt2cnf status: {get_smt_cnf_status(instance, K)}")
-        if get_smt_cnf_status(instance, K) == status.done:
+        if get_smt_cnf_status(instance, K, pddef=pddef) == status.done:
             # print("matched")
-            pds_sizes[instance] = get_proofdoor_size(instance, K)
+            pds_sizes[instance] = get_proofdoor_size(instance, K, pddef=pddef)
             formula_sizes[instance] = get_formula_size(instance, K)
             ratios.append(pds_sizes[instance] / formula_sizes[instance])
 
@@ -562,8 +779,17 @@ def check_pds_ratio(instance_k_map: Dict[str, int]) -> None:
     print(f"Average ratio: {average_ratio}")
     return average_ratio
 
-def output_status_to_csv(category: str, reverse: bool = False):
-    # 生成 category.csv：仅包含 instance_name, K, interpolant_status, smt2cnf_status
+def output_status_to_csv(
+    category: str,
+    reverse: bool = False,
+    permute: Optional[str] = None,
+    permute_index: int = 0,
+    scaling: bool = False,
+    pddef: int = PDDEF,
+):
+    # 生成 CSV：
+    # - scaling=False: 每个 instance 只输出 local_max_k 的一行（保持兼容现有 category*.csv 用法）
+    # - scaling=True : 对每个 instance 输出 K=1..local_max_k-1 的多行（与 --scaling 调度逻辑一致）
     rows: List[Dict[str, str]] = []
     summary_df = pd.read_csv("regression_summary.csv")
 
@@ -578,6 +804,7 @@ def output_status_to_csv(category: str, reverse: bool = False):
     instance_k_map = dict(zip(filtered["instance_name"], filtered["local_max_k"]))
     category_map = dict(zip(filtered["instance_name"], filtered["best_model"]))
     instance_k_map = dict(sorted(instance_k_map.items()))
+    perm_suffix = _perm_suffix(permute, permute_index)
 
     def normalize_status(s: str) -> str:
         if s == "done":
@@ -587,28 +814,55 @@ def output_status_to_csv(category: str, reverse: bool = False):
         # 将 'partial' / 'failed' 等其它状态都归并为 'partial'
         return "partial"
 
-    for instance in list(instance_k_map.keys()):
+    instances = list(instance_k_map.keys())
+    if permute:
+        # 和 main() 的调度逻辑保持一致：scramble 只跑前若干个实例
+        instances = instances[:PERMUTE_LIMIT]
+
+    for instance in instances:
         # schedule_for_instance(instance, int(instance_k_map[instance]))
         K = int(instance_k_map[instance])
-        interp_overall, _ = classify_interpolants(instance, K, PDDEF, reverse=reverse)
-        cnf_overall, _ = classify_smt_cnf(instance, K, PDDEF, reverse=reverse)
-        row = {
-            "instance_name": instance,
-            "K": str(K),
-            "interpolant_status": normalize_status(interp_overall),
-            "smt2cnf_status": normalize_status(cnf_overall),
-            "category": category_map[instance],
-        }
-        rows.append(row)
-        print(
-            f"[{instance}.{K}] Interp={row['interpolant_status']}, "
-            f"SMT2CNF={row['smt2cnf_status']} (reverse={reverse})"
-        )
-    out_path = f"{category}{'.reverse' if reverse else ''}.csv"
+
+        k_values = range(1, K) if scaling else [K]
+        for stepK in k_values:
+            interp_overall, _ = classify_interpolants(
+                instance,
+                stepK,
+                pddef,
+                reverse=reverse,
+                permute=permute,
+                permute_index=permute_index,
+            )
+            cnf_overall, _ = classify_smt_cnf(
+                instance,
+                stepK,
+                pddef,
+                reverse=reverse,
+                permute=permute,
+                permute_index=permute_index,
+            )
+            row: Dict[str, str] = {
+                "instance_name": instance,
+                "K": str(stepK),
+                "interpolant_status": normalize_status(interp_overall),
+                "smt2cnf_status": normalize_status(cnf_overall),
+                "category": category_map[instance],
+            }
+            if scaling:
+                row["local_max_k"] = str(K)
+            rows.append(row)
+            print(
+                f"[{instance}.{stepK}] Interp={row['interpolant_status']}, "
+                f"SMT2CNF={row['smt2cnf_status']} (reverse={reverse}, permute={permute}, permute_index={permute_index}, scaling={scaling})"
+            )
+
+    pddef_suffix = "" if pddef == 1 else f".pddef{pddef}"
+    out_path = f"{category}{pddef_suffix}{perm_suffix}{'.scaling' if scaling else ''}{'.reverse' if reverse else ''}.csv"
     with open(out_path, "w", newline="") as f:
-        writer = csv.DictWriter(
-            f, fieldnames=["instance_name", "K", "interpolant_status", "smt2cnf_status", "category"]
-        )
+        fieldnames = ["instance_name", "K", "interpolant_status", "smt2cnf_status", "category"]
+        if scaling:
+            fieldnames = ["instance_name", "local_max_k", "K", "interpolant_status", "smt2cnf_status", "category"]
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(rows)
     print(f"Wrote {len(rows)} rows to {out_path}")
@@ -657,6 +911,7 @@ def main():
         "--output_status_to_csv",
         action="store_true",
         default=False,
+        help="输出 status 汇总 CSV；若同时指定 --scaling，则输出 K=1..local_max_k-1 的长表到 *.scaling*.csv",
     )
     parser.add_argument(
         "--check_pds_ratio",
@@ -664,22 +919,87 @@ def main():
         default=False,
     )
     parser.add_argument(
+        "--proofgate",
+        action="store_true",
+        default=False,
+        help="Shortcut: schedule proofgate pipeline (pddef=3) to compute def3 proofdoors",
+    )
+    parser.add_argument(
         "--reverse",
         dest="reverse",
         action="store_true",
-        help="生成反向的 smt / interpolant（默认开启）",
+        help="生成反向的 smt / interpolant（默认关闭）",
     )
+    parser.add_argument(
+        "--interpolation",
+        action="store_true",
+        default=False,
+        help="是否只计算 interpolant",
+    )
+    parser.add_argument(
+        "--force_refresh",
+        action="store_true",
+        default=False,
+        help="强制重算：interpolation 时重算 interpolants；full pipeline 时重算 smt2cnf（覆盖已有文件）",
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=-1,
+        help="最多调度前 N 个 instance（<=0 表示不限制）",
+    )
+    parser.add_argument(
+        "--do_absorption",
+        action="store_true",
+        default=False,
+        help="是否在 SMT→CNF 之后提交 absorption manage job（默认关闭）",
+    )
+    parser.add_argument(
+        "--scaling",
+        action="store_true",
+        default=False,
+        help="scaling analysis with proofdoor size",
+    )
+    parser.add_argument(
+        "--completed_interpolants_only",
+        action="store_true",
+        default=False,
+        help="use only completed interpolants",
+    )
+
     parser.add_argument(
         "--no_reverse",
         dest="reverse",
         action="store_false",
         help="禁用反向 smt / interpolant",
     )
-    parser.set_defaults(reverse=True)
+    parser.add_argument(
+        "--permute",
+        type=str,
+        choices=SCRAMBLE_TYPES,
+        default=None,
+        help="Permute type for scrambled CNF",
+    )
+    parser.add_argument(
+        "--permute_index",
+        type=int,
+        default=0,
+        help="Permutation index (used as subfolder under scrambled_cnfs/<K>/<index>/)",
+    )
+    # reverse 默认关闭：只有显式传 --reverse 才开启
+    parser.set_defaults(reverse=False, permute=None)
 
     args = parser.parse_args()
+    pddef = 3 if args.proofgate else PDDEF
     if args.output_status_to_csv:
-        output_status_to_csv(args.category, reverse=args.reverse)
+        output_status_to_csv(
+            args.category,
+            reverse=args.reverse,
+            permute=args.permute,
+            permute_index=args.permute_index,
+            scaling=args.scaling,
+            pddef=pddef,
+        )
         return
     if args.use_summary:
         summary_df = pd.read_csv(args.use_summary)
@@ -694,18 +1014,53 @@ def main():
         instance_k_map = dict(zip(filtered["instance_name"], filtered["local_max_k"]))
         instance_k_map = dict(sorted(instance_k_map.items()))
         # limit = 10
-        limit = 100
+        # limit = 100
+        limit = args.limit
+        count  = 0
         if args.check_pds_ratio:
-            check_pds_ratio(instance_k_map)
+            check_pds_ratio(instance_k_map, pddef=pddef)
             return
-        for inst in instance_k_map.keys():
-            if limit > 0:
-                limit -= 1
-            elif limit == 0:
+        for idx, inst in enumerate(instance_k_map.keys()):
+            if args.completed_interpolants_only:
+                if get_smt_cnf_status(inst, instance_k_map[inst], pddef=pddef) != status.done:
+                    continue
+
+            if args.permute:
+                limit = PERMUTE_LIMIT
+            if limit > 0 and count >= limit:
                 break
+            count += 1
             K = instance_k_map[inst]
+            if args.scaling:
+
+
+                for stepK in range(1, K):
+                    schedule_for_instance(
+                        inst,
+                        stepK,
+                        pddef=pddef,
+                        category=args.category,
+                        reverse=args.reverse,
+                        interpolation=args.interpolation,
+                        permute=args.permute,
+                        permute_index=args.permute_index,
+                        do_absorption=args.do_absorption,
+                        force_refresh=args.force_refresh,
+                    )
+                continue
             try:
-                schedule_for_instance(inst, K, category=args.category, reverse=args.reverse)
+                schedule_for_instance(
+                    inst,
+                    K,
+                    pddef=pddef,
+                    category=args.category,
+                    reverse=args.reverse,
+                    interpolation=args.interpolation,
+                    permute=args.permute,
+                    permute_index=args.permute_index,
+                    do_absorption=args.do_absorption,
+                    force_refresh=args.force_refresh,
+                )
             except Exception as e:
                 print(f"[{inst}.{K}] Error during scheduling: {e}")
     else:

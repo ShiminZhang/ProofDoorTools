@@ -7,6 +7,7 @@ from z3 import  *
 import time
 import json
 import os
+from utils.scramble import SCRAMBLE_TYPES
 
 class SMTTranslationToCNFExperimentConfig(ExperimentConfig):
     def __init__(self, name, data_dir, result_dir, log_dir, K, category, force_instance=None, time="8:00:00"):
@@ -204,15 +205,19 @@ def sanity_check(interpolant,smt_cnf_interpolant):
     return s.check() == unsat
 
 
-def InterpolantToCNF(instance, K, index, simplify=False, reverse=False):
+def _perm_suffix(permute: str = None, permute_index: int = 0) -> str:
+    return f".perm_{permute}_{permute_index}" if permute else ""
+
+def InterpolantToCNF(instance, K, index, simplify=False, reverse=False, permute: str = None, permute_index: int = 0):
     _CNF_CACHE.clear()
     print("simplify in InterpolantToCNF", simplify)
+    perm_suffix = _perm_suffix(permute, permute_index)
     if reverse:
-        SMT_file = f"{get_interpolant_dir(K,1)}/{instance}.{K}.{index}.reverse.interpolant"
-        SMT_CNF_file = f"{get_interpolant_cnf_dir(K,1)}/{instance}.{K}.{index}.reverse.smtcnf"
+        SMT_file = f"{get_interpolant_dir(K,1)}/{instance}.{K}.{index}{perm_suffix}.reverse.interpolant"
+        SMT_CNF_file = f"{get_interpolant_cnf_dir(K,1)}/{instance}.{K}.{index}{perm_suffix}.reverse.smtcnf"
     else:
-        SMT_file = f"{get_interpolant_dir(K,1)}/{instance}.{K}.{index}.interpolant"
-        SMT_CNF_file = f"{get_interpolant_cnf_dir(K,1)}/{instance}.{K}.{index}.smtcnf"
+        SMT_file = f"{get_interpolant_dir(K,1)}/{instance}.{K}.{index}{perm_suffix}.interpolant"
+        SMT_CNF_file = f"{get_interpolant_cnf_dir(K,1)}/{instance}.{K}.{index}{perm_suffix}.smtcnf"
     if not os.path.exists(SMT_file):
         print(f"SMT file {SMT_file} does not exist, skipping")
         return None
@@ -258,6 +263,8 @@ if __name__ == "__main__":
     parser.add_argument("--simplify", action="store_true", default=True)
     parser.add_argument("--reverse", action="store_true", default=False)
     parser.add_argument("--check_result", type=str, default=None)
+    parser.add_argument("--permute", type=str, choices=SCRAMBLE_TYPES, default=None)
+    parser.add_argument("--permute_index", type=int, default=0)
     args = parser.parse_args()
     if args.main:
         config = SMTTranslationToCNFExperimentConfig(
@@ -279,11 +286,12 @@ if __name__ == "__main__":
         instances = get_instance_list("exponential") + get_instance_list("linear")
         results = {}
         K = args.K or 10
+        perm_suffix = _perm_suffix(args.permute, args.permute_index)
         for instance in instances:
             results[instance] = {}
 
             for index in range(args.K):
-                smt_cnf_file = f"{get_interpolant_cnf_dir(K,1)}/{instance}.{K}.{index}.smtcnf"
+                smt_cnf_file = f"{get_interpolant_cnf_dir(K,1)}/{instance}.{K}.{index}{perm_suffix}.smtcnf"
                 if not os.path.exists(smt_cnf_file):
                     results[instance][index] = "smt2 file not found"
                 elif os.path.getsize(smt_cnf_file) == 0:
@@ -344,6 +352,14 @@ if __name__ == "__main__":
         index = args.index
         print(f"Processing {instance}.{K}.{index}")
 
-        SMT_CNF_file = InterpolantToCNF(instance, K, index, args.simplify,reverse=args.reverse)
+        SMT_CNF_file = InterpolantToCNF(
+            instance,
+            K,
+            index,
+            args.simplify,
+            reverse=args.reverse,
+            permute=args.permute,
+            permute_index=args.permute_index,
+        )
         print(f"SMT CNF file: {SMT_CNF_file}")
         

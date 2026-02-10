@@ -1,6 +1,7 @@
 import time
 import os
 import argparse
+import csv
 from utils.paths import get_CNF_dir,get_interpolant_dir, get_shuffled_cnf_dir, get_solving_time_dir
 from utils.catagory import get_instance_list
 from utils.utils import get_python_activate_command
@@ -16,6 +17,52 @@ def get_queue_size():
 def count_lines(filepath):
     with open(filepath, 'rb') as f:  # open in binary mode for performance
         return sum(1 for line in f)
+
+def load_regression_summary_tasks(csv_path: str, category_filter=None):
+    """
+    Load (instance, K) pairs from regression_summary.csv.
+
+    Expected columns: instance_name, local_max_k.
+    Rows with local_max_k < 0 are skipped by default.
+    """
+    tasks = []
+    if not os.path.exists(csv_path):
+        raise FileNotFoundError(f"regression summary CSV not found: {csv_path}")
+    with open(csv_path, newline="") as f:
+        reader = csv.DictReader(f)
+        if "instance_name" not in reader.fieldnames or "local_max_k" not in reader.fieldnames:
+            raise ValueError(
+                f"Unexpected CSV columns in {csv_path}: {reader.fieldnames}. "
+                "Need at least: instance_name, local_max_k"
+            )
+        for row in reader:
+            name = (row.get("instance_name") or "").strip()
+            if not name:
+                continue
+            if category_filter is not None:
+                # regression_summary.csv uses "best_model" as category label
+                # (linear/polynomial/exponential/None). We normalize None -> "none".
+                best_model = (row.get("best_model") or "").strip()
+                best_model_norm = "none" if best_model.lower() == "none" else best_model.lower()
+                if best_model_norm not in category_filter:
+                    continue
+            try:
+                k = int(str(row.get("local_max_k", "")).strip())
+            except Exception:
+                continue
+            if k < 0:
+                continue
+            tasks.append((name, k))
+    # Deduplicate while preserving order.
+    seen = set()
+    deduped = []
+    for name, k in tasks:
+        key = (name, k)
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(key)
+    return deduped
 
 def main():
     linear = get_instance_list("linear")
@@ -37,6 +84,8 @@ def main():
     parser.add_argument("--local_prepare_solving_time_only", action="store_true", default=False)
     # parser.add_argument("--prepare_solving_time_only", action="store_true", default=False)
     parser.add_argument("--compute_strongest_interpolant", action="store_true", default=False)
+    parser.add_argument("--from_regression_summary", action="store_true", default=False)
+    parser.add_argument("--regression_summary_path", action="store", default="regression_summary.csv")
     parser.add_argument("--check_interpolants", action="store_true", default=False)
     parser.add_argument("--manage", action="store_true", default=False)
     parser.add_argument("--limit", action="store", default=1000)
@@ -248,20 +297,37 @@ def main():
         exit()
 
     if args.compute_strongest_interpolant:
-        exponential_names = get_instance_list("exponential")
-        linear_names = get_instance_list("linear")
-        interested_names = exponential_names + linear_names
-        K_list = [5]
-        activate_python = "source ../general/bin/activate"
-        for name in interested_names:
-            for K in K_list:
-                prepare_cnf_obj_cmd = f"{activate_python} && python ./scripts/prepare_single.py --name {name} --K {K} --build_cnf_obj"
-                wrapped = f"{prepare_cnf_obj_cmd}"
-                os.system(f"sbatch --output=./SlurmLogs/compute_strongest_interpolant/{name}.{K}.build_cnf_obj.log --mem=20g --time=10:00:00 --wrap=\"{wrapped}\"")
-                for index in range(K):
-                    output=f"./SlurmLogs/compute_strongest_interpolant/{name}.{K}.{index}.log"
-                    wrapped = f"{activate_python} && python ./scripts/prepare_single.py --name {name} --K {K} --compute_strongest_interpolant --index {index}"
-                    os.system(f"sbatch --output={output} --mem=30g --time=12:00:00 --wrap=\"{wrapped}\"")
+        # Use the already-computed interested_names (category/focus_name).
+        if args.from_regression_summary:
+            # Apply --category filter using regression_summary.csv's "best_model" column.
+            category_filter = None
+            if args.category is not None and args.category != "all":
+                requested = [c.strip().lower() for c in str(args.category).split(",") if c.strip()]
+                if requested:
+                    category_filter = set(requested)
+            tasks = load_regression_summary_tasks(args.regression_summary_path, category_filter=category_filter)
+            if args.focus_name is not None:
+                tasks = [(n, k) for (n, k) in tasks if n == args.focus_name]
+            if not tasks:
+                print("No (instance, K) tasks loaded from regression summary (after filtering).")
+                exit()
+        else:
+            K_list = [int(args.K)]
+            tasks = [(name, K_list[0]) for name in interested_names]
+        # random.shuffle(tasks)
+        # tasks = tasks[:20]
+        activate_python = "source ../../general/bin/activate"
+        force_refresh_flag = "--force_refresh" if args.force_refresh else ""
+        os.makedirs("./SlurmLogs/compute_strongest_interpolant", exist_ok=True)
+        for name, K in tasks:
+            # Strongest interpolants are sequential: index i depends on (i-1).
+            # So submit ONE job per (instance, K) to compute all indices in order.
+            output = f"./SlurmLogs/compute_strongest_interpolant/{name}.{K}.all.log"
+            wrapped = (
+                f"{activate_python} && python ./scripts/prepare_single.py "
+                f"--name {name} --K {K} --compute_strongest_interpolants {force_refresh_flag}"
+            )
+            os.system(f"sbatch --output={output} --mem=2g --time=2:00:00 --wrap=\"{wrapped}\"")
         exit()
 
     if args.prepare_only:
@@ -289,7 +355,7 @@ def main():
         exit()
     
 
-    activate_python = "source ../general/bin/activate"
+    activate_python = "source ../../general/bin/activate"
     for K in K_set:
         slurm_ids = []
         for name in interested_names[:10]:

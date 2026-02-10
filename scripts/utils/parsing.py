@@ -20,12 +20,25 @@ def parse_interpolant(file_path : str) -> AstVector:
     # check if content is empty
     if not content:
         raise ValueError(f"Interpolant file {file_path} is empty")
-    # remove unsat keyword
+    content = content.strip()
+
+    # Z3 may output only a status line when no interpolant exists.
+    # In particular, for a satisfiable split it prints just "sat".
+    first_line = content.splitlines()[0].strip().lower() if content else ""
+    if first_line in ("sat", "unknown"):
+        raise ValueError(
+            f"Interpolant file {file_path} indicates '{first_line}' (no interpolant produced)."
+        )
+
+    # remove unsat keyword (usually the first line of Z3 output)
     content = content.replace("unsat", "")
     content = content.strip()
     content = content.replace("(interpolants", "")
     #remove only one last ) keyword
     content = content.rsplit(")", 1)[0]
+    content = content.strip()
+    if not content:
+        raise ValueError(f"Interpolant file {file_path} has no interpolant content after normalization")
     content = wrap_with_declarations_and_assert(content)
     return parse_smt2_string(content)
 

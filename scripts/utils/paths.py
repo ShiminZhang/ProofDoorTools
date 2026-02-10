@@ -56,6 +56,12 @@ def get_CNF_dir(k_value):
         os.makedirs(f"./ProofDoorBenchmark/cnfs/{k_value}/", exist_ok=True)
     return f"./ProofDoorBenchmark/cnfs/{k_value}/"
 
+def get_scrambled_CNF(name,k_value,permute_type,permute_index):
+    file_path = f"./ProofDoorBenchmark/scrambled_cnfs/{k_value}/{permute_index}/{name}.{k_value}.{permute_type}.cnf"
+    if not os.path.exists(file_path):
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+    return file_path
+
 def get_interpolant_cnf_dir(k_value=10, pddef=0):
     if os.path.exists(f"./ProofDoorBenchmark/interpolant_as_cnfs_{pddef}/{k_value}/"):
         return f"./ProofDoorBenchmark/interpolant_as_cnfs_{pddef}/{k_value}/"

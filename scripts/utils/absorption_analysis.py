@@ -190,9 +190,13 @@ def compute_wire_for_formula(formula: CNF,i):
 
 def compute_wire(A,B):
     # A and B are two cnf formulas 
-    shared_literals =set([l for l in B.literal_set if l in A.literal_set])
-    shared_literals = sorted(list(shared_literals))
-    return shared_literals
+    # Wires should be shared *variables* (by id), not signed literals.
+    # `A.literal_set` / `B.literal_set` may contain signed literals depending on how
+    # the CNF object was constructed, so normalize via abs().
+    A_vars = {abs(l) for l in A.literal_set}
+    B_vars = {abs(l) for l in B.literal_set}
+    shared_vars = sorted(A_vars & B_vars)
+    return shared_vars
 
 def construct_all_possible_clauses(literals):
     clauses = []
@@ -208,7 +212,7 @@ def construct_all_possible_clauses(literals):
         clauses.append(clause)
     return clauses
 
-def compute_wire_and_save(formula: CNF,K=-1):
+def compute_wire_and_save(formula: CNF, K: int = -1, force_refresh: bool = False):
     logger = logging.getLogger("proofdoor.worker")
     logger.info("compute_wire_and_save: %s", formula.cnf_path)
     if K == -1:
@@ -221,7 +225,7 @@ def compute_wire_and_save(formula: CNF,K=-1):
         basename = os.path.basename(formula.cnf_path)
         basename = basename.split(".")[0]
         output_file = os.path.join(get_wires_dir(K), f"{basename}.{K}.{i}.wires.json")
-        if os.path.exists(output_file):
+        if (not force_refresh) and os.path.exists(output_file):
             logger.info("wires: %s already exists", output_file)
             res = json.load(open(output_file, 'r'))
             wire_size_map[i] = res["wire_size"]

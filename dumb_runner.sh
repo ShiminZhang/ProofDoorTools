@@ -12,22 +12,43 @@ source ../../general/bin/activate
 source .env
 
 if [ "$section" == "1" ]; then
-    python scripts/pipeline_scheduler.py --reverse  --category linear
-    python scripts/pipeline_scheduler.py --reverse  --category exponential
+    
+    # python scripts/pipeline_scheduler.py --no_reverse  --category linear
+    # python scripts/pipeline_scheduler.py --no_reverse  --category exponential
+    python scripts/pipeline_scheduler.py --reverse  --category linear --interpolation
+    python scripts/pipeline_scheduler.py --reverse  --category exponential --interpolation
     # python scripts/prepare.py --focus_name $2 --prepare_sequential --K $3
     # python scripts/AbsorptionExperiment.py --test
     #  python scripts/SMTTranslationToCNFExperiment.py --main --K 10 --category linear --time "8:00:00"
 fi
 
 if [ "$section" == "2" ]; then
+    # python scripts/AbsorptionExperiment.py --from_summary exponential.reverse.csv --reverse
+    # python scripts/AbsorptionExperiment.py --from_summary linear.reverse.csv --reverse
+    # python scripts/AbsorptionExperiment.py --from_summary exponential.reverse.csv --reverse --use_glucose_proof
+    # python scripts/AbsorptionExperiment.py --from_summary linear.reverse.csv --reverse --use_glucose_proof
+    python scripts/AbsorptionExperiment.py --from_summary exponential.csv
+    python scripts/AbsorptionExperiment.py --from_summary linear.csv
+    python scripts/AbsorptionExperiment.py --from_summary exponential.csv --use_glucose_proof
+    python scripts/AbsorptionExperiment.py --from_summary linear.csv  --use_glucose_proof
     # python scripts/prepare.py --prepare_sequential --pddef 1 --manage --K 10 --category exponential,linear
-    python ./scripts/prepare_single.py --name 6s399rb22 --K 100 --pre_interpolant --pddef 1 --force_refresh
-    python scripts/SMTTranslationToCNFExperiment.py --K 100 --main --instance 6s399rb22
+    # python ./scripts/prepare_single.py --name 6s399rb22 --K 100 --pre_interpolant --pddef 1 --force_refresh
+    # python scripts/SMTTranslationToCNFExperiment.py --K 100 --main --instance 6s399rb22
     # python scripts/sanity_check.py --K 5 --pddef 3 --all > sanity_check_def3_5.log
     # python scripts/sanity_check.py --K 15 --pddef 3 --all > sanity_check_def3_15.log
 fi
 
 if [ "$section" == "3" ]; then
+    
+    # python scripts/prepare.py --compute_strongest_interpolant --from_regression_summary --category linear --focus_name 139442p0
+    # python scripts/prepare.py --compute_strongest_interpolant --from_regression_summary --category linear --focus_name 139442p1
+    # python scripts/prepare.py --compute_strongest_interpolant --from_regression_summary --category linear
+    python scripts/pipeline_scheduler.py  --category exponential --scaling --interpolation --completed_interpolants_only
+    python scripts/StrongestInterpolantToCNF.py --instance nusmvsyncarb5p2 --K 10 --manage
+    python scripts/StrongestInterpolantToCNF.py --instance power2bit8 --K 10 --manage
+    python scripts/StrongestInterpolantToCNF.py --instance shift1add256 --K 10 --manage
+# python scripts/prepare_single.py --name 139442p0 --K 10 --index 0 --compute_strongest_interpolant --force_refresh
+# python scripts/prepare_single.py --name 139442p0 --K 10 --index 1 --compute_strongest_interpolant --force_refresh
     # python scripts/AbsorptionExperiment.py --K 10 --category linear --main --use_minisat
     # python scripts/AbsorptionExperiment.py --K 10 --category exponential --main --use_minisat
     # python scripts/AbsorptionExperiment.py --K 10 --category linear --main --use_minisat --include_formula_in_checking
@@ -37,10 +58,10 @@ if [ "$section" == "3" ]; then
 
     # python scripts/AbsorptionExperiment.py --K 10 --category linear --main 
     # python scripts/AbsorptionExperiment.py --K 10 --category exponential --main 
-    python scripts/AbsorptionExperiment.py --K 10 --category linear --main --use_glucose_proof --include_formula_in_checking
-    python scripts/AbsorptionExperiment.py --K 10 --category exponential --main --use_glucose_proof --include_formula_in_checking
-    python scripts/AbsorptionExperiment.py --K 10 --category linear --main --include_formula_in_checking
-    python scripts/AbsorptionExperiment.py --K 10 --category exponential --main --include_formula_in_checking
+    # python scripts/AbsorptionExperiment.py --K 10 --category linear --main --use_glucose_proof --include_formula_in_checking
+    # python scripts/AbsorptionExperiment.py --K 10 --category exponential --main --use_glucose_proof --include_formula_in_checking
+    # python scripts/AbsorptionExperiment.py --K 10 --category linear --main --include_formula_in_checking
+    # python scripts/AbsorptionExperiment.py --K 10 --category exponential --main --include_formula_in_checking
     # python scripts/AbsorptionExperiment.py --K 10 --category linear --main
     # python scripts/AbsorptionExperiment.py --K 10 --category exponential --main 
 
@@ -56,15 +77,8 @@ if [ "$section" == "3" ]; then
 fi
 
 if [ "$section" == "4" ]; then
-    # ./simplecar -bmc -k 100 -cnf ProofDoorBenchmark/cnfs/100/ ProofDoorBenchmark/aigs/6s339rb22.aig
-    # ./simplecar -bmc -k 1 -cnf ProofDoorBenchmark/cnfs/50/ ProofDoorBenchmark/aigs/6s339rb22.aig
-    # python scripts/sanity_check.py --K 10 --pddef 1 --all > sanity_check_10.log
-    # python scripts/sanity_check.py --K 40 --pddef 1 --all > sanity_check_40.log
-    # python scripts/interpolant_sanity_check.py  --K 10 --pddef 1 --all > sanity_check_10_pddef1.log
-    # python -m scripts.pyscripts.run_combined_formulas --k 40 --pddef 1 --category exponential
-    #  python scripts/prepare_data.py --compute_strongest_interpolant --name 139442p0 --K 3 --index 1 --sanity_check 
-     python scripts/prepare.py --focus_name 6s339rb22 --prepare_sequential --K 100 --manage
-    # python scripts/run_combined_formulas.py --K 40 --pddef 1 --category exponential
+    python scripts/pipeline_scheduler.py  --category exponential --scaling --interpolation --proofgate
+    python scripts/pipeline_scheduler.py  --category linear --scaling --interpolation --proofgate
 fi
 
 if [ "$section" == "5" ]; then

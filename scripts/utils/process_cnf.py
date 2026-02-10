@@ -270,7 +270,18 @@ class CNF:
             # Write header
             f.write(f"p cnf {self.L} {self.N}\n")
             # Write clauses
-            for clause in self.clauses:
+            # Insert iteration boundary comments like original CNFs: "c iter <i>"
+            # self.iter_map maps iter_index -> start clause index of that iteration block.
+            boundary_at = {}
+            for iter_idx, start in (self.iter_map or {}).items():
+                try:
+                    boundary_at[int(start)] = int(iter_idx)
+                except Exception:
+                    continue
+
+            for clause_idx, clause in enumerate(self.clauses):
+                if clause_idx in boundary_at:
+                    f.write(f"c iter {boundary_at[clause_idx]} \n")
                 f.write(" ".join(str(lit) for lit in clause) + " 0\n")
         return file_path
 

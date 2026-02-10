@@ -58,7 +58,8 @@ def prepare_interpolant_def3(name,k_value,index,force_refresh=False):
     print(f"CNF file path: {cnf_path}")
     if not os.path.exists(interpolant_path) or force_refresh or os.path.getsize(interpolant_path) == 0 or True:
         print(f"Interpolant file {interpolant_path} DNE or force_refresh, regenerating")
-        interpolant = compute_interpolant_def3(cnf_path,smt_path)
+        clause_wire_map = compute_interpolant_def3(name, k_value, force_refresh=force_refresh)
+        interpolant = clause_wire_map[index]
         
         with open(interpolant_path, "w") as file:
             for line in interpolant:

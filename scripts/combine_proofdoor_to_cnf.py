@@ -12,6 +12,8 @@ import argparse
 import re
 import csv
 from utils.utils import GetDataFromLog
+import random
+from typing import Optional
 
 CADICAL_BINARY = "./solvers/cadical"
 SLURM_LOG_DIR = "./SlurmLogs/solve_combine/"
@@ -191,6 +193,104 @@ def parse_cnf_file(file):
             elif line:
                 clauses.append(line)
     return var_count, clause_count, clauses
+
+def _max_var_in_clause_line(clause_line: str) -> int:
+    """
+    Given a DIMACS/DRAT clause line like "1 -3 7 0" (or without trailing 0),
+    return max absolute variable index.
+    """
+    max_v = 0
+    for tok in clause_line.strip().split():
+        if tok == "0":
+            continue
+        try:
+            v = abs(int(tok))
+        except Exception:
+            continue
+        if v > max_v:
+            max_v = v
+    return max_v
+
+def parse_drat_add_clauses(drat_path: str) -> list:
+    """
+    Parse a DRAT file and return a list of *added* clauses as DIMACS lines.
+    - Skips deletion lines starting with 'd'
+    - Skips comment lines starting with 'c'
+    """
+    add_clauses = []
+    with open(drat_path, "r") as f:
+        for raw in f:
+            line = raw.strip()
+            if not line:
+                continue
+            if line.startswith("c"):
+                continue
+            if line.startswith("d"):
+                continue
+            # Keep the clause line as-is (typically ends with 0)
+            add_clauses.append(line)
+    return add_clauses
+
+def resolve_original_drat_path(original_cnf_path: str, instance: str, K: int) -> Optional[str]:
+    """
+    Try common conventions for original CaDiCaL drat path.
+    """
+    candidates = [
+        f"{original_cnf_path}.cadicalplain.drat",              # most common in this repo
+        f"{get_CNF_dir(K)}/{instance}.{K}.cadicalplain.drat",  # legacy convention
+    ]
+    for p in candidates:
+        if os.path.exists(p) and os.path.getsize(p) > 0:
+            return p
+    return None
+
+def write_random_drat_add_combined_cnf(
+    *,
+    original_cnf_path: str,
+    proofdoor_combined_cnf_path: str,
+    original_drat_path: str,
+    output_cnf_path: str,
+    seed: int,
+) -> dict:
+    """
+    Build a baseline combined CNF by sampling add-clauses from the original DRAT proof.
+    Sampling size equals the number of proofdoor-added clauses:
+        |clauses(proofdoor_combined)| - |clauses(original)|
+    """
+    orig_var_count, _, orig_clauses = parse_cnf_file(original_cnf_path)
+    _, _, proofdoor_clauses = parse_cnf_file(proofdoor_combined_cnf_path)
+    n_added = max(0, len(proofdoor_clauses) - len(orig_clauses))
+
+    drat_adds = parse_drat_add_clauses(original_drat_path)
+    rng = random.Random(seed)
+    if n_added >= len(drat_adds):
+        sampled = drat_adds[:]  # take all we have
+    else:
+        sampled = rng.sample(drat_adds, n_added)
+
+    max_var = orig_var_count
+    for cl in sampled:
+        max_var = max(max_var, _max_var_in_clause_line(cl))
+
+    os.makedirs(os.path.dirname(output_cnf_path), exist_ok=True)
+    with open(output_cnf_path, "w") as f:
+        f.write(f"p cnf {max_var} {len(orig_clauses) + len(sampled)}\n")
+        for clause in orig_clauses:
+            f.write(clause + "\n")
+        for clause in sampled:
+            # Ensure DIMACS termination (defensive)
+            if clause.endswith(" 0") or clause.endswith("\t0") or clause.endswith(" 0 "):
+                f.write(clause.strip() + "\n")
+            else:
+                f.write(clause.strip() + " 0\n")
+
+    return {
+        "n_added_target": n_added,
+        "n_drat_adds_total": len(drat_adds),
+        "n_sampled": len(sampled),
+        "seed": seed,
+        "output": output_cnf_path,
+    }
 
 def combine_with_original_cnf(dimacs_file, original_cnf, output_file):
     """Combine a DIMACS file with the original CNF file into a new file."""
@@ -448,6 +548,9 @@ def main():
     parser.add_argument("--copy_original_only", action="store_true", default=False, help="Only copy original CNF as combined.0.cnf")
     parser.add_argument("--run", action="store_true", default=False, help="Submit slurm jobs to solve original and combined CNFs")
     parser.add_argument("--compare", action="store_true", default=False, help="Compare solving time between original and combined CNFs and print improvement ratio")
+    parser.add_argument("--random_drat_add", action="store_true", default=False, help="Also create a baseline combined CNF by sampling add-clauses from original .drat (same count as proofdoor-added clauses)")
+    parser.add_argument("--random_drat_seed", type=int, default=0, help="Random seed for --random_drat_add sampling")
+    parser.add_argument("--random_drat_tag", type=str, default="dratrand", help="Tag used in output filename for --random_drat_add")
     args = parser.parse_args()
 
     # Read CSV and collect instances where smt2cnf_status == 'done'
@@ -490,6 +593,28 @@ def main():
             cadical_cmd = f"{activate_python} && {CADICAL_BINARY} --plain --no-binary {combined_full} {comb_drat} > {comb_log} 2>&1"
             slurm_out_comb = f"{SLURM_LOG_DIR}/comb_{instance}.{K}.%j.log"
             os.system(f"sbatch --job-name=solve_comb_{instance}.{K} --time=00:00:5000 --mem=16g --output={slurm_out_comb} --wrap=\"{cadical_cmd}\"")
+
+            if args.random_drat_add:
+                rand_cnf = f"{combined_dir}/{instance}.{K}.combined.{args.random_drat_tag}.seed{args.random_drat_seed}.cnf"
+                if not os.path.exists(rand_cnf):
+                    drat_path = resolve_original_drat_path(original_cnf, instance, K)
+                    if drat_path is None:
+                        print(f"[SKIP] Original DRAT proof not found for {instance}.{K} (needed for --random_drat_add)")
+                    else:
+                        info = write_random_drat_add_combined_cnf(
+                            original_cnf_path=original_cnf,
+                            proofdoor_combined_cnf_path=combined_full,
+                            original_drat_path=drat_path,
+                            output_cnf_path=rand_cnf,
+                            seed=args.random_drat_seed,
+                        )
+                        print(f"[OK] Wrote random-DRAT combined CNF: {info}")
+                if os.path.exists(rand_cnf):
+                    rand_log = f"{rand_cnf}.cadicalplain.log"
+                    rand_drat = f"{rand_cnf}.cadicalplain.drat"
+                    rand_cmd = f"{activate_python} && {CADICAL_BINARY} --plain --no-binary {rand_cnf} {rand_drat} > {rand_log} 2>&1"
+                    slurm_out_rand = f"{SLURM_LOG_DIR}/rand_{instance}.{K}.%j.log"
+                    os.system(f"sbatch --job-name=solve_rand_{instance}.{K} --time=00:00:5000 --mem=16g --output={slurm_out_rand} --wrap=\"{rand_cmd}\"")
         return
     previous_parsed_cnf_clauses = {}
     auxilliary_map = {}
@@ -521,22 +646,47 @@ def main():
         previous_parsed_cnf_clauses, auxilliary_map = combine_first_n_interpolant_to_cnf_single(
             instance, smtcnf_files, K, K, previous_parsed_cnf_clauses, auxilliary_map, pddef=args.pddef
         )
+
+        if args.random_drat_add:
+            combined_full = f"{combined_dir}/{instance}.{K}.combined.{K}.cnf"
+            if not os.path.exists(combined_full):
+                print(f"[SKIP] Proofdoor combined CNF not found (needed for clause count): {combined_full}")
+                continue
+            drat_path = resolve_original_drat_path(original_cnf, instance, K)
+            if drat_path is None:
+                print(f"[SKIP] Original DRAT proof not found for {instance}.{K} (needed for --random_drat_add)")
+                continue
+            rand_out = f"{combined_dir}/{instance}.{K}.combined.{args.random_drat_tag}.seed{args.random_drat_seed}.cnf"
+            info = write_random_drat_add_combined_cnf(
+                original_cnf_path=original_cnf,
+                proofdoor_combined_cnf_path=combined_full,
+                original_drat_path=drat_path,
+                output_cnf_path=rand_out,
+                seed=args.random_drat_seed,
+            )
+            print(f"[OK] Wrote random-DRAT combined CNF: {info}")
     # Optionally compare solving times
     if args.compare:
         total = 0
         improved = 0
         sum_orig = 0.0
         sum_comb = 0.0
+        sum_rand = 0.0
+        improved_rand = 0
+        total_rand = 0
         missing = 0
         details = []
         for instance, K in tqdm(targets):
             orig_log = f"{get_CNF_dir(K)}/{instance}.{K}.cnf.cadicalplain.log"
             comb_log = f"{get_interpolant_dimacs_dir(K, args.pddef)}/{instance}.{K}.combined.{K}.cnf.cadicalplain.log"
+            rand_log = f"{get_interpolant_dimacs_dir(K, args.pddef)}/{instance}.{K}.combined.{args.random_drat_tag}.seed{args.random_drat_seed}.cnf.cadicalplain.log"
+
             if not (os.path.exists(orig_log) and os.path.exists(comb_log)):
                 missing += 1
                 continue
             t_orig = GetDataFromLog(orig_log)
             t_comb = GetDataFromLog(comb_log)
+            t_rand = GetDataFromLog(rand_log) if (args.random_drat_add and os.path.exists(rand_log)) else None
             if t_orig is None or t_comb is None:
                 missing += 1
                 continue
@@ -545,8 +695,17 @@ def main():
             sum_comb += t_comb
             if t_comb < t_orig:
                 improved += 1
-            red = (t_orig - t_comb) / t_orig if t_orig and t_orig > 0 else 0.0
-            details.append((instance, K, t_orig, t_comb, red))
+            red_pd = (t_orig - t_comb) / t_orig if t_orig and t_orig > 0 else 0.0
+
+            red_rand = None
+            if t_rand is not None:
+                sum_rand += t_rand
+                total_rand += 1
+                if t_rand < t_orig:
+                    improved_rand += 1
+                red_rand = (t_orig - t_rand) / t_orig if t_orig and t_orig > 0 else 0.0
+
+            details.append((instance, K, t_orig, t_comb, t_rand, red_pd, red_rand))
 
         print(f"[COMPARE] Valid pairs: {total}, missing/invalid: {missing}")
         if total > 0:
@@ -555,11 +714,35 @@ def main():
             overall_reduction = (avg_orig - avg_comb) / avg_orig if avg_orig > 0 else 0.0
             print(f"[COMPARE] Improved count: {improved}/{total} ({improved/total:.1%})")
             print(f"[COMPARE] Avg original time: {avg_orig:.3f}s, Avg combined time: {avg_comb:.3f}s, Reduction: {overall_reduction:.1%}")
-            details.sort(key=lambda x: x[4], reverse=True)
-            for instance, K, t_orig, t_comb, red in details[:5]:
-                print(f"[TOP] {instance}.{K}: orig={t_orig:.3f}s, comb={t_comb:.3f}s, reduction={red:.1%}")
-            for instance, K, t_orig, t_comb, red in details[6:]:
-                print(f"[REST] {instance}.{K}: orig={t_orig:.3f}s, comb={t_comb:.3f}s, reduction={red:.1%}")
+
+            if args.random_drat_add:
+                avg_rand = (sum_rand / total_rand) if total_rand > 0 else 0.0
+                overall_red_rand = (avg_orig - avg_rand) / avg_orig if avg_orig > 0 else 0.0
+                if total_rand > 0:
+                    print(f"[COMPARE] Random-DRAT improved count: {improved_rand}/{total_rand} ({improved_rand/total_rand:.1%})")
+                    print(f"[COMPARE] Avg random-DRAT time: {avg_rand:.3f}s, Reduction vs orig: {overall_red_rand:.1%} (tag={args.random_drat_tag}, seed={args.random_drat_seed})")
+                else:
+                    print(f"[COMPARE] Random-DRAT logs missing for all instances (tag={args.random_drat_tag}, seed={args.random_drat_seed})")
+
+            # Sort by proofdoor reduction
+            details.sort(key=lambda x: x[5], reverse=True)
+            for instance, K, t_orig, t_comb, t_rand, red_pd, red_rand in details[:5]:
+                comb_path = f"{get_interpolant_dimacs_dir(K, args.pddef)}/{instance}.{K}.combined.{K}.cnf.cadicalplain.log"
+                if args.random_drat_add:
+                    rand_path = f"{get_interpolant_dimacs_dir(K, args.pddef)}/{instance}.{K}.combined.{args.random_drat_tag}.seed{args.random_drat_seed}.cnf.cadicalplain.log"
+                    rand_str = f", rand={t_rand:.3f}s, red_rand={red_rand:.1%}" if t_rand is not None and red_rand is not None else ", rand=N/A"
+                    print(f"[TOP] {instance}.{K}: orig={t_orig:.3f}s, pd={t_comb:.3f}s, red_pd={red_pd:.1%}{rand_str}, pd_log: {comb_path}, rand_log: {rand_path}")
+                else:
+                    print(f"[TOP] {instance}.{K}: orig={t_orig:.3f}s, pd={t_comb:.3f}s, red_pd={red_pd:.1%}, pd_log: {comb_path}")
+
+            for instance, K, t_orig, t_comb, t_rand, red_pd, red_rand in details[5:]:
+                comb_path = f"{get_interpolant_dimacs_dir(K, args.pddef)}/{instance}.{K}.combined.{K}.cnf.cadicalplain.log"
+                if args.random_drat_add:
+                    rand_path = f"{get_interpolant_dimacs_dir(K, args.pddef)}/{instance}.{K}.combined.{args.random_drat_tag}.seed{args.random_drat_seed}.cnf.cadicalplain.log"
+                    rand_str = f", rand={t_rand:.3f}s, red_rand={red_rand:.1%}" if t_rand is not None and red_rand is not None else ", rand=N/A"
+                    print(f"[REST] {instance}.{K}: orig={t_orig:.3f}s, pd={t_comb:.3f}s, red_pd={red_pd:.1%}{rand_str}, pd_log: {comb_path}, rand_log: {rand_path}")
+                else:
+                    print(f"[REST] {instance}.{K}: orig={t_orig:.3f}s, pd={t_comb:.3f}s, red_pd={red_pd:.1%}, pd_log: {comb_path}")
             
     sys.exit(0)
     # input_file = sys.argv[1]

@@ -4,13 +4,22 @@ import logging
 import os
 import platform
 import json
-import psutil
 import time
+
+try:
+    import psutil  # type: ignore
+except ModuleNotFoundError:  # pragma: no cover
+    psutil = None
 
 
 def get_machine_info():
-    cpu_percent = psutil.cpu_percent(interval=1)
-    virtual_mem = psutil.virtual_memory()
+    if psutil is None:
+        # psutil is an optional dependency; keep experiments runnable without it.
+        cpu_percent = None
+        virtual_mem = None
+    else:
+        cpu_percent = psutil.cpu_percent(interval=1)
+        virtual_mem = psutil.virtual_memory()
     system_info = {
         "system": platform.system(),
         "node": platform.node(),
@@ -21,10 +30,10 @@ def get_machine_info():
     }
     machine_info = {
         "cpu_percent": cpu_percent,
-        "memory_total": virtual_mem.total,
-        "memory_available": virtual_mem.available,
-        "memory_percent": virtual_mem.percent,
-        "memory_used": virtual_mem.used,
+        "memory_total": getattr(virtual_mem, "total", None),
+        "memory_available": getattr(virtual_mem, "available", None),
+        "memory_percent": getattr(virtual_mem, "percent", None),
+        "memory_used": getattr(virtual_mem, "used", None),
         "system_info": system_info,
     }
     return machine_info

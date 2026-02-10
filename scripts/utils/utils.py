@@ -4,8 +4,16 @@ import glob
 import json
 from tqdm import tqdm
 from collections import defaultdict
-from scipy.stats import pearsonr
-from sklearn.metrics import r2_score, mean_squared_error
+try:
+    from scipy.stats import pearsonr  # type: ignore
+except Exception:  # pragma: no cover
+    pearsonr = None
+
+try:
+    from sklearn.metrics import r2_score, mean_squared_error  # type: ignore
+except Exception:  # pragma: no cover
+    r2_score = None
+    mean_squared_error = None
 import numpy as np
 from z3 import *
 import re
@@ -421,6 +429,8 @@ def ComputeCorrelation(SolvingTimeMap,ProofDoorSizeMap,NameLeft="SolvingTime",Na
     print(f"{NameRight} size with common keys: {len(proof_door_sizes)}")
     print(f"{NameLeft} size with common keys: {len(solving_times)}")
     # Calculate Pearson correlation coefficient
+    if pearsonr is None:
+        raise ImportError("scipy is required for pearson correlation (install scipy).")
     correlation, p_value = pearsonr(proof_door_sizes, solving_times)
     
     print(f"Pearson correlation coefficient: {correlation}")
@@ -619,6 +629,8 @@ def PolynomialRegression(x_dict,y_dict,degree=2):
     y_pred = polynomial(x)
 
     # Evaluate fit quality
+    if r2_score is None or mean_squared_error is None:
+        raise ImportError("scikit-learn is required for regression metrics (install scikit-learn).")
     r2 = r2_score(y, y_pred)
     mse = mean_squared_error(y, y_pred)
 
