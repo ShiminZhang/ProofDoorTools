@@ -1,7 +1,7 @@
 #!/bin/bash                                                    
 #SBATCH --time=0-12:0:0                                                      
 #SBATCH --account=def-vganesh 
-#SBATCH --mem=20G
+#SBATCH --mem=10G
 #SBATCH --cpus-per-task=1
 #SBATCH --output=./dumb_runner_%j.log
 
@@ -12,25 +12,39 @@ source ../../general/bin/activate
 source .env
 
 if [ "$section" == "1" ]; then
-    
+    module load apptainer/1.4.5
+    apptainer exec --bind $PWD:/work sage.sif   sage -python /work/scripts/compute_pathwidth_sage.py /work/ProofDoorBenchmark/cnfs/10/139442p0.10.cnf --mode block
     # python scripts/pipeline_scheduler.py --no_reverse  --category linear
     # python scripts/pipeline_scheduler.py --no_reverse  --category exponential
-    python scripts/pipeline_scheduler.py --reverse  --category linear --interpolation
-    python scripts/pipeline_scheduler.py --reverse  --category exponential --interpolation
+    # python scripts/pipeline_scheduler.py --reverse  --category linear --interpolation
+    # python scripts/pipeline_scheduler.py  --category linear --interpolation --scaling
+    # python scripts/pipeline_scheduler.py --reverse  --category exponential --interpolation
     # python scripts/prepare.py --focus_name $2 --prepare_sequential --K $3
     # python scripts/AbsorptionExperiment.py --test
     #  python scripts/SMTTranslationToCNFExperiment.py --main --K 10 --category linear --time "8:00:00"
 fi
 
 if [ "$section" == "2" ]; then
+    python scripts/prepare.py   --compute_strongest_interpolant   --from_regression_summary   --regression_summary_path regression_summary.csv   --category exponential --K 6
+    python scripts/prepare.py   --compute_strongest_interpolant   --from_regression_summary   --regression_summary_path regression_summary.csv   --category linear --K 6
+    # python scripts/compute_pathwidth.py --manage --K 9 --mode block
+    # python scripts/compute_pathwidth.py --manage --K 8 --mode block
+    # python scripts/compute_pathwidth.py --manage --K 7 --mode block
+    # python scripts/compute_pathwidth.py --manage --K 6 --mode block
+    # python scripts/compute_pathwidth.py --manage --K 5 --mode block
+    # python scripts/compute_pathwidth.py --manage --K 4 --mode block
+    # python scripts/compute_pathwidth.py --manage --K 3 --mode block
+    # python scripts/compute_pathwidth.py --manage --K 2 --mode block
+    # python scripts/compute_pathwidth.py --manage --K 1 --mode block
+    # python scripts/compute_pathwidth.py --cnf ProofDoorBenchmark/cnfs/10/139442p0.10.cnf
     # python scripts/AbsorptionExperiment.py --from_summary exponential.reverse.csv --reverse
     # python scripts/AbsorptionExperiment.py --from_summary linear.reverse.csv --reverse
     # python scripts/AbsorptionExperiment.py --from_summary exponential.reverse.csv --reverse --use_glucose_proof
     # python scripts/AbsorptionExperiment.py --from_summary linear.reverse.csv --reverse --use_glucose_proof
-    python scripts/AbsorptionExperiment.py --from_summary exponential.csv
-    python scripts/AbsorptionExperiment.py --from_summary linear.csv
-    python scripts/AbsorptionExperiment.py --from_summary exponential.csv --use_glucose_proof
-    python scripts/AbsorptionExperiment.py --from_summary linear.csv  --use_glucose_proof
+    # python scripts/AbsorptionExperiment.py --from_summary exponential.csv
+    # python scripts/AbsorptionExperiment.py --from_summary linear.csv
+    # python scripts/AbsorptionExperiment.py --from_summary exponential.csv --use_glucose_proof
+    # python scripts/AbsorptionExperiment.py --from_summary linear.csv  --use_glucose_proof
     # python scripts/prepare.py --prepare_sequential --pddef 1 --manage --K 10 --category exponential,linear
     # python ./scripts/prepare_single.py --name 6s399rb22 --K 100 --pre_interpolant --pddef 1 --force_refresh
     # python scripts/SMTTranslationToCNFExperiment.py --K 100 --main --instance 6s399rb22
@@ -82,7 +96,18 @@ if [ "$section" == "4" ]; then
 fi
 
 if [ "$section" == "5" ]; then
-    python scripts/AbsorptionExperiment.py --test --use_pbh_proof 
+    # python scripts/pipeline_scheduler.py --prepare_formula --use_summary regression_summary.csv
+    python scripts/PDSScalingExperiment.py --pddef 1 --category linear  --x K --trim_top_percent 90 --y pds
+    python scripts/PDSScalingExperiment.py --pddef 1 --category linear  --x K --trim_top_percent 25 --y pds
+    python scripts/PDSScalingExperiment.py --pddef 1 --category linear  --x K --trim_top_percent 15 --y pds
+    python scripts/PDSScalingExperiment.py --pddef 1 --category linear  --x K --trim_top_percent 80 --y pds
+    python scripts/PDSScalingExperiment.py --pddef 1 --category linear  --x K --trim_top_percent 70 --y pds
+    python scripts/PDSScalingExperiment.py --pddef 1 --category linear  --x K --trim_top_percent 60 --y pds
+    python scripts/PDSScalingExperiment.py --pddef 1 --category linear  --x K --trim_top_percent 50 --y pds
+    python scripts/PDSScalingExperiment.py --pddef 1 --category linear  --x K --trim_top_percent 40 --y pds
+    python scripts/PDSScalingExperiment.py --pddef 1 --category linear  --x K --trim_top_percent 30 --y pds
+    python scripts/PDSScalingExperiment.py --pddef 1 --category linear  --x K --trim_top_percent 20 --y pds
+    python scripts/PDSScalingExperiment.py --pddef 1 --category linear  --x K --trim_top_percent 10 --y pds
     # python scripts/prepare_data.py --compute_strongest_interpolant --name 139442p0 --K 3 --index 1
     # python scripts/sanity_check.py --K 5 --pddef 3 --all > sanity_check_def3_5.log
     # python scripts/sanity_check.py --K 20 --pddef 3 --all > sanity_check_def3_20.log
@@ -95,7 +120,10 @@ fi
 if [ "$section" == "6" ]; then
     #  python scripts/compute_resolution_steps.py --K 15 --manage
     # python scripts/prepare.py --permute_and_run --K 40
-    python scripts/PBHExperiment.py --K 40
+    # python scripts/PBHExperiment.py --K 40
+    python scripts/PDSScalingExperiment.py --pddef 1 --category linear  --x K --trim_top_percent 5  --y pds
+    python scripts/PDSScalingExperiment.py --pddef 3 --category both  --x K --trim_top_percent 5  --y pds
+    python scripts/PDSScalingExperiment.py --pddef 1 --category both  --x n --trim_top_percent 5 --summary_csv scalington.csv --fixed_k 10 --y pds
     # python scripts/prepare.py --prepare_sequential --pddef 1 --K 40 --manage  --category linear --no_interpolant
     # python scripts/prepare.py --compute_strongest_interpolant 
     # python scripts/process_interpolants.py --K 40 --Solver minisat --CompareCombinedInstances --pddef 1 --UseCache --FormulaCategory exponential

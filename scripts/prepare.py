@@ -2,6 +2,7 @@ import time
 import os
 import argparse
 import csv
+import json
 from utils.paths import get_CNF_dir,get_interpolant_dir, get_shuffled_cnf_dir, get_solving_time_dir
 from utils.catagory import get_instance_list
 from utils.utils import get_python_activate_command
@@ -64,6 +65,70 @@ def load_regression_summary_tasks(csv_path: str, category_filter=None):
         deduped.append(key)
     return deduped
 
+
+def strongest_interpolant_file_is_valid(file_path: str) -> bool:
+    if not os.path.exists(file_path) or os.path.getsize(file_path) == 0:
+        return False
+    try:
+        with open(file_path, "r") as f:
+            obj = json.load(f)
+    except Exception:
+        return False
+    if not isinstance(obj, dict):
+        return False
+    sexpr = str(obj.get("IS", "")).strip()
+    return sexpr != ""
+
+
+def get_strongest_interpolant_status(name: str, K: int):
+    interpolant_dir = get_interpolant_dir(K, 4)
+    missing_indices = []
+    for index in range(K):
+        interpolant_path = f"{interpolant_dir}/{name}.{K}.{index}.interpolant"
+        if not strongest_interpolant_file_is_valid(interpolant_path):
+            missing_indices.append(index)
+    return {
+        "instance_name": name,
+        "K": K,
+        "spd_complete": len(missing_indices) == 0,
+        "computed_count": K - len(missing_indices),
+        "missing_indices": missing_indices,
+    }
+
+
+def get_all_instances_for_k(K: int):
+    cnf_dir = get_CNF_dir(K)
+    instances = []
+    marker = f".{K}.cnf"
+    for file_name in sorted(os.listdir(cnf_dir)):
+        if not file_name.endswith(marker):
+            continue
+        instances.append(file_name[: -len(marker)])
+    return instances
+
+
+def load_spd_complete_instances(json_path: str):
+    if not os.path.exists(json_path):
+        raise FileNotFoundError(f"SPD status JSON not found: {json_path}")
+    with open(json_path, "r") as f:
+        obj = json.load(f)
+    statuses = obj.get("statuses")
+    if not isinstance(statuses, list):
+        raise ValueError(f"SPD status JSON missing 'statuses' list: {json_path}")
+    selected = []
+    seen = set()
+    for entry in statuses:
+        if not isinstance(entry, dict):
+            continue
+        if not bool(entry.get("spd_complete", False)):
+            continue
+        name = str(entry.get("instance_name", "")).strip()
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        selected.append(name)
+    return selected
+
 def main():
     linear = get_instance_list("linear")
     polynomial = get_instance_list("polynomial")
@@ -79,11 +144,12 @@ def main():
     parser.add_argument("--prepare_only", action="store_true", default=False)
     parser.add_argument("--category", action="store", default="all")
     parser.add_argument("--focus_name", action="store", default=None)
-    parser.add_argument("--K", action="store", default=10)
+    parser.add_argument("--K", "--k", dest="K", action="store", default=None)
     parser.add_argument("--prepare_solving_time_only", action="store_true", default=False)
     parser.add_argument("--local_prepare_solving_time_only", action="store_true", default=False)
     # parser.add_argument("--prepare_solving_time_only", action="store_true", default=False)
     parser.add_argument("--compute_strongest_interpolant", action="store_true", default=False)
+    parser.add_argument("--output_spd_status", action="store_true", default=False)
     parser.add_argument("--from_regression_summary", action="store_true", default=False)
     parser.add_argument("--regression_summary_path", action="store", default="regression_summary.csv")
     parser.add_argument("--check_interpolants", action="store_true", default=False)
@@ -98,12 +164,17 @@ def main():
     parser.add_argument("--prepare_sequential", action="store_true", default=False)
     parser.add_argument("--prepare_scaling", action="store_true", default=False)
     parser.add_argument("--force_refresh", action="store_true", default=False)
+    parser.add_argument("--use_spd_status", action="store", default=None)
     args = parser.parse_args()
     if args.clean:
         os.system("rm ProofDoorBenchmark/absorption_experiments/*.json")
         os.system("rm ./SlurmLogs/absorption_experiments_*")
     if args.debug:
         set_debug(True)
+
+    spd_complete_names = None
+    if args.use_spd_status is not None:
+        spd_complete_names = load_spd_complete_instances(args.use_spd_status)
 
     #category can be comma separated list of categories
     if "," in args.category:
@@ -113,8 +184,18 @@ def main():
             interested_names.extend(get_instance_list(category))
     else:
         interested_names = get_instance_list(args.category)
+
+    if spd_complete_names is not None:
+        spd_complete_name_set = set(spd_complete_names)
+        if args.category == "all" and args.focus_name is None:
+            interested_names = spd_complete_names
+        else:
+            interested_names = [name for name in interested_names if name in spd_complete_name_set]
+
     if args.focus_name is not None:
         interested_names = [args.focus_name]
+        if spd_complete_names is not None and args.focus_name not in set(spd_complete_names):
+            interested_names = []
     if args.check_interpolants:
         interpolant_dir = get_interpolant_dir(10)
         count = 0
@@ -133,6 +214,27 @@ def main():
                         print(f"error in {file_path}")
                         prepare_all_datas_for_one_smt(basename,k_value,index,False)
         print(f"Count: {count}")
+        exit()
+
+    if args.output_spd_status:
+        if args.K is None:
+            raise ValueError("--K is required when using --output_spd_status")
+        K = int(args.K)
+        target_names = get_all_instances_for_k(K)
+        statuses = []
+        complete_count = 0
+        for name in target_names:
+            status = get_strongest_interpolant_status(name, K)
+            statuses.append(status)
+            if status["spd_complete"]:
+                complete_count += 1
+        print(json.dumps({
+            "K": K,
+            "total_instances": len(target_names),
+            "complete_instances": complete_count,
+            "incomplete_instances": len(target_names) - complete_count,
+            "statuses": statuses,
+        }, indent=2))
         exit()
 
     if args.permute_and_run:
@@ -308,12 +410,21 @@ def main():
             tasks = load_regression_summary_tasks(args.regression_summary_path, category_filter=category_filter)
             if args.focus_name is not None:
                 tasks = [(n, k) for (n, k) in tasks if n == args.focus_name]
+            if args.use_spd_status is not None:
+                spd_complete_name_set = set(load_spd_complete_instances(args.use_spd_status))
+                tasks = [(n, k) for (n, k) in tasks if n in spd_complete_name_set]
+            if args.K is not None:
+                forced_K = int(args.K)
+                tasks = [(n, forced_K) for (n, _) in tasks]
             if not tasks:
                 print("No (instance, K) tasks loaded from regression summary (after filtering).")
                 exit()
         else:
-            K_list = [int(args.K)]
+            K_list = [int(args.K or 10)]
             tasks = [(name, K_list[0]) for name in interested_names]
+        if not tasks:
+            print("No (instance, K) tasks to submit after filtering.")
+            exit()
         # random.shuffle(tasks)
         # tasks = tasks[:20]
         activate_python = "source ../../general/bin/activate"

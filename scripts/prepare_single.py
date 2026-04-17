@@ -557,6 +557,14 @@ def build_cnf_obj(name,k_value):
     print(f"CNF object built for {name}.{k_value}")
     return cnf
 
+def export_progressive_shared_local_qdimacs(name, k_value):
+    cnf_path = f"{get_CNF_dir(k_value)}/{name}.{k_value}.cnf"
+    cnf = CNF(cnf_path, use_cache=True)
+    output_dir = get_progressive_qdimacs_dir(k_value)
+    output_paths = cnf.write_progressive_shared_local_qdimacs(output_dir, file_stem=f"{name}.{k_value}")
+    print(f"Wrote {len(output_paths)} QDIMACS files to {output_dir}")
+    return output_paths
+
 def main():
     parser = argparse.ArgumentParser(description='Prepare data for absorption experiments')
     parser.add_argument('--name', type=str, help='Name of the instance', required=True)
@@ -575,6 +583,7 @@ def main():
     parser.add_argument('--sanity_check', action='store_true', help='Sanity check', required=False)
     parser.add_argument('--compute_strongest_interpolant', action='store_true', help='Compute strongest interpolant', required=False)
     parser.add_argument('--compute_strongest_interpolants', action='store_true', help='Compute strongest interpolants for all indices sequentially', required=False)
+    parser.add_argument('--export_progressive_shared_local_qdimacs', action='store_true', help='Export one QDIMACS per iteration using cumulative adjacent-share plus current-local elimination sets', required=False)
     parser.add_argument('--reverse', action='store_true', help='Reverse the interpolant', required=False)
     args = parser.parse_args()
 
@@ -604,6 +613,10 @@ def main():
             force_refresh=args.force_refresh,
             sanity_check=args.sanity_check,
         )
+        return
+
+    if args.export_progressive_shared_local_qdimacs:
+        export_progressive_shared_local_qdimacs(args.name, args.K)
         return
 
     if args.pre_interpolant:

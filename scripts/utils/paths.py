@@ -1,5 +1,13 @@
 import os
 
+def get_aiger_dir():
+    if not os.path.exists(f"./ProofDoorBenchmark/aigs/"):
+        os.makedirs(f"./ProofDoorBenchmark/aigs/")
+    return f"./ProofDoorBenchmark/aigs/"
+
+def get_circuit_features_dir():
+    return f"./ProofDoorBenchmark/aigs/features.csv"
+
 def get_benchmark_dir():
     if not os.path.exists(f"./ProofDoorBenchmark/benchmarks/"):
         os.makedirs(f"./ProofDoorBenchmark/benchmarks/")
@@ -55,6 +63,16 @@ def get_CNF_dir(k_value):
     if not os.path.exists(f"./ProofDoorBenchmark/cnfs/{k_value}/"):
         os.makedirs(f"./ProofDoorBenchmark/cnfs/{k_value}/", exist_ok=True)
     return f"./ProofDoorBenchmark/cnfs/{k_value}/"
+    
+def get_DRAT(name, k_value):
+    if not os.path.exists(f"./ProofDoorBenchmark/cnfs/{k_value}/{name}.{k_value}.cadicalplain.drat"):
+        os.makedirs(f"./ProofDoorBenchmark/cnfs/{k_value}/", exist_ok=True)
+    return f"./ProofDoorBenchmark/cnfs/{k_value}/{name}.{k_value}.cadicalplain.drat"
+
+def get_CNF_info(name):
+    if not os.path.exists(f"./ProofDoorBenchmark/cnfs/info/{name}.info.json"):
+        os.makedirs(f"./ProofDoorBenchmark/cnfs/info/", exist_ok=True)
+    return f"./ProofDoorBenchmark/cnfs/info/{name}.info.json"
 
 def get_scrambled_CNF(name,k_value,permute_type,permute_index):
     file_path = f"./ProofDoorBenchmark/scrambled_cnfs/{k_value}/{permute_index}/{name}.{k_value}.{permute_type}.cnf"
@@ -145,3 +163,15 @@ def get_latest_PDC_result(K):
 
 def get_latest_absorption_result(K):
     return f"./Dashboard/AbsorptionExperiment_results_{K}.json"
+
+
+def get_interpolant_dependence_result_dir(pddef=1):
+    """Directory for per-instance interpolant dependence CSV results (used by --manage)."""
+    d = f"./ProofDoorBenchmark/interpolant_dependence_pddef_{pddef}/"
+    os.makedirs(d, exist_ok=True)
+    return d
+
+def get_progressive_qdimacs_dir(k_value, tag="shared_local"):
+    d = f"./ProofDoorBenchmark/qdimacs_{tag}/{k_value}/"
+    os.makedirs(d, exist_ok=True)
+    return d

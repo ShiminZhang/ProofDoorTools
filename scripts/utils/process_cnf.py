@@ -111,6 +111,61 @@ class CNF:
     def get_variables_global(self, i):
         literals_in_global = self.literal_set
         return literals_in_global - self.get_variables_local_in_A(i) - self.get_variables_local_in_B(i)
+
+    def get_variables_in_iter(self, i):
+        return set(self.literal_map.get(i, set()))
+
+    def get_variables_shared_between_adjacent_iters(self, left_iter, right_iter):
+        if right_iter != left_iter + 1:
+            raise ValueError("Only adjacent iteration blocks are supported")
+        return self.get_variables_in_iter(left_iter) & self.get_variables_in_iter(right_iter)
+
+    def get_variables_local_in_iter(self, i):
+        current = self.get_variables_in_iter(i)
+        previous = self.get_variables_in_iter(i - 1) if i > 0 else set()
+        future = set()
+        for iter_idx in range(i + 1, self.K):
+            future.update(self.literal_map[iter_idx])
+        return current - previous - future
+
+    def get_progressive_shared_local_elim_set(self, i):
+        if i < 0 or i >= self.K:
+            raise IndexError(f"iteration index out of range: {i}")
+        elim_vars = set()
+        for iter_idx in range(i):
+            elim_vars.update(self.get_variables_shared_between_adjacent_iters(iter_idx, iter_idx + 1))
+        elim_vars.update(self.get_variables_local_in_iter(i))
+        return elim_vars
+
+    def write_progressive_shared_local_qdimacs(self, output_dir, file_stem=None):
+        os.makedirs(output_dir, exist_ok=True)
+        if file_stem is None:
+            if self.cnf_path is None:
+                raise ValueError("file_stem is required when CNF has no source path")
+            file_stem = os.path.basename(self.cnf_path).removesuffix(".cnf")
+
+        if self.clauses:
+            max_var = max(abs(literal) for clause in self.clauses for literal in clause)
+        else:
+            max_var = 0
+        num_clauses = len(self.clauses)
+        all_vars = set(range(1, max_var + 1))
+
+        output_paths = []
+        for iter_idx in range(self.K):
+            elim_vars = sorted(self.get_progressive_shared_local_elim_set(iter_idx))
+            remaining_vars = sorted(all_vars - set(elim_vars))
+            output_path = os.path.join(output_dir, f"{file_stem}.{iter_idx}.qdimacs")
+            with open(output_path, "w") as f:
+                f.write(f"p cnf {max_var} {num_clauses}\n")
+                if elim_vars:
+                    f.write("e " + " ".join(str(v) for v in elim_vars) + " 0\n")
+                if remaining_vars:
+                    f.write("a " + " ".join(str(v) for v in remaining_vars) + " 0\n")
+                for clause in self.clauses:
+                    f.write(" ".join(str(lit) for lit in clause) + " 0\n")
+            output_paths.append(output_path)
+        return output_paths
     
     def parse_cnf(self):
         with open(self.cnf_path, 'r') as file:

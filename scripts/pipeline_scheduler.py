@@ -80,6 +80,8 @@ TIME_PER_JOB = "20:00:00"
 MEM_INTERP = "32g"
 MEM_SMT2CNF = "32g"
 MEM_ABSORPTION = "64g"
+MEM_PREPARE_FORMULA = "32g"
+TIME_PREPARE_FORMULA = "20:00:00"
 
 VENV_ACTIVATE = "source ../../general/bin/activate"  # 从 scripts/ 下看是这个路径
 class status:
@@ -565,6 +567,108 @@ def submit_absorption_job(
     )
     run_cmd(cmd)
 
+def submit_prepare_formula_jobs(
+    names: List[str],
+    use_summary: str = "regression_summary.csv",
+    category: Optional[str] = None,
+) -> None:
+    """
+    为 regression_summary 中每个 name 提交一个 Slurm 任务：生成 K=2..20 的 formula，
+    用 CaDiCaL 顺序求解（保留 proof），超时 1600s 则终止后续求解，最后写 info JSON。
+    每任务 32G 内存、20h 时间。
+    """
+    logs_dir = "./SlurmLogs/prepare_formula"
+    os.makedirs(logs_dir, exist_ok=True)
+    for name in names:
+        job_name = f"prep_formula_{name}"
+        log_path = f"{logs_dir}/{name}.%j.log"
+        inner_cmd = f"python scripts/prepare_formula_single.py --name {name}"
+        job_id = sbatch_wrap(
+            inner_cmd,
+            time_limit=TIME_PREPARE_FORMULA,
+            mem=MEM_PREPARE_FORMULA,
+            output_log=log_path,
+            job_name=job_name,
+            dependency=None,
+        )
+        print(f"[prepare_formula] Submitted {name} -> job {job_id}")
+
+
+def prepare_all_formula_interpolants(
+    instance_k_map: Dict[str, int],
+    k_limit: int = 10,
+    pddef: int = PDDEF,
+    reverse: bool = False,
+    permute: Optional[str] = None,
+    permute_index: int = 0,
+    force_refresh: bool = False,
+) -> None:
+    """
+    为 regression_summary 中每个 (name, K) 补齐 interpolants（仅调度 interpolant 相关 job）。
+
+    行为：
+    - 对每个 name，遍历 K=2..min(local_max_k, k_limit)；
+    - 先检查 interpolants 是否整体 done；
+    - 若未 done，则按本调度器的核心逻辑提交 Slurm jobs（等价于 schedule_for_instance 的 stage-1）。
+
+    说明：
+    - 默认只补算从未成功的 missing/empty；timeout/error 默认跳过（除非 force_refresh=True）。
+    - k_limit 目前按需求先固定默认 10。
+    """
+    if k_limit < 2:
+        print(f"[prepare_all_formula_interpolants] k_limit={k_limit} < 2; nothing to do.")
+        return
+
+    total_checked = 0
+    total_scheduled = 0
+    for name, local_max_k in instance_k_map.items():
+        if local_max_k is None:
+            continue
+        try:
+            local_max_k_int = int(local_max_k)
+        except Exception:
+            continue
+        max_k = min(local_max_k_int, k_limit)
+        if max_k < 2:
+            continue
+
+        for K in range(max_k, max_k + 1):
+            total_checked += 1
+            overall, per_index = classify_interpolants(
+                name,
+                K,
+                pddef=pddef,
+                reverse=reverse,
+                permute=permute,
+                permute_index=permute_index,
+            )
+            if overall == "done" and not force_refresh:
+                continue
+            if overall == "failed" and not force_refresh:
+                # 默认不自动重算 error/timeout（避免无限重提），除非显式 force_refresh
+                print(f"[prepare_all_formula_interpolants] [{name}.{K}] interpolants status=failed; skip (use --force_refresh to override).")
+                continue
+
+            print(f"[prepare_all_formula_interpolants] [{name}.{K}] interpolants status={overall}; scheduling missing/empty (k_limit={k_limit}).")
+            job_ids = submit_compute_interpolants_job(
+                name,
+                K,
+                per_index,
+                pddef=pddef,
+                reverse=reverse,
+                permute=permute,
+                permute_index=permute_index,
+                force_refresh=force_refresh,
+            )
+            if job_ids:
+                total_scheduled += 1
+
+    print(
+        f"[prepare_all_formula_interpolants] Done. checked={total_checked}, scheduled_instances={total_scheduled}, "
+        f"k_limit={k_limit}, pddef={pddef}, reverse={reverse}, permute={permute}, permute_index={permute_index}, force_refresh={force_refresh}"
+    )
+
+
 def check_instance_status(instance: str, K: int, pddef: int = PDDEF) -> str:
     """
     汇总某个 (instance, K) 的整体进度，返回简要字符串：
@@ -966,6 +1070,20 @@ def main():
         default=False,
         help="use only completed interpolants",
     )
+    parser.add_argument(
+        "--prepare_formula",
+        action="store_true",
+        default=False,
+        help="For each name in regression_summary (filtered by --category), submit one Slurm job: "
+        "generate formula K=2..20, run CaDiCaL with proof (--plain), 32G/20h, timeout 1600s per solve; write info JSON.",
+    )
+    parser.add_argument(
+        "--prepare_all_formula_interpolants",
+        action="store_true",
+        default=False,
+        help="For each name in regression_summary (ALL instances; ignores --category), and for each K=2..min(local_max_k,10): "
+        "check interpolants; if missing, submit Slurm jobs to compute interpolants (stage-1 only).",
+    )
 
     parser.add_argument(
         "--no_reverse",
@@ -999,6 +1117,51 @@ def main():
             permute_index=args.permute_index,
             scaling=args.scaling,
             pddef=pddef,
+        )
+        return
+    if args.prepare_formula:
+        if not args.use_summary or not os.path.exists(args.use_summary):
+            raise ValueError("--prepare_formula requires --use_summary pointing to an existing CSV (e.g. regression_summary.csv)")
+        summary_df = pd.read_csv(args.use_summary)
+        if "instance_name" not in summary_df.columns:
+            raise ValueError("summary CSV 缺少列: instance_name")
+        if args.category is not None and "best_model" in summary_df.columns:
+            filtered = summary_df[summary_df["best_model"] == args.category]
+        else:
+            filtered = summary_df
+        names = list(filtered["instance_name"].astype(str).str.strip().unique())
+        names = [n for n in names if n]
+        if not names:
+            print("No names in regression_summary (for given --category); nothing to submit.")
+            return
+        submit_prepare_formula_jobs(names, use_summary=args.use_summary, category=args.category)
+        return
+    if args.prepare_all_formula_interpolants:
+        if not args.use_summary or not os.path.exists(args.use_summary):
+            raise ValueError(
+                "--prepare_all_formula_interpolants requires --use_summary pointing to an existing CSV "
+                "(e.g. regression_summary.csv)"
+            )
+        summary_df = pd.read_csv(args.use_summary)
+        required_cols = {"instance_name", "local_max_k"}
+        missing = required_cols - set(summary_df.columns)
+        if missing:
+            raise ValueError(f"summary CSV 缺少必要列: {sorted(missing)}")
+
+        # Per user request: this option schedules for *all* instances, regardless of --category.
+        filtered = summary_df
+        instance_k_map = dict(zip(filtered["instance_name"], filtered["local_max_k"]))
+        instance_k_map = dict(sorted(instance_k_map.items()))
+
+        # Per requirement: K limit is fixed to 10 for now.
+        prepare_all_formula_interpolants(
+            instance_k_map,
+            k_limit=10,
+            pddef=pddef,
+            reverse=args.reverse,
+            permute=args.permute,
+            permute_index=args.permute_index,
+            force_refresh=args.force_refresh,
         )
         return
     if args.use_summary:
