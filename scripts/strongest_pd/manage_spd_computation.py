@@ -18,6 +18,7 @@ import argparse
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from utils.utils import get_python_activate_command
+from utils.paths import get_spd7_success_csv
 
 
 REGRESSION_SUMMARY_PATH = "./regression_summary.csv"
@@ -141,6 +142,81 @@ def get_successful_instances(K, instances=None):
     return successful
 
 
+def get_reverse_successes(K, instances=None):
+    """
+    Scan the reverse (spd7) log directory and return all (name, K, i) triples
+    where the interpolant validity check passed.  Unlike get_successful_instances,
+    this is per-index granular — a name is included even if only some indices passed.
+    """
+    log_dir = os.path.join(SLURM_LOG_DIR_REV, f"k_{K}")
+    if not os.path.isdir(log_dir):
+        print(f"Log directory not found: {log_dir}")
+        return []
+
+    marker = f".{K}."
+    # Discover (name, i) pairs from log filenames: {name}.{K}.{jobid}_{i}.log
+    candidate_pairs = set()
+    for f in glob_mod.glob(os.path.join(log_dir, f"*.{K}.*_*.log")):
+        basename = os.path.basename(f)
+        idx = basename.find(marker)
+        if idx < 0:
+            continue
+        name = basename[:idx]
+        if instances is not None and name not in instances:
+            continue
+        # extract i from trailing "_{i}.log"
+        rest = basename[idx + len(marker):]  # "{jobid}_{i}.log"
+        try:
+            i = int(rest.rsplit("_", 1)[1].removesuffix(".log"))
+        except (ValueError, IndexError):
+            continue
+        candidate_pairs.add((name, i))
+
+    successes = []
+    for name, i in sorted(candidate_pairs):
+        logs = sorted(glob_mod.glob(os.path.join(log_dir, f"{name}.{K}.*_{i}.log")))
+        success_str = f"Interpolant validity check passed for {name}.{K}.{i}"
+        if any(success_str in open(log).read() for log in logs):
+            successes.append((name, K, i))
+
+    return successes
+
+
+SLURM_LOG_DIR_MPD = "./SlurmLogs/reverse_spd_to_mpd"
+
+
+def submit_mpd_jobs(K, successes, mem="32g", time="20:00:00", force_refresh=False):
+    """
+    For each unique name in successes (list of (name, K, i) triples), submit
+    one Slurm job that runs reverse_spd_to_mpd.py for all that name's indices.
+
+    Returns a dict {name: job_id}.
+    """
+    if shutil.which("sbatch") is None:
+        raise RuntimeError("sbatch not found in PATH")
+
+    csv_path = get_spd7_success_csv(K)
+    log_dir = os.path.join(SLURM_LOG_DIR_MPD, f"k_{K}")
+    os.makedirs(log_dir, exist_ok=True)
+
+    names = sorted({name for name, _, _ in successes})
+    force_flag = " --force_refresh" if force_refresh else ""
+    job_ids = {}
+    for name in names:
+        cmd = (
+            f"python ./scripts/strongest_pd/reverse_spd_to_mpd.py"
+            f" --K {K} --csv {csv_path} --name {name}{force_flag}"
+        )
+        job_name = f"r2mpd_{name}.{K}"
+        log_path = os.path.join(log_dir, f"{name}.{K}.%A.log")
+        job_id = _sbatch(cmd, job_name, log_path, mem, time)
+        print(f"  Submitted job {job_id}: {job_name}")
+        job_ids[name] = job_id
+
+    print(f"Submitted {len(job_ids)} reverse_spd_to_mpd job(s) for K={K}.")
+    return job_ids
+
+
 def get_forward_count_instances(instances, min_count):
     """
     Return instances where the total number of forward interpolant files
@@ -180,7 +256,32 @@ def main():
                         help='Submit reverse chains (pddef7): jobs run i=K-1 down to 0')
     parser.add_argument('--min_forward_success', type=int, metavar='X',
                         help='Only submit for instances where forward success count >= X (for the current K)')
+    parser.add_argument('--submit_mpd', action='store_true',
+                        help='Write the reverse success CSV then submit one reverse_spd_to_mpd job per name')
+    parser.add_argument('--force_refresh', action='store_true',
+                        help='Pass --force_refresh to reverse_spd_to_mpd jobs (re-compute existing outputs)')
     args = parser.parse_args()
+
+    if args.submit_mpd:
+        if args.category is not None:
+            instances = get_instances_by_category(args.category)
+        elif args.name is not None:
+            instances = [args.name]
+        else:
+            instances = None
+        successes = get_reverse_successes(args.K, instances)
+        csv_path = get_spd7_success_csv(args.K)
+        with open(csv_path, "w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(["name", "K", "i"])
+            writer.writerows(successes)
+        print(f"Summary: {len(successes)} successful (name, K, i) triples written to {csv_path}")
+        if not successes:
+            print("No successes found; no jobs submitted.")
+            return
+        submit_mpd_jobs(args.K, successes, mem=args.mem, time=args.time,
+                        force_refresh=args.force_refresh)
+        return
 
     if args.show_success:
         if args.category is not None:
@@ -189,13 +290,24 @@ def main():
             instances = [args.name]
         else:
             instances = None  # discover from log dir
-        successful = get_successful_instances(args.K, instances)
-        if successful:
-            print(f"{len(successful)} instance(s) fully successful for K={args.K}:")
-            for name in successful:
-                print(f"  {name}")
+
+        if args.reverse:
+            successes = get_reverse_successes(args.K, instances)
+            csv_path = get_spd7_success_csv(args.K)
+            with open(csv_path, "w", newline="") as f:
+                writer = csv.writer(f)
+                writer.writerow(["name", "K", "i"])
+                writer.writerows(successes)
+            print(f"{len(successes)} successful (name, K, i) triples for K={args.K} (reverse).")
+            print(f"Written to: {csv_path}")
         else:
-            print(f"No fully successful instances found for K={args.K}.")
+            successful = get_successful_instances(args.K, instances)
+            if successful:
+                print(f"{len(successful)} instance(s) fully successful for K={args.K}:")
+                for name in successful:
+                    print(f"  {name}")
+            else:
+                print(f"No fully successful instances found for K={args.K}.")
         return
 
     if args.category is not None:

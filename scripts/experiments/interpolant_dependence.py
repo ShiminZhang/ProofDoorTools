@@ -1,7 +1,7 @@
 import argparse
 import csv
 import os
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from experiments.experiment import Experiment, ExperimentConfig
 from utils.catagory import get_instance_list
@@ -79,24 +79,59 @@ class InterpolantDependenceExperiment(Experiment):
                     if os.path.exists(path):
                         tasks.append((name, k))
 
-        for name, K in tqdm(tasks, desc="interpolant_dependence"):
-            cnf_path = get_CNF_dir(K) + f"{name}.{K}.cnf"
-            if not os.path.exists(cnf_path):
-                continue
-            try:
-                formula = CNF(cnf_path)
-            except Exception:
-                continue
-            for i in range(K):
-                interp_path = get_interpolant_cnf_dir(K, pddef) + f"{name}.{K}.{i}.smtcnf"
-                if not os.path.exists(interp_path):
-                    continue
-                try:
-                    interpolant = CNF(interp_path)
-                except Exception:
-                    continue
-                ub = get_upper_bound_of_dependence(formula.clauses, interpolant.clauses)
-                result_rows.append((name, K, i, ub))
+        if pddef == 5:
+            # For pddef=5, K doesn't matter — same index across any K gives the same interpolant.
+            # Files are QDIMACS (.interpolant) in interpolants_def5/{K}/.
+            base_dir = "./ProofDoorBenchmark/interpolants_def5/"
+            k_dirs = sorted(
+                (int(d), os.path.join(base_dir, d))
+                for d in os.listdir(base_dir)
+                if d.isdigit() and os.path.isdir(os.path.join(base_dir, d))
+            )
+            pddef5_tasks = sorted(set(name for name, _ in tasks))
+            for name in tqdm(pddef5_tasks, desc="interpolant_dependence"):
+                # Map index -> first available path across all K directories.
+                index_to_path: Dict[int, str] = {}
+                for _, k_dir in k_dirs:
+                    for fname in os.listdir(k_dir):
+                        if not fname.startswith(f"{name}.") or not fname.endswith(".interpolant"):
+                            continue
+                        parts = fname[len(name) + 1:-len(".interpolant")].split(".")
+                        if len(parts) == 2 and parts[1].isdigit():
+                            idx = int(parts[1])
+                            if idx not in index_to_path:
+                                index_to_path[idx] = os.path.join(k_dir, fname)
+                prev_clauses: Optional[List[List[int]]] = None
+                for i in sorted(index_to_path):
+                    try:
+                        clauses = read_qdimacs_clauses(index_to_path[i])
+                    except Exception:
+                        prev_clauses = None
+                        continue
+                    if clauses is None:
+                        prev_clauses = None
+                        continue
+                    if prev_clauses is not None:
+                        ub = get_upper_bound_of_dependence(prev_clauses, clauses)
+                        result_rows.append((name, i, i, ub))
+                    prev_clauses = clauses
+        else:
+            for name, K in tqdm(tasks, desc="interpolant_dependence"):
+                prev_interpolant: Optional[CNF] = None
+                for i in range(K):
+                    interp_path = get_interpolant_cnf_dir(K, pddef) + f"{name}.{K}.{i}.smtcnf"
+                    if not os.path.exists(interp_path):
+                        prev_interpolant = None
+                        continue
+                    try:
+                        interpolant = CNF(interp_path)
+                    except Exception:
+                        prev_interpolant = None
+                        continue
+                    if prev_interpolant is not None:
+                        ub = get_upper_bound_of_dependence(prev_interpolant.clauses, interpolant.clauses)
+                        result_rows.append((name, K, i, ub))
+                    prev_interpolant = interpolant
 
         if config.force_instance is not None:
             out_dir = get_interpolant_dependence_result_dir(config.pddef)
@@ -158,6 +193,22 @@ def main():
         exp.manage()
     else:
         exp.run()
+
+def read_qdimacs_clauses(path: str) -> Optional[List[List[int]]]:
+    """Read a QDIMACS/interpolant file. Returns None if any 'e' quantifier line is found (invalid interpolant)."""
+    clauses = []
+    with open(path, "r") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line[0] in ("c", "p", "a"):
+                continue
+            if line[0] == "e":
+                return None
+            lits = [int(x) for x in line.split() if x != "0"]
+            if lits:
+                clauses.append(lits)
+    return clauses
+
 
 # return relevant clauses for each interpolant clause
 def get_relevant_clauses(formula: List[List[int]], interpolant: List[List[int]]) -> Dict[int, List[List[int]]]:

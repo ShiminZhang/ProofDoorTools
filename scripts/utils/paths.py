@@ -81,6 +81,10 @@ def get_scrambled_CNF(name,k_value,permute_type,permute_index):
     return file_path
 
 def get_interpolant_cnf_dir(k_value=10, pddef=0):
+    if pddef == 7:
+        d = f"./ProofDoorBenchmark/interpolant_as_cnfs_spd7/{k_value}/"
+        os.makedirs(d, exist_ok=True)
+        return d
     if os.path.exists(f"./ProofDoorBenchmark/interpolant_as_cnfs_{pddef}/{k_value}/"):
         return f"./ProofDoorBenchmark/interpolant_as_cnfs_{pddef}/{k_value}/"
     else:
@@ -173,5 +177,14 @@ def get_interpolant_dependence_result_dir(pddef=1):
 
 def get_progressive_qdimacs_dir(k_value, tag="shared_local"):
     d = f"./ProofDoorBenchmark/qdimacs_{tag}/{k_value}/"
+    os.makedirs(d, exist_ok=True)
+    return d
+
+def get_spd7_success_csv(k_value):
+    os.makedirs("./results/", exist_ok=True)
+    return f"./results/spd7_success_{k_value}.csv"
+
+def get_reverse_spd_cnf_dir(k_value):
+    d = f"./ProofDoorBenchmark/interpolant_as_cnfs_spd7/{k_value}/"
     os.makedirs(d, exist_ok=True)
     return d

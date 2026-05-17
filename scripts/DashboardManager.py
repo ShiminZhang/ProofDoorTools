@@ -4,6 +4,7 @@ from utils.catagory import get_instance_list
 import numpy as np
 from datetime import datetime
 import csv
+import argparse
 from utils.paths import (
     get_CNF_dir,
     get_interpolant_cnf_dir,
@@ -19,6 +20,149 @@ from typing import Dict, Tuple
 from utils.process_cnf import CNF
 import gc
 import threading
+
+REGRESSION_SUMMARY_PATH = "./regression_summary.csv"
+
+
+def load_categories() -> Dict[str, str]:
+    """Load instance → best_model category from regression_summary.csv."""
+    cats: Dict[str, str] = {}
+    with open(REGRESSION_SUMMARY_PATH, newline="") as f:
+        for row in csv.DictReader(f):
+            cats[row["instance_name"]] = row["best_model"] or "unknown"
+    return cats
+
+
+def _collect_interpolant_indices(directory: str) -> Dict[str, set]:
+    """Return {instance_name: set_of_completed_indices} for a given directory.
+
+    Files are expected to be named name.K.idx.interpolant.
+    """
+    from collections import defaultdict
+    indices: Dict[str, set] = defaultdict(set)
+    if not os.path.isdir(directory):
+        return indices
+    for fn in os.listdir(directory):
+        if not fn.endswith(".interpolant"):
+            continue
+        stem = fn[: -len(".interpolant")]
+        parts = stem.split(".")
+        # expect exactly 3 parts: name, K, idx
+        if len(parts) == 3 and parts[1].isdigit() and parts[2].isdigit():
+            indices[parts[0]].add(int(parts[2]))
+    return indices
+
+
+def _consecutive_from_zero(index_set: set) -> int:
+    """Return the length of the consecutive run starting from index 0."""
+    i = 0
+    while i in index_set:
+        i += 1
+    return i  # number of consecutive indices: 0,1,...,i-1
+
+
+def _collect_smtcnf_indices(directory: str) -> Dict[str, set]:
+    """Return {instance_name: set_of_completed_indices} for a given smtcnf directory.
+
+    Only counts files matching name.K.idx.smtcnf (no extra dots in the stem).
+    """
+    from collections import defaultdict
+    indices: Dict[str, set] = defaultdict(set)
+    if not os.path.isdir(directory):
+        return indices
+    for fn in os.listdir(directory):
+        if not fn.endswith(".smtcnf"):
+            continue
+        stem = fn[: -len(".smtcnf")]
+        parts = stem.split(".")
+        # expect exactly 3 parts: name, K, idx
+        if len(parts) == 3 and parts[1].isdigit() and parts[2].isdigit():
+            indices[parts[0]].add(int(parts[2]))
+    return indices
+
+
+def print_stats() -> None:
+    cats = load_categories()
+
+    # ── Q1: total families (= total AIG instances) ───────────────────────────
+    print(f"Q1  总 family 数: {len(cats)}")
+
+    # ── Q2: counts per category ───────────────────────────────────────────────
+    from collections import Counter
+    cat_counts = Counter(cats.values())
+    print(f"Q2  linear:      {cat_counts.get('linear', 0)}")
+    print(f"    exponential: {cat_counts.get('exponential', 0)}")
+    print(f"    polynomial:  {cat_counts.get('polynomial', 0)}")
+    print(f"    unknown/None:{cat_counts.get('unknown', 0) + cat_counts.get('None', 0)}")
+
+    # ── Q3: linear, k=10, pddef=1, fully computed ────────────────────────────
+    K = 10
+    smtcnf_dir = f"./ProofDoorBenchmark/interpolant_as_cnfs_1/{K}"
+    smtcnf_idx = _collect_smtcnf_indices(smtcnf_dir)
+    q3 = sum(
+        1 for name, idx_set in smtcnf_idx.items()
+        if len(idx_set) >= K and cats.get(name) == "linear"
+    )
+    print(f"Q3  linear, k=10, pddef=1, 完整完成: {q3}")
+
+    # ── Q3b: exponential, pddef=1, any k, fully computed (unique name) ───────
+    base1 = "./ProofDoorBenchmark/interpolant_as_cnfs_1"
+    success_exp_pd1: set = set()
+    if os.path.isdir(base1):
+        for k_str in os.listdir(base1):
+            if not k_str.isdigit():
+                continue
+            ki = int(k_str)
+            idir = os.path.join(base1, k_str)
+            for name, idx_set in _collect_smtcnf_indices(idir).items():
+                if len(idx_set) >= ki and cats.get(name) == "exponential":
+                    success_exp_pd1.add(name)
+    print(f"Q3b exponential, 任意k, pddef=1, 完整完成 (唯一name): {len(success_exp_pd1)}")
+
+    # ── Q4: pddef=5, any k, consecutive from index 0 past index 3 ───────────
+    # Success = exists at least one K where indices 0,1,2,3 are all present.
+    base5 = "./ProofDoorBenchmark/interpolants_def5"
+    success_linear_pd5: set = set()
+    success_exp_pd5: set = set()
+    if os.path.isdir(base5):
+        for k_str in os.listdir(base5):
+            if not k_str.isdigit():
+                continue
+            idir = os.path.join(base5, k_str)
+            for name, idx_set in _collect_interpolant_indices(idir).items():
+                if _consecutive_from_zero(idx_set) > 3:
+                    cat = cats.get(name, "")
+                    if cat == "linear":
+                        success_linear_pd5.add(name)
+                    elif cat == "exponential":
+                        success_exp_pd5.add(name)
+    print(f"Q4  linear,      pddef=5, 任意k, 连续到index>3 (唯一name): {len(success_linear_pd5)}")
+    print(f"    exponential, pddef=5, 任意k, 连续到index>3 (唯一name): {len(success_exp_pd5)}")
+
+    # ── Q5: exponential, weakest PD (reverse-SPD negation), any k, fully computed
+    # Output files: interpolant_as_cnfs_spd7/{K}/{name}.{K}.{i}.cnf
+    base_spd7 = "./ProofDoorBenchmark/interpolant_as_cnfs_spd7"
+    success_exp_wpd: set = set()
+    if os.path.isdir(base_spd7):
+        for k_str in os.listdir(base_spd7):
+            if not k_str.isdigit():
+                continue
+            ki = int(k_str)
+            idir = os.path.join(base_spd7, k_str)
+            # collect index sets from name.K.idx.cnf files
+            from collections import defaultdict as _dd
+            idx_map: Dict[str, set] = _dd(set)
+            for fn in os.listdir(idir):
+                if not fn.endswith(".cnf"):
+                    continue
+                stem = fn[: -len(".cnf")]
+                parts = stem.split(".")
+                if len(parts) == 3 and parts[1].isdigit() and parts[2].isdigit():
+                    idx_map[parts[0]].add(int(parts[2]))
+            for name, idx_set in idx_map.items():
+                if _consecutive_from_zero(idx_set) > 3 and cats.get(name) == "exponential":
+                    success_exp_wpd.add(name)
+    print(f"Q5  exponential, weakest PD (spd7 negation), 任意k, 连续到index>3 (唯一name): {len(success_exp_wpd)}")
 
 def get_rss_mb():
     """
@@ -330,8 +474,14 @@ def archive_current_result():
     
 
 def main():
-    # build_dashboard_data_and_save()
-    archive_current_result()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--stats", action="store_true", help="Print benchmark statistics and exit")
+    args = parser.parse_args()
+
+    if args.stats:
+        print_stats()
+    else:
+        archive_current_result()
 
 if __name__ == "__main__":
     main()

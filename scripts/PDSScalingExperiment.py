@@ -417,11 +417,87 @@ def _y_mode_uses_proofdoor_size(y_mode: str) -> bool:
     return y_mode in ("pds", "pgs", "pdsdfs", "pgsdfs")
 
 
+def _read_qdimacs_clauses(path: str) -> Optional[List[List[int]]]:
+    """Return clause lists from a QDIMACS file, or None if an 'e' quantifier line is found."""
+    clauses = []
+    with open(path, "r") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line[0] in ("c", "p", "a"):
+                continue
+            if line[0] == "e":
+                return None
+            lits = [int(x) for x in line.split() if x != "0"]
+            if lits:
+                clauses.append(lits)
+    return clauses
+
+
+def _get_relevant_clause_counts(reference: List[List[int]], interpolant: List[List[int]]) -> List[int]:
+    """For each clause in interpolant, count how many reference clauses share at least one literal."""
+    lit_to_clause_idxs: Dict[int, set] = {}
+    for idx, clause in enumerate(reference):
+        for lit in clause:
+            if lit not in lit_to_clause_idxs:
+                lit_to_clause_idxs[lit] = set()
+            lit_to_clause_idxs[lit].add(idx)
+    counts = []
+    for clause in interpolant:
+        seen_ref_idxs: set = set()
+        for lit in clause:
+            if lit in lit_to_clause_idxs:
+                seen_ref_idxs |= lit_to_clause_idxs[lit]
+        counts.append(len(seen_ref_idxs))
+    return counts
+
+
+def _compute_dependence_pddef5(instance: str) -> Dict[int, Dict[str, float]]:
+    """For pddef=5, compute consecutive-interpolant dependence directly from interpolants_def5/."""
+    base_dir = "./ProofDoorBenchmark/interpolants_def5/"
+    if not os.path.isdir(base_dir):
+        return {}
+    index_to_path: Dict[int, str] = {}
+    for k_name in os.listdir(base_dir):
+        k_dir = os.path.join(base_dir, k_name)
+        if not k_name.isdigit() or not os.path.isdir(k_dir):
+            continue
+        for fname in os.listdir(k_dir):
+            if not fname.startswith(f"{instance}.") or not fname.endswith(".interpolant"):
+                continue
+            parts = fname[len(instance) + 1:-len(".interpolant")].split(".")
+            if len(parts) == 2 and parts[1].isdigit():
+                idx = int(parts[1])
+                if idx not in index_to_path:
+                    index_to_path[idx] = os.path.join(k_dir, fname)
+    result: Dict[int, Dict[str, float]] = {}
+    prev_clauses: Optional[List[List[int]]] = None
+    for i in sorted(index_to_path):
+        try:
+            clauses = _read_qdimacs_clauses(index_to_path[i])
+        except Exception:
+            prev_clauses = None
+            continue
+        if clauses is None:
+            prev_clauses = None
+            continue
+        if prev_clauses is not None:
+            counts = _get_relevant_clause_counts(prev_clauses, clauses)
+            if counts:
+                ub = float(max(counts))
+                result[i] = {"avg": ub, "max": ub}
+        prev_clauses = clauses
+    return result
+
+
 def _load_dependence_by_k(instance: str, pddef: int) -> Dict[int, Dict[str, float]]:
     """
-    Load interpolant dependence CSV for instance (name.K.i.ub_dependence).
+    Load interpolant dependence for an instance.
+    For pddef=5: compute directly from interpolants_def5/ (no pre-computed CSV needed).
+    Otherwise: read from pre-computed CSV in interpolant_dependence_pddef_{pddef}/.
     Return {K: {"avg": float, "max": float}} for each K with at least one row.
     """
+    if pddef == 5:
+        return _compute_dependence_pddef5(instance)
     out: Dict[int, List[int]] = {}  # K -> list of ub_dependence
     base_dir = get_interpolant_dependence_result_dir(pddef)
     csv_path = os.path.join(base_dir, f"{instance}.csv")
@@ -803,6 +879,9 @@ class PDSScalingExperimentConfig(ExperimentConfig):
         plot_max_regression: bool = True,
         max_regression_mode: str = "both",
         interpolant_unit: str = "bits",
+        normalize_y: bool = False,
+        every_regression: bool = False,
+        every_regression_csv: Optional[str] = None,
     ):
         super().__init__(name, data_dir, result_dir, log_dir)
         # NOTE: Experiment base class expects config.K + config.category for metadata.
@@ -842,6 +921,9 @@ class PDSScalingExperimentConfig(ExperimentConfig):
         self.max_regression_mode = (max_regression_mode or "both").strip().lower()
         if self.max_regression_mode not in ("both", "linear", "log"):
             self.max_regression_mode = "both"
+        self.normalize_y = bool(normalize_y)
+        self.every_regression = bool(every_regression)
+        self.every_regression_csv = (every_regression_csv or "").strip() or None
 
         category_norm = (category or "all").strip().lower()
 
@@ -883,6 +965,7 @@ class PDSScalingExperiment(Experiment):
         self.scaling_results: Dict[str, List[ScalingPoint]] = {}
         self.available_ks: Dict[str, List[int]] = {}
         self.category_by_instance: Dict[str, str] = getattr(self.config, "category_by_instance", {})
+        self.only_first: Optional[int] = None
 
         x_mode = (self.config.x_axis or "K").strip()
         if x_mode not in ("K", "n", "proofsize", "proofdoor_size", "solvingtime"):
@@ -1052,10 +1135,28 @@ class PDSScalingExperiment(Experiment):
         y_uses_interpolant_sizes = y_mode in ("max_interpolant", "avg_interpolant")
         info_by_k = _load_cnf_info_results_by_k(instance) if y_mode in ("proofsize", "solvingtime") else {}
         dep_by_k = _load_dependence_by_k(instance, self.config.pddef) if y_mode in ("avg_dependence", "max_dependence") else {}
+        need_formula_size = self._x_mode == "formula_size" or y_mode in ("pds", "pgs", "pdsdfs", "pgsdfs", "proofsize", "solvingtime", "max_interpolant", "avg_interpolant")
+
+        # For dependence modes, iterate dep_by_k keys directly — available_ks is derived from
+        # regression_summary.csv and may not align with actual interpolant indices (especially pddef=5).
+        if y_mode in ("avg_dependence", "max_dependence"):
+            for i, row in sorted(dep_by_k.items()):
+                y_val = row["avg"] if y_mode == "avg_dependence" else row["max"]
+                points.append(
+                    ScalingPoint(
+                        K=i,
+                        formula_size=0,
+                        proofdoor_size=0,
+                        largest_interpolant_size=0,
+                        y_value=float(y_val),
+                    )
+                )
+            return points
+
         for K in self.available_ks.get(instance, []):
             formula_size = compute_formula_size(instance, K)
-            if formula_size == 0:
-                # CNF missing/empty, skip
+            if formula_size == 0 and need_formula_size:
+                # CNF missing/empty, skip only when formula_size is actually needed
                 continue
 
             proofdoor_size = 0
@@ -1082,22 +1183,6 @@ class PDSScalingExperiment(Experiment):
                         proofdoor_size=proofdoor_size,
                         largest_interpolant_size=largest_interpolant_size,
                         y_value=float(pv),
-                    )
-                )
-                continue
-
-            if y_mode in ("avg_dependence", "max_dependence"):
-                row = dep_by_k.get(K)
-                if not row:
-                    continue
-                y_val = row["avg"] if y_mode == "avg_dependence" else row["max"]
-                points.append(
-                    ScalingPoint(
-                        K=K,
-                        formula_size=formula_size,
-                        proofdoor_size=proofdoor_size,
-                        largest_interpolant_size=largest_interpolant_size,
-                        y_value=float(y_val),
                     )
                 )
                 continue
@@ -1186,9 +1271,11 @@ class PDSScalingExperiment(Experiment):
             print(f"[PDSScaling] loaded results from cache: {self.scaling_results_json_path}")
             if self.config.missing_report:
                 self._print_missing_proofdoor_pairs()
+            self._apply_only_first()
             print(f"[PDSScaling] plot path:           {self.scaling_plot_path}")
             self._write_dashboard_csv_if_requested()
             self._plot_scaling_results()
+            self._compute_every_regression()
             return
 
         if self.config.fixed_k is not None:
@@ -1227,20 +1314,6 @@ class PDSScalingExperiment(Experiment):
             if pts:
                 self.scaling_results[instance] = pts
 
-        # If we got no data with require_complete_smt2cnf, retry once with partial allowed (e.g. pddef 3 may have incomplete smtcnf)
-        if not self.scaling_results and self.config.require_complete_smt2cnf:
-            self.logger.info("No data with require_complete_smt2cnf; retrying with partial smt2cnf allowed.")
-            print("[PDSScaling] no data with complete smt2cnf; retrying with partial allowed.")
-            orig_require = self.config.require_complete_smt2cnf
-            try:
-                self.config.require_complete_smt2cnf = False
-                for instance in _tqdm(self.config.instance_list, desc="PDSScaling retry(partial)", unit="inst"):
-                    pts = self._compute_instance_scaling(instance)
-                    if pts:
-                        self.scaling_results[instance] = pts
-            finally:
-                self.config.require_complete_smt2cnf = orig_require
-
         if not self.scaling_results:
             print(
                 "[PDSScaling] no instances with data (run from repo root; check ProofDoorBenchmark/cnfs/ and "
@@ -1248,9 +1321,18 @@ class PDSScalingExperiment(Experiment):
             )
         if self.scaling_results:
             self._save_scaling_results()
+        self._apply_only_first()
         print(f"[PDSScaling] plot path:           {self.scaling_plot_path}")
         self._write_dashboard_csv_if_requested()
         self._plot_scaling_results()
+        self._compute_every_regression()
+
+    def _apply_only_first(self) -> None:
+        n = getattr(self, "only_first", None)
+        if n is None or not self.scaling_results:
+            return
+        keys = list(self.scaling_results.keys())[:n]
+        self.scaling_results = {k: self.scaling_results[k] for k in keys}
 
     def _write_dashboard_csv_if_requested(self) -> None:
         out_path = (self.config.output_dashboard_csv or "").strip()
@@ -1613,6 +1695,7 @@ class PDSScalingExperiment(Experiment):
             plt.savefig(self.scaling_plot_path, dpi=200)
             plt.close()
             self.logger.info("Wrote plot %s", self.scaling_plot_path)
+            print(f"[PDSScaling] plotted {len(xs)} instances (scatter, K={fixed_k})")
             print(f"[PDSScaling] wrote plot:         {self.scaling_plot_path}")
             return
 
@@ -1710,6 +1793,9 @@ class PDSScalingExperiment(Experiment):
             if x_mode == "K":
                 ks = [p.K for p in pts]
                 rs = [p.y_value for p in pts]
+                if getattr(self.config, "normalize_y", False) and rs:
+                    _mn, _mx = min(rs), max(rs)
+                    rs = [(v - _mn) / (_mx - _mn) if _mx > _mn else 0.0 for v in rs]
                 if self.config.log_x or self.config.log_y:
                     pairs_k = []
                     for k_v, r_v in zip(ks, rs):
@@ -1726,10 +1812,10 @@ class PDSScalingExperiment(Experiment):
                     n_skipped_x_bound += 1
                     continue
                 n_plotted += 1
-                for p in pts:
-                    if p.K > 0:
-                        per_k.setdefault(p.K, []).append(p.y_value)
-                        per_k_by_cat.setdefault(inst_cat, {}).setdefault(p.K, []).append(p.y_value)
+                for k_v, r_v in zip(ks, rs):
+                    if k_v > 0:
+                        per_k.setdefault(k_v, []).append(r_v)
+                        per_k_by_cat.setdefault(inst_cat, {}).setdefault(k_v, []).append(r_v)
                 if getattr(self.config, "plot_dots", False):
                     plt.scatter(ks, rs, alpha=0.25, s=12, color=color, label=label)
                 else:
@@ -1769,12 +1855,16 @@ class PDSScalingExperiment(Experiment):
             pairs.sort(key=lambda t: t[0])
             xs = [t[0] for t in pairs]
             rs = [t[1] for t in pairs]
+            if getattr(self.config, "normalize_y", False) and rs:
+                _mn, _mx = min(rs), max(rs)
+                rs = [(v - _mn) / (_mx - _mn) if _mx > _mn else 0.0 for v in rs]
             if x_bound is not None and max(xs) < x_bound:
                 n_skipped_x_bound += 1
                 continue
             n_plotted += 1
-            all_xy_pairs.extend(pairs)
-            all_xy_pairs_by_cat.setdefault(inst_cat, []).extend(pairs)
+            plotted_pairs = list(zip(xs, rs))
+            all_xy_pairs.extend(plotted_pairs)
+            all_xy_pairs_by_cat.setdefault(inst_cat, []).extend(plotted_pairs)
             if getattr(self.config, "plot_dots", False):
                 plt.scatter(xs, rs, alpha=0.25, s=12, color=color, label=label)
             else:
@@ -1870,12 +1960,14 @@ class PDSScalingExperiment(Experiment):
         x_label = _x_axis_label(x_mode)
         plt.xlabel(x_label)
         _unit = getattr(self.config, "interpolant_unit", "bits")
-        plt.ylabel(_y_axis_label(self._y_mode, _unit))
+        _normalize = getattr(self.config, "normalize_y", False)
+        _y_label = _y_axis_label(self._y_mode, _unit) + (" (normalized)" if _normalize else "")
+        plt.ylabel(_y_label)
         if self.config.log_x:
             plt.xscale("log")
         if self.config.log_y:
             plt.yscale("log")
-        title = f"{_y_axis_label(self._y_mode, _unit)} vs {x_label} ({self.config.category})"
+        title = f"{_y_label} vs {x_label} ({self.config.category})"
         if trim_pct > 0.0:
             title += f", trim top {trim_pct:g}%"
         if self.config.log_x or self.config.log_y:
@@ -1900,7 +1992,143 @@ class PDSScalingExperiment(Experiment):
         plt.savefig(self.scaling_plot_path, dpi=200)
         plt.close()
         self.logger.info("Wrote plot %s", self.scaling_plot_path)
+        print(f"[PDSScaling] plotted {n_plotted} instance lines")
         print(f"[PDSScaling] wrote plot:         {self.scaling_plot_path}")
+
+    def _compute_every_regression(self) -> None:
+        """For each instance line (after normalize + x_bound), fit log/linear/exp/poly4 and write CSV."""
+        if not getattr(self.config, "every_regression", False):
+            return
+        try:
+            import numpy as np  # type: ignore
+        except ModuleNotFoundError:
+            print("[PDSScaling] numpy not installed; skip every_regression.")
+            return
+
+        x_mode = self._x_mode
+        x_bound = self.config.x_bound
+        normalize = getattr(self.config, "normalize_y", False)
+
+        def r2(y_true: "np.ndarray", y_pred: "np.ndarray") -> float:
+            ss_res = float(np.sum((y_true - y_pred) ** 2))
+            ss_tot = float(np.sum((y_true - np.mean(y_true)) ** 2))
+            if ss_tot <= 0:
+                return float("nan")
+            return 1.0 - ss_res / ss_tot
+
+        def fit_all(x: "np.ndarray", y: "np.ndarray"):
+            results = {}
+            # linear
+            try:
+                c = np.polyfit(x, y, deg=1)
+                results["linear"] = r2(y, np.polyval(c, x))
+            except Exception:
+                results["linear"] = float("nan")
+            # log
+            mask_pos = x > 0
+            if np.any(mask_pos) and len(x[mask_pos]) >= 3:
+                try:
+                    c = np.polyfit(np.log(x[mask_pos]), y[mask_pos], deg=1)
+                    results["log"] = r2(y[mask_pos], np.polyval(c, np.log(x[mask_pos])))
+                except Exception:
+                    results["log"] = float("nan")
+            else:
+                results["log"] = float("nan")
+            # exp
+            mask_ypos = y > 0
+            if np.any(mask_ypos) and len(x[mask_ypos]) >= 3:
+                try:
+                    c = np.polyfit(x[mask_ypos], np.log(y[mask_ypos]), deg=1)
+                    y_hat = np.exp(np.polyval(c, x[mask_ypos]))
+                    results["exp"] = r2(y[mask_ypos], y_hat)
+                except Exception:
+                    results["exp"] = float("nan")
+            else:
+                results["exp"] = float("nan")
+            # poly4
+            try:
+                c = np.polyfit(x, y, deg=4)
+                results["poly"] = r2(y, np.polyval(c, x))
+            except Exception:
+                results["poly"] = float("nan")
+            return results
+
+        rows = []
+        instances = list(self.scaling_results.keys())
+        for inst in _tqdm(instances, desc="every_regression", unit="inst"):
+            pts = self.scaling_results[inst]
+            if not pts:
+                continue
+
+            if x_mode == "K":
+                ks = [float(p.K) for p in pts]
+                rs = [p.y_value for p in pts]
+                if normalize and rs:
+                    _mn, _mx = min(rs), max(rs)
+                    rs = [(v - _mn) / (_mx - _mn) if _mx > _mn else 0.0 for v in rs]
+                if x_bound is not None and (not ks or max(ks) < x_bound):
+                    continue
+                xs_arr = np.array(ks, dtype=float)
+                ys_arr = np.array(rs, dtype=float)
+            else:
+                info_by_k = _load_cnf_info_results_by_k(inst) if x_mode in ("n", "proofsize", "solvingtime") else {}
+                pairs: List[Tuple[float, float]] = []
+                for p in pts:
+                    if x_mode == "proofdoor_size":
+                        if p.proofdoor_size <= 0:
+                            continue
+                        x_val = float(p.proofdoor_size)
+                    elif x_mode == "solvingtime":
+                        row = info_by_k.get(int(p.K))
+                        solve_time = _extract_solvingtime_from_info_row(row)
+                        if solve_time is None:
+                            continue
+                        x_val = float(solve_time)
+                    else:
+                        row = info_by_k.get(int(p.K))
+                        if not row:
+                            continue
+                        parsed = _parse_int(row.get(x_mode))
+                        if parsed is None:
+                            continue
+                        x_val = float(parsed)
+                    pairs.append((x_val, p.y_value))
+                if not pairs:
+                    continue
+                pairs.sort(key=lambda t: t[0])
+                xs_f = [t[0] for t in pairs]
+                rs_f = [t[1] for t in pairs]
+                if normalize and rs_f:
+                    _mn, _mx = min(rs_f), max(rs_f)
+                    rs_f = [(v - _mn) / (_mx - _mn) if _mx > _mn else 0.0 for v in rs_f]
+                if x_bound is not None and max(xs_f) < x_bound:
+                    continue
+                xs_arr = np.array(xs_f, dtype=float)
+                ys_arr = np.array(rs_f, dtype=float)
+
+            if len(xs_arr) == 0:
+                continue
+            fits = fit_all(xs_arr, ys_arr)
+            valid = {k: v for k, v in fits.items() if not math.isnan(v)}
+            best = max(valid, key=lambda k: valid[k]) if valid else "n/a"
+            rows.append({
+                "name": inst,
+                "log_r2": fits.get("log", float("nan")),
+                "linear_r2": fits.get("linear", float("nan")),
+                "exp_r2": fits.get("exp", float("nan")),
+                "poly_r2": fits.get("poly", float("nan")),
+                "best_fit": best,
+            })
+
+        out_path = getattr(self.config, "every_regression_csv", None) or os.path.join(
+            self.config.result_dir, f"every_regression{os.path.splitext(os.path.basename(self.scaling_results_json_path))[0].replace('pds_scaling_results', '')}.csv"
+        )
+        os.makedirs(os.path.dirname(out_path) if os.path.dirname(out_path) else ".", exist_ok=True)
+        with open(out_path, "w", newline="", encoding="utf-8") as f:
+            w = csv.DictWriter(f, fieldnames=["name", "log_r2", "linear_r2", "exp_r2", "poly_r2", "best_fit"])
+            w.writeheader()
+            w.writerows(rows)
+        print(f"[PDSScaling] every_regression CSV written: {out_path} ({len(rows)} instances)")
 
     def _plot_aggregate_fits(
         self,
@@ -2049,9 +2277,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--category", type=str, default="all")
     parser.add_argument("--force_instance", type=str, default=None)
-    group = parser.add_mutually_exclusive_group()
-    group.add_argument("--pddef", type=int, default=1)
-    group.add_argument(
+    parser.add_argument("--pddef", type=int, default=1)
+    parser.add_argument(
         "--y",
         type=str,
         default=None,
@@ -2085,12 +2312,25 @@ def main():
         default=False,
         help="If set, do not draw regression fit lines for the red 'max' curve (only affects plots with --x_bound).",
     )
-    parser.add_argument(
+    reg_group = parser.add_mutually_exclusive_group()
+    reg_group.add_argument(
         "--max_regression_mode",
         type=str,
         default="both",
         choices=["both", "linear", "log"],
         help="Regression lines for max curve when enabled: both|linear|log.",
+    )
+    reg_group.add_argument(
+        "--every_regression",
+        action="store_true",
+        default=False,
+        help="For each instance line (after normalize), fit log/linear/exp/poly4 and write r2 scores to CSV.",
+    )
+    parser.add_argument(
+        "--every_regression_csv",
+        type=str,
+        default=None,
+        help="Output path for --every_regression CSV (default: result/every_regression_<tag>.csv).",
     )
     parser.add_argument(
         "--interpolant_unit",
@@ -2098,6 +2338,12 @@ def main():
         default="bits",
         choices=["bits", "clauses"],
         help="Unit for interpolant size: bits (theoretical_bits_smtcnf) or clauses (line count).",
+    )
+    parser.add_argument(
+        "--only_first",
+        type=int,
+        default=None,
+        help="If set, only process the first N instance names.",
     )
     parser.add_argument(
         "--use_summary_instances",
@@ -2208,6 +2454,12 @@ def main():
         help="If set and summary has smt2cnf_status, ONLY keep rows with smt2cnf_status == 'done' when inferring K.",
     )
     parser.add_argument(
+        "--normalize_y",
+        action="store_true",
+        default=False,
+        help="If set, normalize each instance's y values to [0, 1] (per-line min-max) before plotting.",
+    )
+    parser.add_argument(
         "--prepare_only",
         action="store_true",
         default=False,
@@ -2301,11 +2553,15 @@ def main():
         log_y=args.logy,
         missing_report=args.missing,
         read_pds_from_source=args.read_pds_from_source,
-        plot_max_regression=(not args.no_max_regression),
-        max_regression_mode=args.max_regression_mode,
+        plot_max_regression=(not args.no_max_regression) and (not args.every_regression),
+        max_regression_mode=args.max_regression_mode if not args.every_regression else "both",
         interpolant_unit=getattr(args, "interpolant_unit", "bits"),
+        normalize_y=args.normalize_y,
+        every_regression=args.every_regression,
+        every_regression_csv=args.every_regression_csv,
     )
     experiment = PDSScalingExperiment(config)
+    experiment.only_first = args.only_first if (args.only_first is not None and args.only_first > 0) else None
     experiment.run()
 
 

@@ -8,6 +8,23 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from utils.paths import get_CNF_dir, get_progressive_qdimacs_dir
 
+INTERP_CNF_DIR_TEMPLATE = "./ProofDoorBenchmark/interp_cnf_spd_manthan/{K}/"
+
+def get_prev_interp_cnf_path(name, K, i):
+    return os.path.join(INTERP_CNF_DIR_TEMPLATE.format(K=K), f"{name}.{K}.{i}.cnf")
+
+def load_interp_cnf(path):
+    clauses = []
+    with open(path) as f:
+        for line in f:
+            line = line.strip()
+            if not line or line[0] in ('c', 'p'):
+                continue
+            lits = [int(x) for x in line.split() if x != '0']
+            if lits:
+                clauses.append(lits)
+    return clauses
+
 BACKENDS = ('manthan', 'BFSS')
 
 MANTHAN_DIR = "./External/manthan"
@@ -67,12 +84,18 @@ def compute_spd_skolem(name, K, i, backend, export_qdimacs_only=False):
     b_start   = iter_map.get(i + 1, len(cnf.clauses))
     b_clauses = cnf.clauses[b_start:]
 
-    # I_prev: strongest interpolant from the previous step (empty / True for i == 0)
-    # TODO: update this path when the Skolem result format is decided
+    # I_prev: interpolant saved by verify_skolem_interpolant.py from step i-1
     if i == 0:
         i_clauses = []
     else:
-        raise NotImplementedError("Chained interpolant loading not yet implemented for spd_skolem")
+        prev_path = get_prev_interp_cnf_path(name, K, i - 1)
+        if not os.path.exists(prev_path):
+            raise FileNotFoundError(
+                f"Interpolant CNF for step {i-1} not found: {prev_path}\n"
+                f"Run verify_skolem_interpolant.py --i {i-1} first."
+            )
+        i_clauses = load_interp_cnf(prev_path)
+        print(f"Loaded I_{{i-1}} from {prev_path}: {len(i_clauses)} clauses")
 
     # Compute variable sets for quantifier prefix
     ia_clauses     = i_clauses + a_clauses

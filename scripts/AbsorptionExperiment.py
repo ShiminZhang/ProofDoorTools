@@ -35,6 +35,13 @@ def interpolant_pddef_to_suffix(interpolant_pddef: int) -> str:
     # Default pipeline historically used pddef=1; keep filenames unchanged in that case.
     return "" if interpolant_pddef == 1 else f".pddef{interpolant_pddef}"
 
+def _smtcnf_file_suffix(interpolant_pddef: int, reverse: bool = False) -> str:
+    """Return the file extension used for interpolant CNF files for a given pddef."""
+    if interpolant_pddef == 7:
+        # spd7 outputs are plain DIMACS .cnf (no smtcnf conversion needed)
+        return ".cnf"
+    return ".reverse.smtcnf" if reverse else ".smtcnf"
+
 def interpolant_pddef_to_title_suffix(interpolant_pddef: int) -> str:
     """
     Suffix used in figure titles/filenames to distinguish interpolant variants.
@@ -55,22 +62,22 @@ def permute_flag_to_title_suffix(permute: str = None, permute_index: int = 0) ->
         return ""
     return f"_perm_{permute}_{permute_index}"
 
-def find_complete_strongest_smtcnf_instances(
+def find_complete_smtcnf_instances(
     K: int,
+    pddef: int,
     *,
     reverse: bool = False,
     permute: str = None,
     permute_index: int = 0,
+    require_nonempty: bool = False,
 ):
     """
-    Scan ./ProofDoorBenchmark/interpolant_as_cnfs_4/<K>/ and return instances that have
-    all K strongest interpolant CNF files present.
+    Scan ./ProofDoorBenchmark/interpolant_as_cnfs_{pddef}/<K>/ and return instances
+    that have all K .smtcnf files present.
 
-    Note:
-    - For strongest interpolants, an empty .smtcnf file is a valid tautology (True).
-      So we only require that the file exists, not that it is non-empty.
+    require_nonempty: if True, skip empty files (empty is valid for pddef=4 tautologies).
     """
-    base_dir = get_interpolant_cnf_dir(K, 4)
+    base_dir = get_interpolant_cnf_dir(K, pddef)
     if not os.path.exists(base_dir):
         return []
 
@@ -96,9 +103,94 @@ def find_complete_strongest_smtcnf_instances(
             continue
         if idx < 0 or idx >= K:
             continue
+        if require_nonempty and os.path.getsize(os.path.join(base_dir, fname)) == 0:
+            continue
         index_map.setdefault(instance, set()).add(idx)
 
     return sorted([inst for inst, idxs in index_map.items() if idxs == full_set])
+
+
+def find_any_smtcnf_instances(
+    K: int,
+    pddef: int,
+    *,
+    reverse: bool = False,
+    permute: str = None,
+    permute_index: int = 0,
+) -> list:
+    """Return all instances that have at least one .smtcnf file (used with --auto_effective_K)."""
+    base_dir = get_interpolant_cnf_dir(K, pddef)
+    if not os.path.exists(base_dir):
+        return []
+    suffix = _smtcnf_file_suffix(pddef, reverse)
+    perm_suffix = permute_flag_to_suffix(permute, permute_index)
+    ending = f"{perm_suffix}{suffix}"
+    marker = f".{K}."
+    instances = set()
+    for fname in os.listdir(base_dir):
+        if not fname.endswith(ending):
+            continue
+        core = fname[: -len(ending)]
+        if marker not in core:
+            continue
+        inst, idx_str = core.rsplit(marker, 1)
+        if inst and idx_str.isdigit():
+            instances.add(inst)
+    return sorted(instances)
+
+
+def discover_available_K_values(pddef: int) -> list:
+    """Return sorted list of K values that have a subdirectory under interpolant_as_cnfs_{pddef}/."""
+    root = f"./ProofDoorBenchmark/interpolant_as_cnfs_{pddef}"
+    if not os.path.isdir(root):
+        return []
+    return sorted(int(d) for d in os.listdir(root) if d.isdigit() and os.path.isdir(os.path.join(root, d)))
+
+
+def find_complete_strongest_smtcnf_instances(
+    K: int,
+    *,
+    reverse: bool = False,
+    permute: str = None,
+    permute_index: int = 0,
+):
+    return find_complete_smtcnf_instances(
+        K, 4, reverse=reverse, permute=permute, permute_index=permute_index,
+        require_nonempty=False,
+    )
+
+def find_complete_spd7_instances(K: int):
+    """
+    Scan interpolant_as_cnfs_spd7/<K>/ and return instances that have
+    all K negated-reverse interpolant CNF files present and non-empty.
+    """
+    base_dir = get_interpolant_cnf_dir(K, 7)
+    if not os.path.exists(base_dir):
+        return []
+    full_set = set(range(K))
+    index_map = {}
+    for fname in os.listdir(base_dir):
+        if not fname.endswith(".cnf"):
+            continue
+        marker = f".{K}."
+        if marker not in fname:
+            continue
+        core = fname[:-len(".cnf")]
+        instance, idx_str = core.rsplit(marker, 1)
+        if not instance or not idx_str:
+            continue
+        try:
+            idx = int(idx_str)
+        except ValueError:
+            continue
+        if idx < 0 or idx >= K:
+            continue
+        full_path = os.path.join(base_dir, fname)
+        if os.path.getsize(full_path) == 0:
+            continue
+        index_map.setdefault(instance, set()).add(idx)
+    return sorted([inst for inst, idxs in index_map.items() if idxs == full_set])
+
 
 def get_formula_cnf_path(instance: str, K: int, permute: str = None, permute_index: int = 0) -> str:
     if permute:
@@ -173,7 +265,7 @@ def get_smtcnf_path(
     permute: str = None,
     permute_index: int = 0,
 ) -> str:
-    suffix = ".reverse.smtcnf" if reverse else ".smtcnf"
+    suffix = _smtcnf_file_suffix(interpolant_pddef, reverse)
     perm_suffix = permute_flag_to_suffix(permute, permute_index)
     return f"{get_interpolant_cnf_dir(K, interpolant_pddef)}/{instance}.{K}.{index}{perm_suffix}{suffix}"
 
@@ -198,6 +290,37 @@ def get_absorption_result_path(
         f"{perm_suffix}.{solver_suffix}.{include_formula_suffix}check_absorb.json"
     )
 
+def compute_K_effective_for_instance(
+    instance: str,
+    K: int,
+    pddef: int,
+    *,
+    reverse: bool = False,
+    permute: str = None,
+    permute_index: int = 0,
+) -> int:
+    """Scan interpolant_as_cnfs_{pddef}/{K}/ for the given instance and return max_index + 1."""
+    base_dir = get_interpolant_cnf_dir(K, pddef)
+    suffix = _smtcnf_file_suffix(pddef, reverse)
+    perm_suffix = permute_flag_to_suffix(permute, permute_index)
+    ending = f"{perm_suffix}{suffix}"
+    marker = f".{K}."
+    max_index = -1
+    for fname in os.listdir(base_dir):
+        if not fname.endswith(ending):
+            continue
+        core = fname[: -len(ending)]
+        if marker not in core:
+            continue
+        inst, idx_str = core.rsplit(marker, 1)
+        if inst != instance or not idx_str.isdigit():
+            continue
+        max_index = max(max_index, int(idx_str))
+    if max_index < 0:
+        return K
+    return max_index + 1
+
+
 class AbsorptionExperimentConfig(ExperimentConfig):
     def __init__(
         self,
@@ -217,9 +340,13 @@ class AbsorptionExperimentConfig(ExperimentConfig):
         interpolant_pddef: int = 1,
         permute: str = None,
         permute_index: int = 0,
+        K_effective: int = None,
+        auto_effective_K: bool = False,
     ):
         super().__init__(name, data_dir, result_dir, log_dir)
         self.K = K
+        self.auto_effective_K = auto_effective_K
+        self.K_effective = K_effective if K_effective is not None else K
         self.index = index
         self.interpolant_pddef = interpolant_pddef
         if force_instance is not None:
@@ -237,7 +364,7 @@ class AbsorptionExperimentConfig(ExperimentConfig):
                     permute_index=permute_index,
                 )
                 if category is not None:
-                    allowed = set(get_instance_list(category))
+                    allowed = get_category_set_from_dashboard(category)
                     strongest_instances = [inst for inst in strongest_instances if inst in allowed]
                 print(
                     f"[strongest] Found {len(strongest_instances)} complete instance(s) "
@@ -245,6 +372,40 @@ class AbsorptionExperimentConfig(ExperimentConfig):
                 )
                 self.instance_list = strongest_instances
                 print(f"strongest_instances: {strongest_instances}")
+            elif interpolant_pddef == 5:
+                if auto_effective_K:
+                    # auto_effective_K: accept any instance with at least one converted file
+                    def5_instances = find_any_smtcnf_instances(
+                        K, 5, reverse=reverse, permute=permute, permute_index=permute_index,
+                    )
+                    label = "partial"
+                else:
+                    def5_instances = find_complete_smtcnf_instances(
+                        K, 5,
+                        reverse=reverse,
+                        permute=permute,
+                        permute_index=permute_index,
+                        require_nonempty=True,
+                    )
+                    label = "complete"
+                if category is not None:
+                    allowed = get_category_set_from_dashboard(category)
+                    def5_instances = [inst for inst in def5_instances if inst in allowed]
+                print(
+                    f"[def5] Found {len(def5_instances)} {label} instance(s) "
+                    f"under {get_interpolant_cnf_dir(K, 5)}"
+                )
+                self.instance_list = def5_instances
+            elif interpolant_pddef == 7:
+                spd7_instances = find_complete_spd7_instances(K)
+                if category is not None:
+                    allowed = get_category_set_from_dashboard(category)
+                    spd7_instances = [inst for inst in spd7_instances if inst in allowed]
+                print(
+                    f"[spd7] Found {len(spd7_instances)} complete instance(s) "
+                    f"under {get_interpolant_cnf_dir(K, 7)}"
+                )
+                self.instance_list = spd7_instances
             else:
                 self.instance_list = select_instances_from_csv(category=category)
         self.use_glucose_proof = use_glucose_proof
@@ -256,7 +417,7 @@ class AbsorptionExperimentConfig(ExperimentConfig):
         self.reverse = reverse
         self.permute = permute
         self.permute_index = permute_index
-def draw_greyscale_plot(percentage_trend, title, color='Greys', k_value=10):
+def draw_greyscale_plot(percentage_trend, title, color='Greys', k_value=10, interpolant_pddef=1):
     plt.figure(figsize=(10, 6))
     plt.xticks(range(len(percentage_trend[0])), [f"{i}" for i in range(len(percentage_trend[0]))])
     plt.imshow(percentage_trend, cmap=color, aspect='auto')
@@ -264,10 +425,10 @@ def draw_greyscale_plot(percentage_trend, title, color='Greys', k_value=10):
     plt.xlabel('Proof partition index')
     plt.ylabel('Interpolant index')
     plt.title(title)
-    if not os.path.exists(f"{get_figures_dir()}/absorption_experiments/{k_value}"):
-        os.makedirs(f"{get_figures_dir()}/absorption_experiments/{k_value}")
-    print(f"saving figure to {get_figures_dir()}/absorption_experiments/{k_value}/{title}.png")
-    plt.savefig(f"{get_figures_dir()}/absorption_experiments/{k_value}/{title}.png")
+    out_dir = f"{get_figures_dir()}/absorption_experiments/{k_value}/pddef_{interpolant_pddef}"
+    os.makedirs(out_dir, exist_ok=True)
+    print(f"saving figure to {out_dir}/{title}.png")
+    plt.savefig(f"{out_dir}/{title}.png")
 
 
 class AbsorptionExperiment(Experiment):
@@ -279,13 +440,14 @@ class AbsorptionExperiment(Experiment):
 
     def draw_heatmap_for_instance(self, instance):
         K = self.config.K
+        K_effective = self.config.K_effective
         percentage_for_iterations = []
         include_formula_suffix = include_formula_in_checking_flag_to_suffix(self.config.include_formula_in_checking)
         include_formula_title = "withFormula" if self.config.include_formula_in_checking else "withoutFormula"
         use_trimmed_proof_title = "trimmed" if USE_TRIMM_PROOF else "notrimmed"
         reverse_title = "reverse" if self.config.reverse else "forward"
         pddef_title_suffix = interpolant_pddef_to_title_suffix(self.config.interpolant_pddef)
-        for index in range(K):
+        for index in range(K_effective):
             interpolant_absorption_percentage_with_proof_index = []
             output_dir = f"{get_absorption_experiments_dir(K)}/"
             if not os.path.exists(output_dir):
@@ -304,7 +466,7 @@ class AbsorptionExperiment(Experiment):
             )
             # output_path = f"{get_absorption_experiments_dir()}/{basename}.k_{k_value}.i_{index}.check_absorb.json"
             result = json.load(open(output_path))
-            for proof_index in range(K):
+            for proof_index in range(K_effective):
                 pass_count = 0
                 total_count = 0
                 if proof_index < index:
@@ -331,6 +493,7 @@ class AbsorptionExperiment(Experiment):
             f'Literal Absorption Pass Percentage Heatmap {instance} ({solver_name})_{include_formula_title}_{use_trimmed_proof_title}_{reverse_title}{pddef_title_suffix}{permute_title_suffix}',
             k_value=self.config.K,
             color='Blues',
+            interpolant_pddef=self.config.interpolant_pddef,
         )
         
         return percentage_for_iterations
@@ -526,8 +689,9 @@ class AbsorptionExperiment(Experiment):
         assert(len(self.config.instance_list) == 1)
         instance = self.config.instance_list[0]
         interpolant_map = {}
+        K_effective = self.config.K_effective
         # target_interpolant_index = self.config.index
-        for interpolation_index in range(self.config.K):
+        for interpolation_index in range(K_effective):
             interpolant_cnf_path = get_smtcnf_path(
                 instance,
                 self.config.K,
@@ -563,9 +727,9 @@ class AbsorptionExperiment(Experiment):
                 interpolation_index,
                 interpolant_map[interpolation_index][interpolant_clause_index],
             )
-            for proof_index in range(self.config.K)
+            for proof_index in range(K_effective)
             for interpolation_index in range(proof_index + 1)
-            # for interpolation_index in range(self.config.K)
+            # for interpolation_index in range(K_effective)
             for interpolant_clause_index in range(len(interpolant_map[interpolation_index]))
         ]
         task_args = [
@@ -592,7 +756,7 @@ class AbsorptionExperiment(Experiment):
         
         # Map results back to nested dictionary structure
         results = {}
-        for interpolation_index in range(self.config.K):
+        for interpolation_index in range(K_effective):
             results[interpolation_index] = {}
         for (proof_index, interpolant_clause_index, interpolation_index, interpolant_clause), result in zip(task_records, results_list):
             if interpolation_index not in results:
@@ -605,7 +769,7 @@ class AbsorptionExperiment(Experiment):
 
             results[interpolation_index][clause_str][proof_index] = result
 
-        for interpolation_index in range(self.config.K):
+        for interpolation_index in range(K_effective):
             solver_suffix = "minisat" if self.config.use_minisat_proof else "glucose" if self.config.use_glucose_proof else "cadical"
             include_formula_suffix = include_formula_in_checking_flag_to_suffix(self.config.include_formula_in_checking)
             output_path = get_absorption_result_path(
@@ -634,7 +798,7 @@ class AbsorptionExperiment(Experiment):
         permute_title_suffix = permute_flag_to_title_suffix(self.config.permute, self.config.permute_index)
         for instance in instances:
             title = f"Literal Absorption Pass Percentage Heatmap {instance} ({solver_name})_{include_formula_title}_{use_trimmed_proof_title}_{reverse_title}{pddef_title_suffix}{permute_title_suffix}"
-            figure_path = f"{get_figures_dir()}/absorption_experiments/{self.config.K}/{title}.png"
+            figure_path = f"{get_figures_dir()}/absorption_experiments/{self.config.K}/pddef_{self.config.interpolant_pddef}/{title}.png"
             if not os.path.exists(figure_path):
                 print(f"Figure {figure_path} does not exist, skipping")
                 continue
@@ -771,10 +935,22 @@ class AbsorptionExperiment(Experiment):
     def manage(self):
         # instance_list = get_instance_list(self.config.category)
         instance_list = self.config.instance_list
+        auto_effective_K = self.config.auto_effective_K
         for instance in instance_list:
-        # for instance in ["6s4"]:   
+        # for instance in ["6s4"]:
+            k_eff = compute_K_effective_for_instance(
+                instance,
+                self.config.K,
+                self.config.interpolant_pddef,
+                reverse=self.config.reverse,
+                permute=self.config.permute,
+                permute_index=self.config.permute_index,
+            ) if auto_effective_K else self.config.K_effective
+            if k_eff == 0:
+                print(f"Skipping {instance}: no smtcnf files found")
+                continue
             failed = False
-            for index in range(self.config.K):
+            for index in range(k_eff):
                 smt_cnf = get_smtcnf_path(
                     instance,
                     self.config.K,
@@ -796,7 +972,7 @@ class AbsorptionExperiment(Experiment):
                 # print(f"Not skipping for now, dummy interpolant will be used")
                 print(f"Skipping {instance} for index because it failed during interpolation")
                 continue
-            cmd = f"python scripts/AbsorptionExperiment.py --instance {instance} --K {self.config.K} --category {self.config.category}"
+            cmd = f"python scripts/AbsorptionExperiment.py --instance {instance} --K {self.config.K} --effective_K {k_eff} --category {self.config.category}"
             if self.config.reverse:
                 cmd += " --reverse"
             if self.config.interpolant_pddef != 1:
@@ -831,6 +1007,20 @@ class AbsorptionExperiment(Experiment):
     def on_end(self):
         pass
 
+def get_category_set_from_dashboard(category: str, csv_path="./dashboard_data.csv") -> set:
+    """Return set of instance names belonging to `category` from dashboard_data.csv (column index 2)."""
+    result = set()
+    if not os.path.exists(csv_path):
+        return result
+    with open(csv_path, "r") as f:
+        reader = csv.reader(f)
+        next(reader)
+        for row in reader:
+            if len(row) > 2 and row[2] == category:
+                result.add(row[0])
+    return result
+
+
 def select_instances_from_csv(csv_path="./dashboard_data.csv", category=None):
     # instance_list = ["6s4"]
     instance_list = []
@@ -845,7 +1035,25 @@ def select_instances_from_csv(csv_path="./dashboard_data.csv", category=None):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--K", type=int, default=10)
+    parser.add_argument("--K", type=int, default=None)
+    parser.add_argument(
+        "--auto_K",
+        action="store_true",
+        default=False,
+        help="Infer K from max index + 1 found in interpolant_as_cnfs_<pddef>/; iterates all available K values",
+    )
+    parser.add_argument(
+        "--effective_K",
+        type=int,
+        default=None,
+        help="Override the number of indices used in absorption loops (file paths still use --K)",
+    )
+    parser.add_argument(
+        "--auto_effective_K",
+        action="store_true",
+        default=False,
+        help="Per-instance: set effective_K = max existing smtcnf index + 1 (file paths still use --K)",
+    )
     parser.add_argument("--category", type=str, default=None)
     parser.add_argument("--main", action="store_true", default=False)
     parser.add_argument("--from_summary", type=str, default=None, help="CSV path with columns: instance_name,K,smt2cnf_status; will run absorption for rows where smt2cnf_status=done")
@@ -866,8 +1074,8 @@ def main():
         "--interpolant_pddef",
         type=int,
         default=1,
-        choices=[1, 4],
-        help="Which interpolant CNF to use for absorption. 1=def1 (default), 4=strongest (after smt2cnf).",
+        choices=[1, 4, 5, 7],
+        help="Which interpolant CNF to use for absorption. 1=def1 (default), 4=strongest, 5=def5 (qdimacs-converted), 7=spd7.",
     )
     parser.add_argument(
         "--use_strongest_interpolant",
@@ -909,6 +1117,47 @@ def main():
 
     if args.use_strongest_interpolant:
         args.interpolant_pddef = 4
+
+    if args.auto_K:
+        k_values = discover_available_K_values(args.interpolant_pddef)
+        if not k_values:
+            print(f"[auto_K] No subdirectories found under interpolant_as_cnfs_{args.interpolant_pddef}/")
+            return
+        print(f"[auto_K] Found K values: {k_values}")
+        for K in k_values:
+            config = AbsorptionExperimentConfig(
+                name="absorption",
+                data_dir="data",
+                result_dir="result",
+                log_dir="log",
+                K=K,
+                category=args.category,
+                force_instance=args.force_instance,
+                use_minisat_proof=args.use_minisat_proof,
+                use_glucose_proof=args.use_glucose_proof,
+                include_formula_in_checking=args.include_formula_in_checking,
+                use_pbh_proof=args.use_pbh_proof,
+                reverse=args.reverse,
+                interpolant_pddef=args.interpolant_pddef,
+                permute=args.permute,
+                permute_index=args.permute_index,
+            )
+            experiment = AbsorptionExperiment(config)
+            experiment.manage()
+        return
+
+    if args.K is None:
+        args.K = 10
+
+    # Resolve effective_K: explicit > auto > default (= K)
+    if args.effective_K is not None:
+        resolved_K_effective = args.effective_K
+    elif args.auto_effective_K:
+        # sentinel: set K_effective != K so manage() knows to recompute per instance
+        resolved_K_effective = -1
+    else:
+        resolved_K_effective = args.K
+
     # Batch mode: load (instance,K) from a CSV summary and submit absorption runs for those with SMT→CNF done
     if args.from_summary:
         summary_path = args.from_summary
@@ -951,34 +1200,35 @@ def main():
                 interpolant_pddef=args.interpolant_pddef,
                 permute=args.permute,
                 permute_index=args.permute_index,
+                K_effective=resolved_K_effective if not args.auto_effective_K else None, auto_effective_K=args.auto_effective_K,
             )
             experiment = AbsorptionExperiment(config)
             experiment.manage()
         return
     if args.draw:
         assert args.instance is not None
-        config = AbsorptionExperimentConfig(name="absorption", data_dir="data", result_dir="result", log_dir="log", K=args.K, category=args.category, force_instance=args.instance, use_minisat_proof=args.use_minisat_proof, use_glucose_proof=args.use_glucose_proof, include_formula_in_checking=args.include_formula_in_checking, reverse=args.reverse, interpolant_pddef=args.interpolant_pddef, permute=args.permute, permute_index=args.permute_index)
+        config = AbsorptionExperimentConfig(name="absorption", data_dir="data", result_dir="result", log_dir="log", K=args.K, category=args.category, force_instance=args.instance, use_minisat_proof=args.use_minisat_proof, use_glucose_proof=args.use_glucose_proof, include_formula_in_checking=args.include_formula_in_checking, reverse=args.reverse, interpolant_pddef=args.interpolant_pddef, permute=args.permute, permute_index=args.permute_index, K_effective=resolved_K_effective if not args.auto_effective_K else None, auto_effective_K=args.auto_effective_K)
         experiment = AbsorptionExperiment(config)
         experiment.draw_heatmap()
         return
     
     if args.check_minisat_result:
         assert(args.instance is None)
-        config = AbsorptionExperimentConfig(name="absorption", data_dir="data", result_dir="result", log_dir="log", K=args.K, category=args.category, force_instance=args.force_instance, use_minisat_proof=True, use_glucose_proof=args.use_glucose_proof, include_formula_in_checking=args.include_formula_in_checking, reverse=args.reverse, interpolant_pddef=args.interpolant_pddef, permute=args.permute, permute_index=args.permute_index)
+        config = AbsorptionExperimentConfig(name="absorption", data_dir="data", result_dir="result", log_dir="log", K=args.K, category=args.category, force_instance=args.force_instance, use_minisat_proof=True, use_glucose_proof=args.use_glucose_proof, include_formula_in_checking=args.include_formula_in_checking, reverse=args.reverse, interpolant_pddef=args.interpolant_pddef, permute=args.permute, permute_index=args.permute_index, K_effective=resolved_K_effective if not args.auto_effective_K else None, auto_effective_K=args.auto_effective_K)
         experiment = AbsorptionExperiment(config)
         experiment.check_minisat_result()
         return
     
     if args.check_result:
         assert(args.instance is None)
-        config = AbsorptionExperimentConfig(name="absorption", data_dir="data", result_dir="result", log_dir="log", K=args.K, category=args.category, force_instance=args.force_instance, use_minisat_proof=args.use_minisat_proof, use_glucose_proof=args.use_glucose_proof, include_formula_in_checking=args.include_formula_in_checking, reverse=args.reverse, interpolant_pddef=args.interpolant_pddef, permute=args.permute, permute_index=args.permute_index)
+        config = AbsorptionExperimentConfig(name="absorption", data_dir="data", result_dir="result", log_dir="log", K=args.K, category=args.category, force_instance=args.force_instance, use_minisat_proof=args.use_minisat_proof, use_glucose_proof=args.use_glucose_proof, include_formula_in_checking=args.include_formula_in_checking, reverse=args.reverse, interpolant_pddef=args.interpolant_pddef, permute=args.permute, permute_index=args.permute_index, K_effective=resolved_K_effective if not args.auto_effective_K else None, auto_effective_K=args.auto_effective_K)
         experiment = AbsorptionExperiment(config)
         experiment.check_result()
         return
     
     if args.draw_all:
         assert(args.instance is None)
-        config = AbsorptionExperimentConfig(name="absorption", data_dir="data", result_dir="result", log_dir="log", K=args.K, category=args.category, force_instance=args.force_instance, use_minisat_proof=args.use_minisat_proof, use_glucose_proof=args.use_glucose_proof, include_formula_in_checking=args.include_formula_in_checking, reverse=args.reverse, interpolant_pddef=args.interpolant_pddef, permute=args.permute, permute_index=args.permute_index)
+        config = AbsorptionExperimentConfig(name="absorption", data_dir="data", result_dir="result", log_dir="log", K=args.K, category=args.category, force_instance=args.force_instance, use_minisat_proof=args.use_minisat_proof, use_glucose_proof=args.use_glucose_proof, include_formula_in_checking=args.include_formula_in_checking, reverse=args.reverse, interpolant_pddef=args.interpolant_pddef, permute=args.permute, permute_index=args.permute_index, K_effective=resolved_K_effective if not args.auto_effective_K else None, auto_effective_K=args.auto_effective_K)
         experiment = AbsorptionExperiment(config)
         experiment.draw_heatmap_all()
 
@@ -989,7 +1239,7 @@ def main():
     if args.main:
         # assert(args.instance is None)
         config = AbsorptionExperimentConfig(name="absorption", data_dir="data", result_dir="result", log_dir="log", K=args.K, category=args.category, force_instance=args.force_instance, use_minisat_proof=args.use_minisat_proof, use_glucose_proof=args.use_glucose_proof,
-        include_formula_in_checking=args.include_formula_in_checking, use_pbh_proof=args.use_pbh_proof, reverse=args.reverse, interpolant_pddef=args.interpolant_pddef, permute=args.permute, permute_index=args.permute_index)
+        include_formula_in_checking=args.include_formula_in_checking, use_pbh_proof=args.use_pbh_proof, reverse=args.reverse, interpolant_pddef=args.interpolant_pddef, permute=args.permute, permute_index=args.permute_index, K_effective=resolved_K_effective if not args.auto_effective_K else None, auto_effective_K=args.auto_effective_K)
         experiment = AbsorptionExperiment(config)
         experiment.manage()
         # experiment.run()
@@ -1004,7 +1254,8 @@ def main():
             result_dir="result",
             log_dir="log", K=K,
             category=args.category,
-            force_instance=instance, use_minisat_proof=args.use_minisat_proof, use_glucose_proof=args.use_glucose_proof, include_formula_in_checking=args.include_formula_in_checking, use_pbh_proof=args.use_pbh_proof, reverse=args.reverse, interpolant_pddef=args.interpolant_pddef, permute=args.permute, permute_index=args.permute_index)
+            force_instance=instance, use_minisat_proof=args.use_minisat_proof, use_glucose_proof=args.use_glucose_proof, include_formula_in_checking=args.include_formula_in_checking, use_pbh_proof=args.use_pbh_proof, reverse=args.reverse, interpolant_pddef=args.interpolant_pddef, permute=args.permute, permute_index=args.permute_index,
+            K_effective=resolved_K_effective if not args.auto_effective_K else None, auto_effective_K=args.auto_effective_K)
         experiment = AbsorptionExperiment(config)
         experiment.run()
         return
@@ -1031,6 +1282,7 @@ def main():
                 interpolant_pddef=args.interpolant_pddef,
                 permute=args.permute,
                 permute_index=args.permute_index,
+                K_effective=resolved_K_effective if not args.auto_effective_K else None, auto_effective_K=args.auto_effective_K,
             )
             experiment = AbsorptionExperiment(config)
             experiment.process_single_instance()

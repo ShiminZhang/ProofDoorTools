@@ -53,6 +53,14 @@ def compute_success(name: str, K: int, index: int, interpolant_path: str) -> boo
     return os.path.exists(interpolant_path)
 
 
+def interpolant_has_existential(interpolant_path: str) -> bool:
+    with open(interpolant_path) as f:
+        for line in f:
+            if line.lstrip().startswith("e"):
+                return True
+    return False
+
+
 def count_clauses(interpolant_path: str) -> int:
     n_of_clauses = 0
     with open(interpolant_path) as f:
@@ -79,12 +87,14 @@ def build_rows(
             interpolant_dir = INTERPOLANT_DIR_TEMPLATE.format(K=K)
             for index in range(K):
                 log_paths = get_log_paths(name, K, index)
-                if not log_paths:
-                    continue
                 interpolant_path = os.path.join(interpolant_dir, f"{name}.{K}.{index}.interpolant")
                 ok = compute_success(name, K, index, interpolant_path)
                 if ok and os.path.exists(interpolant_path):
-                    n_of_clauses: int | str = count_clauses(interpolant_path)
+                    if interpolant_has_existential(interpolant_path):
+                        ok = False
+                        n_of_clauses: int | str = "NA"
+                    else:
+                        n_of_clauses = count_clauses(interpolant_path)
                 else:
                     n_of_clauses = "NA"
                 rows.append(
@@ -310,7 +320,7 @@ def _write_svg_plot(
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">',
         '<rect width="100%" height="100%" fill="white"/>',
         f'<defs><clipPath id="plot-area-clip"><rect x="{margin_left}" y="{margin_top}" width="{plot_width}" height="{plot_height}"/></clipPath></defs>',
-        f'<text x="{width / 2}" y="30" text-anchor="middle" font-size="22" font-family="sans-serif">SPD Interpolant Size by Index</text>',
+        f'<text x="{width / 2}" y="30" text-anchor="middle" font-size="22" font-family="sans-serif">Strongest Interpolant Size</text>',
     ]
 
     for tick in x_ticks:
@@ -339,10 +349,10 @@ def _write_svg_plot(
         f'<line x1="{margin_left}" y1="{margin_top}" x2="{margin_left}" y2="{margin_top + plot_height}" stroke="black" stroke-width="1.5"/>'
     )
     parts.append(
-        f'<text x="{width / 2}" y="{height - 20}" text-anchor="middle" font-size="16" font-family="sans-serif">index</text>'
+        f'<text x="{width / 2}" y="{height - 20}" text-anchor="middle" font-size="16" font-family="sans-serif">interpolant index</text>'
     )
     parts.append(
-        f'<text x="25" y="{height / 2}" text-anchor="middle" font-size="16" font-family="sans-serif" transform="rotate(-90 25 {height / 2})">size</text>'
+        f'<text x="25" y="{height / 2}" text-anchor="middle" font-size="16" font-family="sans-serif" transform="rotate(-90 25 {height / 2})">number of clauses</text>'
     )
 
     parts.append('<g clip-path="url(#plot-area-clip)">')
@@ -404,9 +414,47 @@ def plot_rows(
         series_by_name, category_by_name, trim_y
     )
     extend_segments = _collect_extend_segments(rows, series_by_name) if extendx2 else {}
+
     if output_path.lower().endswith(".png"):
-        output_path = os.path.splitext(output_path)[0] + ".svg"
-        print(f"WARNING: matplotlib not available; writing SVG instead: {output_path}")
+        try:
+            import matplotlib.pyplot as plt
+        except ModuleNotFoundError:
+            output_path = os.path.splitext(output_path)[0] + ".svg"
+            print(f"WARNING: matplotlib not available; writing SVG instead: {output_path}")
+            _write_svg_plot(series_by_name, category_by_name, extend_segments, output_path)
+            return output_path
+
+        category_colors = {"linear": "orange", "exponential": "blue"}
+        fig, ax = plt.subplots(figsize=(14, 7))
+        for name in sorted(series_by_name):
+            points = series_by_name[name]
+            color = category_colors.get(category_by_name.get(name, "unknown"), "gray")
+            xs = [x for x, _ in points]
+            ys = [y for _, y in points]
+            ax.plot(xs, ys, color=color, linewidth=1.2, alpha=0.7)
+            ax.scatter(xs, ys, color=color, s=8, alpha=0.7)
+            if name in extend_segments:
+                last_x, last_y = points[-1]
+                ext_x, ext_y = extend_segments[name]
+                ax.plot([last_x, ext_x], [last_y, ext_y], color=color,
+                        linewidth=1.2, alpha=0.7, linestyle="--")
+                ax.scatter([ext_x], [ext_y], color=color, s=8, alpha=0.7)
+
+        from matplotlib.lines import Line2D
+        legend_handles = [
+            Line2D([0], [0], color="orange", linewidth=2, label="linear"),
+            Line2D([0], [0], color="blue", linewidth=2, label="exponential"),
+        ]
+        ax.legend(handles=legend_handles)
+        ax.set_title("Strongest Interpolant Size", fontsize=16)
+        ax.set_xlabel("interpolant index", fontsize=13)
+        ax.set_ylabel("number of clauses", fontsize=13)
+        ax.grid(True, alpha=0.3)
+        fig.tight_layout()
+        fig.savefig(output_path, dpi=150)
+        plt.close(fig)
+        return output_path
+
     _write_svg_plot(series_by_name, category_by_name, extend_segments, output_path)
     return output_path
 
