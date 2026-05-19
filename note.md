@@ -1,3 +1,0 @@
-reverse spd总的来说还是很慢
-有部分interpolant是能算出来的，我想看他们是不是能absorb，
-但是他们是不是valid也要验证，
