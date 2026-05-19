@@ -1,4 +1,4 @@
-To ensure all logics remain correct when paper is under review, this repo will not be refactored until paper publication.
+To ensure all scripts remain correct when paper is under review, this repo will not be refactored until paper publication.
 
 # BMC scalability analysis
 ## add scripts to pythonpath
