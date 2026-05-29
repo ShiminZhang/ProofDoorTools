@@ -427,7 +427,7 @@ def main():
             exit()
         # random.shuffle(tasks)
         # tasks = tasks[:20]
-        activate_python = "source ../../general/bin/activate"
+        activate_python = "source .env; source $PYENVPATH"
         force_refresh_flag = "--force_refresh" if args.force_refresh else ""
         os.makedirs("./SlurmLogs/compute_strongest_interpolant", exist_ok=True)
         for name, K in tasks:
@@ -466,7 +466,7 @@ def main():
         exit()
     
 
-    activate_python = "source ../../general/bin/activate"
+    activate_python = "source .env; source $PYENVPATH"
     for K in K_set:
         slurm_ids = []
         for name in interested_names[:10]:

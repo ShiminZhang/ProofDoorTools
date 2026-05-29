@@ -8,8 +8,8 @@
 section=$1
 # git add -A; git commit -m "update"; git push
 # sleep 2h
-source ../../general/bin/activate
 source .env
+source $PYENVPATH
 
 if [ "$section" == "1" ]; then
     module load apptainer/1.4.5

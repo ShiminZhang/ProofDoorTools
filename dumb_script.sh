@@ -2,7 +2,8 @@
 #SBATCH --time=0-8:0:0                                                      
 #SBATCH --account=def-vganesh 
 #SBATCH --mem=20G
-source ../general/bin/activate
+source .env
+source $PYENVPATH
 # Function to check if required directories exist and create them if needed
 check_and_create_dirs() {
     local dirs=("pds_st_correlation")

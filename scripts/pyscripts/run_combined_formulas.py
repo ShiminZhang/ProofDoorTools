@@ -38,7 +38,7 @@ def main():
             minisat_original_cmd = f"./solvers/minisat {os.path.join(original_cnf_dir, cnf_file)} > {os.path.join(original_cnf_dir, minisat_cnf_out)}"
             cadical_original_cmd = f"./solvers/cadical {os.path.join(original_cnf_dir, cnf_file)} --plain > {os.path.join(original_cnf_dir, cadical_cnf_out)}"
             # print(cmd)
-            activate_python = "source ../general/bin/activate"
+            activate_python = "source .env; source $PYENVPATH"
             wrapped=f"{activate_python} && {cadical_cmd}; {minisat_cmd}; {cadical_original_cmd}; {minisat_original_cmd}"
             slurm_output_dir="SlurmLogs/CombinePDwithFormula"
             os.makedirs(slurm_output_dir, exist_ok=True)

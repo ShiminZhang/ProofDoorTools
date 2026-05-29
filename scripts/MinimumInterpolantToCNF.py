@@ -29,7 +29,7 @@ from StrongestInterpolantToCNF import (
 
 
 def get_python_activate_command():
-    return "source ../../general/bin/activate"
+    return "source .env; source $PYENVPATH"
 
 
 def read_qdimacs_clauses(path: str) -> List[List[int]]:

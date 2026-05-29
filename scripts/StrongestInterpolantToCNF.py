@@ -346,7 +346,7 @@ def main() -> None:
     ap.add_argument(
         "--activate",
         type=str,
-        default="source ../../general/bin/activate",
+        default="source .env; source $PYENVPATH",
         help="Shell snippet to activate Python env for Slurm jobs.",
     )
     ap.add_argument(

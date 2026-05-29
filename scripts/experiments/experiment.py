@@ -112,7 +112,7 @@ class Experiment(ABC):
 
     def get_complete_command(self, command, mem="24g", time="8:00:00", output=None, dependency=None, ntasks=None, cpus_per_task=None):
         mem_int = int(mem.split("g")[0])
-        activate_python = "source ../../general/bin/activate"
+        activate_python = "source .env; source $PYENVPATH"
         wrapped = f"{activate_python} && {command}"
         output = output if output is not None else f"{self.config.log_dir}/%j.out"
         memory = f"--mem={mem}"
@@ -168,7 +168,7 @@ class Experiment(ABC):
         self.logger.info("Experiment %s ended", self.name)
 
     def execute_command_in_slurm(self, command, mem="24g", time="8:00:00", output=None):
-        activate_python = "source ../general/bin/activate"
+        activate_python = "source .env; source $PYENVPATH"
         wrapped = f"{activate_python} && {command}"
         output = output if output is not None else f"{self.config.log_dir}/%j.out"
         os.system(f"sbatch --output={output} --mem={mem} --time={time} --wrap=\"{wrapped}\"")

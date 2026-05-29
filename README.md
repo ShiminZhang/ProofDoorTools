@@ -24,8 +24,8 @@ contains cached CSV/JSON summaries and figures.
 Use Python 3.10 or newer.
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
+virtualenv ./env/
+source ./env/bin/activate
 pip install -r requirements.txt
 source .env
 ```

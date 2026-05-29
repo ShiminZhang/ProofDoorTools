@@ -26,7 +26,7 @@ def main():
             while get_queue_size() < limit - batch_size and index < batch_size * len(instance_list):
                 name = instance_list[index // batch_size]
                 for interpolant_index in range(args.K):
-                    activate_python = "source ../general/bin/activate"
+                    activate_python = "source .env; source $PYENVPATH"
                     os.makedirs("./SlurmLogs/compute_resolution_steps", exist_ok=True)
                     wrapped = f"{activate_python} && python ./scripts/compute_resolution_steps.py --name {name} --K {args.K} --index {interpolant_index}"
                     os.system(f"sbatch --job-name=cr_{name}.{args.K}.{interpolant_index} --output=./SlurmLogs/compute_resolution_steps/{name}.{args.K}.{interpolant_index}.log --mem=16g --time=6:00:00 --wrap=\"{wrapped}\"")
@@ -35,7 +35,7 @@ def main():
             time.sleep(300)
         # for name in instance_list:
         #     for index in range(args.K):
-        #         activate_python = "source ../general/bin/activate"
+        #         activate_python = "source .env; source $PYENVPATH"
         #         os.makedirs("./SlurmLogs/compute_resolution_steps", exist_ok=True)
         #         wrapped = f"{activate_python} && python ./scripts/compute_resolution_steps.py --name {name} --K {args.K} --index {index}"
         #         os.system(f"sbatch --job-name=cr_{name}.{args.K}.{index} --output=./SlurmLogs/compute_resolution_steps/{name}.{args.K}.{index}.log --mem=16g --time=6:00:00 --wrap=\"{wrapped}\"")

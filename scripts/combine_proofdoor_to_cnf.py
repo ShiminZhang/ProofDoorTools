@@ -581,7 +581,7 @@ def main():
             original_cnf = f"{cnf_dir}{instance}.{K}.cnf"
             assert(os.path.exists(original_cnf))
             # original run via prepare_single script (produces standard cadicalplain logs)
-            activate_python = "source ../../general/bin/activate"
+            activate_python = "source .env; source $PYENVPATH"
             # combined run: solve combined-K CNF
             combined_dir = get_interpolant_dimacs_dir(K, args.pddef)
             combined_full = f"{combined_dir}/{instance}.{K}.combined.{K}.cnf"

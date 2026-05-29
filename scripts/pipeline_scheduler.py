@@ -83,7 +83,7 @@ MEM_ABSORPTION = "64g"
 MEM_PREPARE_FORMULA = "32g"
 TIME_PREPARE_FORMULA = "20:00:00"
 
-VENV_ACTIVATE = "source ../../general/bin/activate"  # 从 scripts/ 下看是这个路径
+VENV_ACTIVATE = "source .env; source $PYENVPATH"  # 从 scripts/ 下看是这个路径
 class status:
     done = "done"
     not_started = "not started"

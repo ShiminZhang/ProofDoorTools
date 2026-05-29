@@ -77,7 +77,7 @@ def GetPDS(K,pddef,interested_instances,include_step=False):
     return results_map
 
 def get_python_activate_command():
-    return "source ../../general/bin/activate"
+    return "source .env; source $PYENVPATH"
         
 def tokenize(s):
     s = re.sub(r'([\(\)])', r' \1 ', s)

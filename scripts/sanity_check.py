@@ -185,7 +185,7 @@ def main():
                 while get_queue_size() < limit - batch_size and index < batch_size * len(instance_list):
                     name = instance_list[index // batch_size]
 
-                    activate_python = "source ../general/bin/activate"
+                    activate_python = "source .env; source $PYENVPATH"
                     slurm_out_dir = "./SlurmLogs/sanity_check/"
                     os.makedirs(slurm_out_dir,exist_ok=True)
                     wrapped = f"{activate_python} && python ./scripts/sanity_check.py --basename {name} --K {args.K} --pddef {args.pddef} "

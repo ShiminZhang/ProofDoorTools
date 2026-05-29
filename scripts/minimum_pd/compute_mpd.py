@@ -25,7 +25,7 @@ REGRESSION_SUMMARY_PATH = "./regression_summary.csv"
 
 
 def get_python_activate_command():
-    return "source ../../general/bin/activate"
+    return "source .env; source $PYENVPATH"
 
 
 def get_instances_by_category(category):

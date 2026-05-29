@@ -293,7 +293,7 @@ def run_slurm_job_wrap(cmd, output, job_name,wait_id=None,mem="16g", time="20:00
         print(f"Running command: {cmd}")
         os.system(cmd)
         return
-    activate_python = "source ../general/bin/activate"
+    activate_python = "source .env; source $PYENVPATH"
     slurm_out_dir = "./SlurmLogs/prepare_data/"
     os.makedirs(slurm_out_dir,exist_ok=True)
     wrap = f"{activate_python} && {cmd}"
@@ -330,14 +330,14 @@ def prepare_all_datas_for_one_smt_with_decompose(name,k_value,pddef=1,force_refr
         id = nextid
 
 def prepare_all_datas_for_one_smt(name,k_value,index,force_refresh=False):
-    activate_python = "source ../general/bin/activate"
+    activate_python = "source .env; source $PYENVPATH"
     slurm_out_dir = "./SlurmLogs/prepare_data/"
     os.makedirs(slurm_out_dir,exist_ok=True)
     wrapped = f"{activate_python} && python ./scripts/prepare_data.py --name {name} --K {k_value} --index {index}"
     os.system(f"sbatch --job-name=pp_{name}.{k_value}.{index} --output={slurm_out_dir}/{name}.{k_value}.%A_{index}.prepare_data.log --mem=16g --time=20:00:00 --wrap=\"{wrapped}\"")
 
 def prepare_all_datas(name,k_value,force_refresh=False):
-    activate_python = "source ../general/bin/activate"
+    activate_python = "source .env; source $PYENVPATH"
     slurm_out_dir = "./SlurmLogs/prepare_data/"
     os.makedirs(slurm_out_dir,exist_ok=True)
     # wrapped = f"{activate_python} && python ./scripts/prepare_data.py --name {name} --K {k_value} --index \$\SLURM_ARRAY_TASK_ID"
@@ -391,7 +391,7 @@ def main():
 
     if args.all:    
         prepare_all_datas(args.name,args.K,args.force_refresh)
-        # activate_python = "source ../general/bin/activate"
+        # activate_python = "source .env; source $PYENVPATH"
         # slurm_out_dir = "./SlurmLogs/prepare_data/"
         # os.makedirs(slurm_out_dir,exist_ok=True)
         # for index in range(args.K):
