@@ -76,6 +76,8 @@ Generate formulas:
 
 ```bash
 cd BMCBenchmark
+source .env 
+source $PYENVPATH
 python src/scripts/prepare_formulas.py --k_limit 100 --manage
 ```
 
