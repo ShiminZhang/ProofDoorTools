@@ -84,7 +84,7 @@ python src/scripts/prepare_formulas.py --k_limit 100 --manage
 Collect solving-time data:
 
 ```bash
-python src/scripts/collect_solving_time.py
+python src/scripts/collect_solving_time.py --all_slurm
 ```
 
 Classify each family by its best scaling model:
