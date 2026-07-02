@@ -72,16 +72,25 @@ each formula with CaDiCaL configured to reflect pure CDCL, records solving time
 and formula size, then fits linear, polynomial, and exponential models. The
 resulting family labels are stored in `regression_summary.csv`.
 
-Generate formulas:
+Always run the following for this section before running any scripts to activate the environment
 
 ```bash
 cd BMCBenchmark
 source .env 
 source $PYENVPATH
+```
+
+Generate formulas:
+
+This uses Slurm and takes days to complete, depending on node availability. 
+(most of the scripts can be run locally, but not recommanded to do so as they are very time consuming)
+```bash
 python src/scripts/prepare_formulas.py --k_limit 100 --manage
 ```
 
 Collect solving-time data:
+
+This is fast, but still needs Slurm to accelerate.
 
 ```bash
 python src/scripts/collect_solving_time.py --all_slurm
@@ -89,11 +98,12 @@ python src/scripts/collect_solving_time.py --all_slurm
 
 Classify each family by its best scaling model:
 
+This is a local script and is fast.
 ```bash
 python src/scripts/direct_regression_analysis.py
 ```
 
-Expected outputs:
+Expected outputs and figures:
 
 ```text
 regression_summary.csv
@@ -106,7 +116,34 @@ The paper reports 333 linear, 268 polynomial, 148 exponential, and 17 unknown
 families. These labels are statistical fits over the explored depth range, not
 formal asymptotic complexity claims.
 
+Please also run find_local_max_k.py to acquire suitable K values to be used in absorption experiment. The rules are as following:
+1. for linear formula families 10 is always used, as the proofdoor absorption patterns are usually exactly the same across different K.
+2. for polynomial formula families -1 is used because they will not be used.
+3. for exponential formula families, K is selected such that
+  a. K is for a instance with local max performance: as the paper appendix has reported, many exponential families have ocillating solving time where only even or odd K instances are exponential.
+
+  b. K must be at least 5, so that the running time is meaningful.
+
+  c. K is as small as possible, so that the proofdoor can be more likely to be computed.
+```
+python find_local_max_k.py --summary regression_summary.json
+```
+
+Then run the following to copy regression_summary_k.json to parent folder (assume you are in BMCBenchmark folder)
+
+```
+cp regression_summary_k.json ../regression_summary.json
+```
+
+Now we are done with BMC scaling study
+
 ## Section V-A: Previously Proposed Parameters
+
+Activate environment first
+```bash
+source .env 
+source $PYENVPATH
+```
 
 Section V-A checks whether previously proposed formula parameters separate the
 linear and exponential families. The experiments focus on clause-variable ratio,
@@ -157,6 +194,7 @@ QDIMACS and applying bounded variable elimination plus forced elimination.
 
 Single cut:
 
+Please allow for 20 hours
 ```bash
 python scripts/strongest_pd/compute_spd.py --name <instance> --K <K> --i <index>
 ```

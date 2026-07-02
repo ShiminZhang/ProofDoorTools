@@ -8,7 +8,7 @@ import argparse
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from utils.paths import get_CNF_dir, get_interpolant_dir, get_progressive_qdimacs_dir
-
+from utils.utils import generate_cnf
 PREPROCESS_BIN = "./External/kissat_bve/build/preprocess"
 CADICAL_BIN    = "./solvers/cadical"
 
@@ -349,6 +349,8 @@ def compute_spd(name, K, i, export_qdimacs_only=False,
     from utils.process_cnf import CNF
 
     cnf_path = f"{get_CNF_dir(K)}/{name}.{K}.cnf"
+    if not os.path.exists(cnf_path):
+        generate_cnf(cnf_path)
     cnf = CNF(cnf_path, use_cache=True, skip_parse_literal_map=True)
 
     iter_map = cnf.get_iter_map()

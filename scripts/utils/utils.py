@@ -77,7 +77,7 @@ def GetPDS(K,pddef,interested_instances,include_step=False):
     return results_map
 
 def get_python_activate_command():
-    return "source .env; source $PYENVPATH"
+    return "source ./.env; source $PYENVPATH"
         
 def tokenize(s):
     s = re.sub(r'([\(\)])', r' \1 ', s)
@@ -765,6 +765,9 @@ def parse_memory_limit(memory_limit_str):
         return 10 * 1024 * 1024 * 1024
     
 def generate_cnf(filename):
+    # remove dir first
+    filename = filename.split('/')[-1]
+
     k_value = int(filename.split('.')[1])
     basename = filename.split('.')[0]
     aigs = f"./ProofDoorBenchmark/aigs/{basename}.aig"
