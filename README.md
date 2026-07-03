@@ -21,7 +21,7 @@ contains cached CSV/JSON summaries and figures.
 
 ## Environment Setup
 
-Use Python 3.10 or newer.
+We used Python 3.10
 
 ```bash
 virtualenv ./env/
@@ -36,6 +36,13 @@ root before running the scripts below.
 This repository assumes the experiment binaries and benchmark artifacts are
 already available at the paths used by the scripts. The README does not cover
 building external solvers or tools.
+
+## Submodules
+```bash
+git submodule init
+git submodule update
+```
+
 
 ## Repository Layout
 
@@ -77,7 +84,7 @@ Always run the following for this section before running any scripts to activate
 ```bash
 cd BMCBenchmark
 source .env 
-source $PYENVPATH
+source $PYENVPATH_BMC
 ```
 
 Generate formulas:
@@ -93,14 +100,14 @@ Collect solving-time data:
 This is fast, but still needs Slurm to accelerate.
 
 ```bash
-python src/scripts/collect_solving_time.py --all_slurm
+python src/scripts/Experiments/collect_solving_time.py --all_slurm
 ```
 
 Classify each family by its best scaling model:
 
 This is a local script and is fast.
 ```bash
-python src/scripts/direct_regression_analysis.py
+python src/scripts/Experiments/direct_regression_analysis.py
 ```
 
 Expected outputs and figures:
@@ -116,7 +123,8 @@ The paper reports 333 linear, 268 polynomial, 148 exponential, and 17 unknown
 families. These labels are statistical fits over the explored depth range, not
 formal asymptotic complexity claims.
 
-Please also run find_local_max_k.py to acquire suitable K values to be used in absorption experiment. The rules are as following:
+Please also run find_local_max_k.py to acquire suitable K values to be used in absorption experiment. This is only for simplicity of reproduction and feel free to change it.
+The rules are as following:
 1. for linear formula families 10 is always used, as the proofdoor absorption patterns are usually exactly the same across different K.
 2. for polynomial formula families -1 is used because they will not be used.
 3. for exponential formula families, K is selected such that

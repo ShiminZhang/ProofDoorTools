@@ -444,9 +444,23 @@ def compute_spd(name, K, i, export_qdimacs_only=False,
               file=sys.stderr)
     if result.returncode != 0:
         raise RuntimeError(f"preprocess failed with exit code {result.returncode}")
+    if not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
+        stdout_tail = "\n".join(result.stdout.splitlines()[-20:])
+        stderr_tail = "\n".join(result.stderr.splitlines()[-20:])
+        raise RuntimeError(
+            "preprocess exited with code 0 but did not create a non-empty "
+            f"interpolant file: {output_path}\n"
+            f"--- preprocess stdout tail ---\n{stdout_tail}\n"
+            f"--- preprocess stderr tail ---\n{stderr_tail}"
+        )
     if "[ELIM_WARNING]" in result.stdout:
         print(f"[FORCED_ELIM] {name}.{K}.{i}: attempting exact elimination fallback")
         forced_eliminate_remaining_vars(output_path, label=f"{name}.{K}.{i}")
+        if not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
+            raise RuntimeError(
+                "forced elimination fallback did not create a non-empty "
+                f"interpolant file: {output_path}"
+            )
     print(f"Strongest interpolant written to: {output_path}")
 
     # Verify the produced interpolant
