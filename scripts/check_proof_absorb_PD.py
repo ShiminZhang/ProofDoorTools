@@ -225,7 +225,7 @@ def prepare_datas(names,k_value,force_refresh=False,index=None,pddef=0):
             interpolant_path = f"{get_interpolant_dir(k_value,pddef)}/{name}.{k_value}.{i}.interpolant"
             if not os.path.exists(interpolant_path):
                 print(f"Interpolant file {interpolant_path} DNE, regenerating")
-                os.system(f"./z3 {smt_path} > {interpolant_path}")
+                os.system(f"./bin/z3 {smt_path} > {interpolant_path}")
             else:
                 print(f"Interpolant file {interpolant_path} exists, skipping")
                 # exit(f"Interpolant file {interpolant_path} does not exist")

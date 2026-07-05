@@ -21,10 +21,9 @@ import json
 import os
 import csv
 USE_TRIMM_PROOF = False
-DRAT_TRIM_BINARY = "./drat-trim"
+DRAT_TRIM_BINARY = "./bin/drat-trim"
 GLUCOSE_BINARY = "./External/glucose/simp/glucose"
-# MINISAT_BINARY = "./minisat/build/release/bin/minisat"
-MINISAT_BINARY = "./External/minisat/build/release/bin/minisat"
+MINISAT_BINARY = "./bin/minisat"
 MAX_WORKERS = 4
 CADICAL_BINARY = "./solvers/cadical"
 

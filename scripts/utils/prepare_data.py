@@ -172,10 +172,10 @@ def prepare_interpolant(name,k_value,index,force_refresh=False, check_failed=Fal
     smt_path = f"{get_smts_dir(k_value)}/{name}.{k_value}.{index}.smt2"
     if not os.path.exists(interpolant_path):
         print(f"Interpolant file {interpolant_path} DNE, regenerating")
-        os.system(f"./z3 {smt_path} > {interpolant_path}")
+        os.system(f"./bin/z3 {smt_path} > {interpolant_path}")
     elif force_refresh:
         print(f"Interpolant file {interpolant_path} exists, regenerating due to force_refresh")
-        os.system(f"./z3 {smt_path} > {interpolant_path}")
+        os.system(f"./bin/z3 {smt_path} > {interpolant_path}")
 
     elif check_failed:
         failed = False
@@ -189,7 +189,7 @@ def prepare_interpolant(name,k_value,index,force_refresh=False, check_failed=Fal
         if failed:
             smt_path = f"{get_smts_dir(k_value)}/{name}.{k_value}.{index}.smt2"
             print(f"Interpolant file {interpolant_path} failed, regenerating")
-            os.system(f"./z3 {smt_path} > {interpolant_path}")
+            os.system(f"./bin/z3 {smt_path} > {interpolant_path}")
         else:
             print(f"Interpolant file {interpolant_path} passed, skipping")
         return failed
@@ -238,7 +238,7 @@ def prepare_interpolant_def1(name,k_value,index,force_refresh=False):
         cnf_to_smt2_def2(cnf_path,smt_path,pddef=2,index=index)
     if not os.path.exists(interpolant_path) or force_refresh:
         print(f"Interpolant file {interpolant_path} DNE or force_refresh, regenerating")
-        os.system(f"./z3 {smt_path} > {interpolant_path}")
+        os.system(f"./bin/z3 {smt_path} > {interpolant_path}")
     else:
         print(f"Interpolant file {interpolant_path} exists, skipping")
 
@@ -251,7 +251,7 @@ def prepare_interpolant_def2(name,k_value,index,force_refresh=False):
         cnf_to_smt2_def2(cnf_path,smt_path)
     if not os.path.exists(interpolant_path) or force_refresh:
         print(f"Interpolant file {interpolant_path} DNE or force_refresh, regenerating")
-        os.system(f"./z3 {smt_path} > {interpolant_path}")
+        os.system(f"./bin/z3 {smt_path} > {interpolant_path}")
     else:
         print(f"Interpolant file {interpolant_path} exists, skipping")
 
@@ -264,7 +264,7 @@ def prepare_interpolant_def1(name,k_value,index,force_refresh=False):
         cnf_to_smt2_def1(cnf_path,smt_path)
     if not os.path.exists(interpolant_path) or force_refresh:
         print(f"Interpolant file {interpolant_path} DNE or force_refresh, regenerating")
-        os.system(f"./z3 {smt_path} > {interpolant_path}")
+        os.system(f"./bin/z3 {smt_path} > {interpolant_path}")
     else:
         print(f"Interpolant file {interpolant_path} exists, skipping")
 

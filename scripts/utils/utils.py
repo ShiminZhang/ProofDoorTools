@@ -776,7 +776,7 @@ def generate_cnf(filename):
         return
     if not os.path.exists(f"./ProofDoorBenchmark/cnfs/{k_value}/"):
         os.makedirs(f"./ProofDoorBenchmark/cnfs/{k_value}/")
-    cmd=f"./simplecar -bmc -k {k_value} -cnf ./ProofDoorBenchmark/cnfs/{k_value}/ {aigs}"
+    cmd=f"./bin/simplecar -bmc -k {k_value} -cnf ./ProofDoorBenchmark/cnfs/{k_value}/ {aigs}"
     print(cmd)
     os.system(cmd)
 

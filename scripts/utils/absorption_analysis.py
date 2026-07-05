@@ -11,7 +11,7 @@ import json
 def check_negclause_conflict(args):
     clause, formula, CNF_output_file, K = args
     absorption_dir = get_absorption_experiments_dir(K)
-    solver_binary = "./propagator"
+    solver_binary = "./bin/propagator"
     formula_copy = CNF()
     formula_copy.init_with_clauses(formula)
     for neg_literal in clause:
@@ -65,8 +65,8 @@ def check_single_literal(args):
     literal, rest_of_clause, formula, CNF_output_file, K = args
     absorption_dir = get_absorption_experiments_dir(K)
     # print(f"CNF_output_file: {CNF_output_file} for literal: {literal}")
-    # solver_binary = "./propagator"
-    solver_binary = "./propagator"
+    # solver_binary = "./bin/propagator"
+    solver_binary = "./bin/propagator"
     # Create a copy of the formula
     formula_copy = CNF()
     formula_copy.init_with_clauses(formula)

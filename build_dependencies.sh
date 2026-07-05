@@ -10,11 +10,15 @@ log() { echo -e "\n=== $1 ===\n"; }
 build_minisat_variant() {
     local dir="$1"
     log "Building $dir"
-    make -C "$ROOT_DIR/$dir" -j"$JOBS"
+    make -C "$ROOT_DIR/External/$dir" -j"$JOBS"
+    mkdir -p "$ROOT_DIR/bin"
+    cp "$ROOT_DIR/External/$dir/build/release/bin/minisat" "$ROOT_DIR/bin/$dir"
 }
 
-log "Building simple_CAR"
-make -C "$ROOT_DIR/simple_CAR" -j"$JOBS"
+log "Building External/simple_CAR"
+make -C "$ROOT_DIR/External/simple_CAR" -j"$JOBS"
+mkdir -p "$ROOT_DIR/bin"
+cp "$ROOT_DIR/External/simple_CAR/simplecar" "$ROOT_DIR/bin/simplecar"
 
 build_minisat_variant "minisat_proof"
 build_minisat_variant "minisat_absorption_checker"
