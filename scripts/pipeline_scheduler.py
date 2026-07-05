@@ -36,6 +36,7 @@ from utils.paths import (
     get_latest_absorption_result,
 )
 from utils.catagory import get_instance_list
+from utils.utils import get_python_activate_command
 
 # ----------------- 全局配置（按需改） -----------------
 
@@ -83,7 +84,6 @@ MEM_ABSORPTION = "64g"
 MEM_PREPARE_FORMULA = "32g"
 TIME_PREPARE_FORMULA = "20:00:00"
 
-VENV_ACTIVATE = "source .env; source $PYENVPATH"  # 从 scripts/ 下看是这个路径
 class status:
     done = "done"
     not_started = "not started"
@@ -113,7 +113,8 @@ def sbatch_wrap(
     inner_cmd 不需要自己激活 venv，这里统一包一层。
     """
     os.makedirs(os.path.dirname(output_log), exist_ok=True)
-    wrapped = f'{VENV_ACTIVATE} && {inner_cmd}'
+    pycmd = get_python_activate_command()
+    wrapped = f'{pycmd} && {inner_cmd}'
     dep_part = f" --dependency=afterok:{dependency}" if dependency else ""
     cmd = (
         f"sbatch --job-name={job_name} --time={time_limit} --mem={mem} "
@@ -559,8 +560,9 @@ def submit_absorption_job(
     if dependency_job_ids:
         deps = ":".join(dependency_job_ids)
         dep_part = f" --dependency=afterany:{deps}"
+    pycmd = get_python_activate_command()
 
-    wrapped = f"{VENV_ACTIVATE} && {inner_cmd}"
+    wrapped = f"{pycmd} && {inner_cmd}"
     cmd = (
         f"sbatch --job-name={job_name} --time={TIME_PER_JOB} --mem={MEM_ABSORPTION} "
         f"--cpus-per-task=4 --output={log_path}{dep_part} --wrap=\"{wrapped}\""

@@ -244,7 +244,12 @@ Use the scalability summary to drive a category run:
 python scripts/pipeline_scheduler.py \
   --use_summary regression_summary.csv \
   --category linear \
-  --K_list 10
+  --interpolation
+
+#(after the jobs created above are done)
+python scripts/pipeline_scheduler.py \
+  --use_summary regression_summary.csv \
+  --category linear
 ```
 
 Write a pipeline status CSV:
