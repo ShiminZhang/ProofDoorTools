@@ -42,6 +42,9 @@ Outputs: `regression_summary.csv` and `figures/scalability/`.
 
 
 ### Run the same BMC pipeline on the reduced AIG set.
+
+bash
+```
 python src/scripts/prepare_formulas.py --k_limit 100 --manage
 python src/scripts/Experiments/collect_solving_time.py --all_slurm
 python src/scripts/Experiments/direct_regression_analysis.py
