@@ -1,0 +1,127 @@
+CMD:
+./solvers/bin/cadical --plain --no-reduce -t 1600 ./data/cnfs//dspfilters_fastfir_second-p16/dspfilters_fastfir_second-p16.31.cnf
+
+c --- [ banner ] -------------------------------------------------------------
+c 
+c CaDiCaL SAT Solver
+c Copyright (c) 2016-2024
+c A. Biere, M. Fleury, N. Froleyks, K. Fazekas, F. Pollitt, T. Faller
+c JKU Linz, University of Freiburg, TU Wien
+c 
+c Version 2.1.3 5296d3d2a9bf48c154ab2acb5e44625776d821bf
+c g++ (Gentoo 12.3.1_p20230526 p2) 12.3.1 20230526 -Wall -Wextra -O3 -DNDEBUG
+c Sat Aug 9 07:26:21 PDT 2025 Linux cedar2.int.cedar.computecanada.ca 5.14.0-362.24.2.el9_3.x86_64 x86_64
+c 
+c --- [ limit ] --------------------------------------------------------------
+c 
+c setting time limit to 1600 seconds real time (due to '-t 1600')
+c 
+c --- [ parsing input ] ------------------------------------------------------
+c 
+c reading DIMACS file from './data/cnfs//dspfilters_fastfir_second-p16/dspfilters_fastfir_second-p16.31.cnf'
+c opening file to read './data/cnfs//dspfilters_fastfir_second-p16/dspfilters_fastfir_second-p16.31.cnf'
+c found 'p cnf 939352 2742087' header
+c parsed 2742087 clauses in 0.47 seconds process time
+c 
+c --- [ options ] ------------------------------------------------------------
+c 
+c   --compact=false                (different from default 'true')
+c   --decompose=false              (different from default 'true')
+c   --deduplicate=false            (different from default 'true')
+c   --elim=false                   (different from default 'true')
+c   --probe=false                  (different from default 'true')
+c   --reduce=false                 (different from default 'true')
+c   --subsume=false                (different from default 'true')
+c   --ternary=false                (different from default 'true')
+c   --transred=false               (different from default 'true')
+c   --vivify=false                 (different from default 'true')
+c 
+c --- [ solving ] ------------------------------------------------------------
+c 
+c time measured in process time since initialization
+c 
+c  seconds   reductions  redundant   irredundant
+c          MB    restarts       trail        variables
+c           level   conflicts       glue           remaining
+c 
+c *  0.47 414  0 0   0    0    0  0% 0 2613818 844164 90%
+c {  0.80 427  0 0   0    0    0  0% 0 2613818 844164 90%
+c i  0.81 427 246 0   0   27   12 12% 3 2613818 844159 90%
+c i  0.81 427 217 0   0   33   15 12% 2 2613818 844106 90%
+c i  0.81 427 204 0   0   37   17 12% 2 2613818 844053 90%
+c i  0.88 427 35 0  35  298  157 13% 5 2613818 826925 88%
+c i  1.55 428 55 0  82  789  586 17% 5 2613818 825842 88%
+c i  1.55 428 55 0  82  791  587 17% 5 2613818 824383 88%
+c }  1.71 428 48 0  93 1000  748 17% 5 2613818 824309 88%
+c [  1.71 428  0 0  93 1000  748  0% 0 2613818 824309 88%
+c i  1.95 428 11542 0  93 1020  760 74% 9 2613818 824266 88%
+c O  1.98 428 10718 0  93 1021  761 71% 9 2613818 824253 88%
+c i  2.98 429 837 0  93 1704 1380 30% 5 2613818 824034 88%
+c i  3.18 429 538 0  94 2089 1606 26% 5 2613818 785526 84%
+c i  3.26 429 465 0  94 2258 1747 26% 5 2613818 774160 82%
+c i  3.26 429 461 0  94 2270 1753 25% 5 2613818 761240 81%
+c i  3.27 429 460 0  94 2271 1753 25% 5 2613818 761239 81%
+c i  3.27 429 460 0  94 2272 1753 25% 5 2613818 761237 81%
+c i  3.28 429 460 0  94 2273 1753 25% 5 2613818 761236 81%
+c i  3.28 429 459 0  94 2275 1753 25% 5 2613818 761229 81%
+c 
+c  seconds    reductions  redundant   irredundant
+c          MB     restarts       trail        variables
+c            level   conflicts       glue           remaining
+c 
+c i  3.28 429 458 0  94 2276 1753 25% 5 2613818 760699 81%
+c i  3.28 429 458 0  94 2277 1753 25% 5 2613818 760405 81%
+c ]  3.28 429 457 0  94 2280 1754 25% 5 2613818 760187 81%
+c 0  3.28 429 457 0  94 2280 1754 25% 5 2613818 760187 81%
+c 
+c --- [ result ] -------------------------------------------------------------
+c 
+s UNSATISFIABLE
+c 
+c --- [ run-time profiling ] -------------------------------------------------
+c 
+c process time taken by individual solving procedures
+c (percentage relative to process time for solving)
+c 
+c         2.81  100.00% search
+c         1.58   56.11% stable
+c         0.91   32.40% unstable
+c         0.47   16.86% parse
+c         0.32   11.48% lucky
+c         0.00    0.00% simplify
+c   =================================
+c         2.81   85.56% solve
+c 
+c last line shows process time for solving
+c (percentage relative to total process time)
+c 
+c --- [ statistics ] ---------------------------------------------------------
+c 
+c chronological:               982        43.07 %  of conflicts
+c conflicts:                  2280       811.86    per second
+c decisions:                 43647     15541.71    per second
+c fixed:                    177359        18.88 %  of all variables
+c learned:                    2166        95.00 %  per conflict
+c learned_lits:              63037       100.00 %  learned literals
+c minimized:                     0         0.00 %  learned literals
+c shrunken:                  19963        31.67 %  learned literals
+c minishrunken:              12254        19.44 %  learned literals
+c otfs:                         18         0.79 %  of conflict
+c propagations:           20552673         7.32 M  per second
+c rephased:                      1      2280.00    interval
+c restarts:                     94        24.26    interval
+c stabilizing:                   1        56.14 %  of conflicts
+c subsumed:                    393         0.02 %  of all clauses
+c strengthened:                 18         0.00 %  of all clauses
+c 
+c seconds are measured in process time for solving
+c 
+c --- [ resources ] ----------------------------------------------------------
+c 
+c total process time since initialization:         3.28    seconds
+c total real time since initialization:            3.30    seconds
+c maximum resident set size of process:          427.15    MB
+c 
+c --- [ shutting down ] ------------------------------------------------------
+c 
+c exit 20

@@ -1,0 +1,176 @@
+CMD:
+./solvers/bin/cadical --plain --no-reduce -t 1600 ./data/cnfs//cal4/cal4.83.cnf
+
+c --- [ banner ] -------------------------------------------------------------
+c 
+c CaDiCaL SAT Solver
+c Copyright (c) 2016-2024
+c A. Biere, M. Fleury, N. Froleyks, K. Fazekas, F. Pollitt, T. Faller
+c JKU Linz, University of Freiburg, TU Wien
+c 
+c Version 2.1.3 5296d3d2a9bf48c154ab2acb5e44625776d821bf
+c g++ (Gentoo 12.3.1_p20230526 p2) 12.3.1 20230526 -Wall -Wextra -O3 -DNDEBUG
+c Sat Aug 9 07:26:21 PDT 2025 Linux cedar2.int.cedar.computecanada.ca 5.14.0-362.24.2.el9_3.x86_64 x86_64
+c 
+c --- [ limit ] --------------------------------------------------------------
+c 
+c setting time limit to 1600 seconds real time (due to '-t 1600')
+c 
+c --- [ parsing input ] ------------------------------------------------------
+c 
+c reading DIMACS file from './data/cnfs//cal4/cal4.83.cnf'
+c opening file to read './data/cnfs//cal4/cal4.83.cnf'
+c found 'p cnf 209262 572141' header
+c parsed 572141 clauses in 0.09 seconds process time
+c 
+c --- [ options ] ------------------------------------------------------------
+c 
+c   --compact=false                (different from default 'true')
+c   --decompose=false              (different from default 'true')
+c   --deduplicate=false            (different from default 'true')
+c   --elim=false                   (different from default 'true')
+c   --probe=false                  (different from default 'true')
+c   --reduce=false                 (different from default 'true')
+c   --subsume=false                (different from default 'true')
+c   --ternary=false                (different from default 'true')
+c   --transred=false               (different from default 'true')
+c   --vivify=false                 (different from default 'true')
+c 
+c --- [ solving ] ------------------------------------------------------------
+c 
+c time measured in process time since initialization
+c 
+c  seconds  reductions  redundant  irredundant
+c         MB    restarts       trail       variables
+c          level   conflicts       glue          remaining
+c 
+c *  0.09 88  0 0   0    0    0  0% 0 509797 195043 93%
+c {  0.09 88  0 0   0    0    0  0% 0 509797 195043 93%
+c i  0.09 88 197 0   0    1    0  8% 0 509797 195026 93%
+c }  0.54 91 4409 0  97 1001  916 38% 3 509797 195019 93%
+c [  0.54 91  0 0  97 1001  916  0% 0 509797 195019 93%
+c O  0.55 91 256 0  97 1002  917  8% 1 509797 195019 93%
+c ]  0.72 92 7385 0  98 3001 2772 54% 55 509797 195019 93%
+c {  0.72 92 4409 0  98 3001 2772 38% 3 509797 195019 93%
+c F  0.72 92 4400 0  99 3003 2774 38% 3 509797 195019 93%
+c i  0.92 93 1740 0 406 5086 4705 26% 4 509797 194998 93%
+c #  1.01 93 1387 0 510 6010 5558 24% 4 509797 194998 93%
+c }  1.09 93 1137 0 574 7003 6464 23% 4 509797 194998 93%
+c [  1.09 93 7385 0 574 7003 6464 54% 55 509797 194998 93%
+c I  1.51 94 3173 0 576 10013 9186 38% 51 509797 194998 93%
+c i  1.52 94 3165 0 576 10026 9192 38% 51 509797 194989 93%
+c i  1.60 95 2529 0 578 11308 10259 33% 42 509797 194978 93%
+c i  1.69 95 1904 0 579 13378 12121 28% 33 509797 194960 93%
+c i  1.69 95 1904 0 579 13379 12121 28% 33 509797 194940 93%
+c ]  1.82 97 1686 0 579 15003 13617 29% 28 509797 194940 93%
+c {  1.82 97 1137 0 579 15003 13617 23% 4 509797 194940 93%
+c 
+c  seconds    reductions    redundant  irredundant
+c         MB      restarts         trail       variables
+c           level     conflicts        glue          remaining
+c 
+c B  1.84 97 1136 0 579 15017 13631 23% 4 509797 194940 93%
+c i  1.97 97 1012 0 630 15879 14384 22% 4 509797 194922 93%
+c W  2.90 101 625 0 1207 21023 18440 20% 5 494719 194920 93%
+c F  3.89 101 461 0 1711 28024 24680 20% 5 494719 194920 93%
+c }  4.50 101 420 0 1982 31007 27388 20% 5 494719 194920 93%
+c [  4.50 101 1686 0 1982 31007 27388 29% 28 494719 194920 93%
+c B  4.84 101 1235 0 1985 36026 31964 28% 25 494719 194920 93%
+c W  5.99 101 846 0 1989 45030 40288 27% 30 494719 194920 93%
+c O  7.11 104 656 0 1991 55031 49303 25% 37 494719 194920 93%
+c ]  7.84 106 553 0 1997 63011 55974 24% 32 494719 194920 93%
+c {  7.84 106 420 0 1997 63011 55974 20% 5 494719 194920 93%
+c i  7.86 106 419 0 2014 63080 56038 20% 5 494719 194919 93%
+c B  8.71 108 378 0 2552 66033 58724 20% 5 494719 194919 93%
+c W 11.50 142 318 0 3723 78036 69439 20% 5 494715 194919 93%
+c # 13.84 143 282 0 4878 91037 81109 20% 5 494715 194919 93%
+c B 17.46 143 242 0 6704 105040 93802 19% 5 494715 194919 93%
+c W 21.20 143 216 0 8497 120041 107478 19% 6 494715 194919 93%
+c i 22.38 143 202 0 9222 125562 111929 19% 6 494715 194898 93%
+c } 22.71 143 199 0 9412 127011 113208 19% 6 494715 194898 93%
+c [ 22.71 143 553 0 9412 127011 113208 24% 32 494715 194898 93%
+c 
+c  seconds    reductions      redundant    irredundant
+c          MB     restarts            trail        variables
+c            level     conflicts          glue           remaining
+c 
+c B 23.45 143 513 0 9416 136044 121604 25% 32 494715 194898 93%
+c W 25.84 149 411 0 9421 153046 135579 23% 27 494621 194898 93%
+c I 27.01 149 403 0 9424 171048 151587 24% 23 494621 194898 93%
+c B 28.58 149 336 0 9435 190051 166335 21% 20 494621 194898 93%
+c W 30.13 149 255 0 9442 210053 178422 20% 18 494621 194898 93%
+c O 31.98 149 432 0 9451 231055 197503 21% 17 494621 194898 93%
+c i 34.59 149 377 0 9453 252599 216770 21% 16 494621 194883 93%
+c B 34.65 149 375 0 9453 253057 217184 21% 16 494621 194879 93%
+c ] 35.07 149 369 0 9453 255014 218988 21% 16 494621 194879 93%
+c { 35.07 149 199 0 9453 255014 218988 19% 6 494621 194879 93%
+c i 41.69 149 161 0 12641 271358 232728 17% 6 494621 194859 93%
+c i 41.85 149 158 0 12657 272959 233649 17% 6 494621 194669 93%
+c i 42.00 149 154 0 12760 274450 234447 17% 6 494621 194569 93%
+c i 42.01 149 154 0 12760 274682 234580 17% 6 494621 194379 93%
+c i 42.03 149 153 0 12760 274834 234660 17% 6 494621 194350 93%
+c i 42.03 149 153 0 12760 274888 234684 17% 6 494621 194268 93%
+c i 42.03 149 153 0 12760 274903 234690 17% 6 494621 194096 93%
+c i 42.03 149 153 0 12760 274916 234694 17% 6 494621 193934 93%
+c i 42.03 149 153 0 12760 274918 234695 17% 6 494621 193807 93%
+c } 42.03 149 153 0 12760 274920 234695 17% 6 494621 193649 93%
+c 
+c  seconds    reductions       redundant   irredundant
+c          MB      restarts            trail       variables
+c            level      conflicts          glue          remaining
+c 
+c 0 42.03 149 153 0 12760 274920 234695 17% 6 494621 193649 93%
+c 
+c --- [ result ] -------------------------------------------------------------
+c 
+s UNSATISFIABLE
+c 
+c --- [ run-time profiling ] -------------------------------------------------
+c 
+c process time taken by individual solving procedures
+c (percentage relative to process time for solving)
+c 
+c        41.94  100.00% search
+c        24.83   59.20% unstable
+c        16.20   38.62% stable
+c         0.91    2.18% walk
+c         0.09    0.21% parse
+c         0.00    0.00% lucky
+c         0.00    0.00% simplify
+c   =================================
+c        41.94   99.79% solve
+c 
+c last line shows process time for solving
+c (percentage relative to total process time)
+c 
+c --- [ statistics ] ---------------------------------------------------------
+c 
+c chronological:             87527        31.84 %  of conflicts
+c conflicts:                274920      6554.93    per second
+c decisions:               2056879     49042.23    per second
+c fixed:                     15612         7.46 %  of all variables
+c learned:                  266289        96.86 %  per conflict
+c learned_lits:           10391416       100.00 %  learned literals
+c minimized:                     0         0.00 %  learned literals
+c shrunken:                2455819        23.63 %  learned literals
+c minishrunken:            1561163        15.02 %  learned literals
+c otfs:                       1663         0.60 %  of conflict
+c propagations:          487461026        11.62 M  per second
+c rephased:                     22     12496.36    interval
+c restarts:                  12760        21.55    interval
+c stabilizing:                   4        61.80 %  of conflicts
+c subsumed:                  30276         3.90 %  of all clauses
+c strengthened:               1505         0.19 %  of all clauses
+c walked:                        6     45820.00    interval
+c 
+c seconds are measured in process time for solving
+c 
+c --- [ resources ] ----------------------------------------------------------
+c 
+c total process time since initialization:        42.03    seconds
+c total real time since initialization:           42.27    seconds
+c maximum resident set size of process:          172.36    MB
+c 
+c --- [ shutting down ] ------------------------------------------------------
+c 
+c exit 20

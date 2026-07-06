@@ -1,0 +1,128 @@
+CMD:
+./solvers/bin/cadical --plain --no-reduce -t 1600 ./data/cnfs//qspiflash_dualflexpress_divfive-p154/qspiflash_dualflexpress_divfive-p154.31.cnf
+
+c --- [ banner ] -------------------------------------------------------------
+c 
+c CaDiCaL SAT Solver
+c Copyright (c) 2016-2024
+c A. Biere, M. Fleury, N. Froleyks, K. Fazekas, F. Pollitt, T. Faller
+c JKU Linz, University of Freiburg, TU Wien
+c 
+c Version 2.1.3 5296d3d2a9bf48c154ab2acb5e44625776d821bf
+c g++ (Gentoo 12.3.1_p20230526 p2) 12.3.1 20230526 -Wall -Wextra -O3 -DNDEBUG
+c Sat Aug 9 07:26:21 PDT 2025 Linux cedar2.int.cedar.computecanada.ca 5.14.0-362.24.2.el9_3.x86_64 x86_64
+c 
+c --- [ limit ] --------------------------------------------------------------
+c 
+c setting time limit to 1600 seconds real time (due to '-t 1600')
+c 
+c --- [ parsing input ] ------------------------------------------------------
+c 
+c reading DIMACS file from './data/cnfs//qspiflash_dualflexpress_divfive-p154/qspiflash_dualflexpress_divfive-p154.31.cnf'
+c opening file to read './data/cnfs//qspiflash_dualflexpress_divfive-p154/qspiflash_dualflexpress_divfive-p154.31.cnf'
+c found 'p cnf 95191 277107' header
+c parsed 277107 clauses in 0.04 seconds process time
+c 
+c --- [ options ] ------------------------------------------------------------
+c 
+c   --compact=false                (different from default 'true')
+c   --decompose=false              (different from default 'true')
+c   --deduplicate=false            (different from default 'true')
+c   --elim=false                   (different from default 'true')
+c   --probe=false                  (different from default 'true')
+c   --reduce=false                 (different from default 'true')
+c   --subsume=false                (different from default 'true')
+c   --ternary=false                (different from default 'true')
+c   --transred=false               (different from default 'true')
+c   --vivify=false                 (different from default 'true')
+c 
+c --- [ solving ] ------------------------------------------------------------
+c 
+c time measured in process time since initialization
+c 
+c  seconds  reductions  redundant  irredundant
+c         MB    restarts       trail       variables
+c          level   conflicts       glue         remaining
+c 
+c *  0.04 45  0 0   0    0    0  0% 0 258222 82520 87%
+c {  0.06 46  0 0   0    0    0  0% 0 258222 82520 87%
+c i  0.06 46 141 0   0    3    1 22% 1 258222 82363 87%
+c i  0.06 46 47 0   0   31   26 20% 2 258222 82331 86%
+c i  0.06 46 33 0   0   49   43 20% 2 258222 82330 86%
+c i  0.07 46 39 0   0   57   50 22% 2 258222 82318 86%
+c i  0.07 46 41 0   0   70   60 23% 2 258222 82302 86%
+c i  0.07 46 40 0   0  103   90 27% 2 258222 82074 86%
+c i  0.07 46 37 0   0  124  108 27% 2 258222 81704 86%
+c i  0.08 46 33 0   2  152  128 26% 2 258222 81287 85%
+c i  0.08 46 30 0   3  169  141 25% 2 258222 81245 85%
+c i  0.08 46 27 0  14  245  208 25% 2 258222 81084 85%
+c i  0.08 46 27 0  15  247  209 25% 2 258222 80521 85%
+c i  0.08 46 27 0  15  248  209 25% 2 258222 80340 84%
+c i  0.09 46 25 0  23  291  247 24% 2 258222 80319 84%
+c i  0.09 46 24 0  23  354  304 24% 2 258222 80308 84%
+c i  0.09 46 24 0  23  359  306 24% 2 258222 80291 84%
+c i  0.09 46 24 0  23  367  312 24% 2 258222 80282 84%
+c i  0.09 46 23 0  23  389  330 24% 2 258222 80266 84%
+c i  0.10 46 22 0  34  491  417 24% 2 258222 80028 84%
+c 
+c  seconds  reductions  redundant  irredundant
+c         MB    restarts       trail       variables
+c          level   conflicts       glue         remaining
+c 
+c i  0.10 46 21 0  34  523  445 24% 2 258222 80023 84%
+c i  0.10 46 21 0  34  524  445 24% 2 258222 79981 84%
+c i  0.10 46 21 0  34  525  445 24% 2 258222 79801 84%
+c i  0.10 46 21 0  34  526  445 24% 2 258222 79755 84%
+c i  0.10 46 21 0  34  534  450 24% 2 258222 79640 84%
+c i  0.10 46 20 0  34  539  454 24% 2 258222 79406 83%
+c }  0.10 46 20 0  34  543  456 24% 2 258222 77849 82%
+c 0  0.10 46 20 0  34  543  456 24% 2 258222 77849 82%
+c 
+c --- [ result ] -------------------------------------------------------------
+c 
+s UNSATISFIABLE
+c 
+c --- [ run-time profiling ] -------------------------------------------------
+c 
+c process time taken by individual solving procedures
+c (percentage relative to process time for solving)
+c 
+c         0.06   99.84% search
+c         0.04   71.37% unstable
+c         0.04   71.18% parse
+c         0.02   28.44% lucky
+c         0.00    0.00% simplify
+c   =================================
+c         0.06   58.16% solve
+c 
+c last line shows process time for solving
+c (percentage relative to total process time)
+c 
+c --- [ statistics ] ---------------------------------------------------------
+c 
+c chronological:               273        50.28 %  of conflicts
+c conflicts:                   543      9245.70    per second
+c decisions:                  2344     39911.46    per second
+c fixed:                     17308        18.18 %  of all variables
+c learned:                     514        94.66 %  per conflict
+c learned_lits:               3227       100.00 %  learned literals
+c minimized:                     0         0.00 %  learned literals
+c shrunken:                    614        19.03 %  learned literals
+c minishrunken:                247         7.65 %  learned literals
+c otfs:                         11         2.03 %  of conflict
+c propagations:             883976        15.05 M  per second
+c restarts:                     34        15.97    interval
+c subsumed:                     31         0.01 %  of all clauses
+c strengthened:                 11         0.00 %  of all clauses
+c 
+c seconds are measured in process time for solving
+c 
+c --- [ resources ] ----------------------------------------------------------
+c 
+c total process time since initialization:         0.10    seconds
+c total real time since initialization:            0.10    seconds
+c maximum resident set size of process:           44.95    MB
+c 
+c --- [ shutting down ] ------------------------------------------------------
+c 
+c exit 20

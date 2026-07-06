@@ -1,0 +1,114 @@
+CMD:
+./solvers/bin/cadical --plain --no-reduce -t 1600 ./data/cnfs//qspiflash_dualflexpress_divfive-p161/qspiflash_dualflexpress_divfive-p161.60.cnf
+
+c --- [ banner ] -------------------------------------------------------------
+c 
+c CaDiCaL SAT Solver
+c Copyright (c) 2016-2024
+c A. Biere, M. Fleury, N. Froleyks, K. Fazekas, F. Pollitt, T. Faller
+c JKU Linz, University of Freiburg, TU Wien
+c 
+c Version 2.1.3 5296d3d2a9bf48c154ab2acb5e44625776d821bf
+c g++ (Gentoo 12.3.1_p20230526 p2) 12.3.1 20230526 -Wall -Wextra -O3 -DNDEBUG
+c Sat Aug 9 07:26:21 PDT 2025 Linux cedar2.int.cedar.computecanada.ca 5.14.0-362.24.2.el9_3.x86_64 x86_64
+c 
+c --- [ limit ] --------------------------------------------------------------
+c 
+c setting time limit to 1600 seconds real time (due to '-t 1600')
+c 
+c --- [ parsing input ] ------------------------------------------------------
+c 
+c reading DIMACS file from './data/cnfs//qspiflash_dualflexpress_divfive-p161/qspiflash_dualflexpress_divfive-p161.60.cnf'
+c opening file to read './data/cnfs//qspiflash_dualflexpress_divfive-p161/qspiflash_dualflexpress_divfive-p161.60.cnf'
+c found 'p cnf 183143 534699' header
+c parsed 534699 clauses in 0.08 seconds process time
+c 
+c --- [ options ] ------------------------------------------------------------
+c 
+c   --compact=false                (different from default 'true')
+c   --decompose=false              (different from default 'true')
+c   --deduplicate=false            (different from default 'true')
+c   --elim=false                   (different from default 'true')
+c   --probe=false                  (different from default 'true')
+c   --reduce=false                 (different from default 'true')
+c   --subsume=false                (different from default 'true')
+c   --ternary=false                (different from default 'true')
+c   --transred=false               (different from default 'true')
+c   --vivify=false                 (different from default 'true')
+c 
+c --- [ solving ] ------------------------------------------------------------
+c 
+c time measured in process time since initialization
+c 
+c  seconds  reductions  redundant  irredundant
+c         MB    restarts       trail       variables
+c          level   conflicts       glue          remaining
+c 
+c *  0.08 84  0 0   0    0    0  0% 0 512582 168416 92%
+c {  0.13 86  0 0   0    0    0  0% 0 512582 168416 92%
+c i  0.17 86 74 0  11  152  131 16% 3 512582 168415 92%
+c i  0.20 87 47 0  50  365  332 14% 3 512582 168411 92%
+c i  0.21 87 45 0  55  379  345 14% 3 512582 168407 92%
+c i  0.21 87 51 0  59  492  450 15% 3 512582 168360 92%
+c i  0.23 87 50 0  79  614  554 15% 3 512582 168299 92%
+c i  0.23 87 49 0  84  630  568 15% 3 512582 168295 92%
+c i  0.24 87 51 0  96  758  685 15% 3 512582 168275 92%
+c i  0.25 87 52 0 103  850  767 16% 3 512582 168193 92%
+c i  0.27 87 51 0 109  958  865 15% 3 512582 168189 92%
+c }  0.27 87 51 0 109 1003  903 15% 3 512582 168189 92%
+c [  0.27 87  0 0 109 1003  903  0% 0 512582 168189 92%
+c O  0.29 87 859 0 109 1004  904 53% 1 512582 168189 92%
+c ]  0.32 87 656 0 109 1294 1177 37% 2 512582 167885 92%
+c 0  0.32 87 656 0 109 1294 1177 37% 2 512582 167885 92%
+c 
+c --- [ result ] -------------------------------------------------------------
+c 
+s UNSATISFIABLE
+c 
+c --- [ run-time profiling ] -------------------------------------------------
+c 
+c process time taken by individual solving procedures
+c (percentage relative to process time for solving)
+c 
+c         0.24   99.95% search
+c         0.14   61.56% unstable
+c         0.08   34.39% parse
+c         0.05   19.39% lucky
+c         0.04   18.97% stable
+c         0.00    0.00% simplify
+c   =================================
+c         0.24   74.27% solve
+c 
+c last line shows process time for solving
+c (percentage relative to total process time)
+c 
+c --- [ statistics ] ---------------------------------------------------------
+c 
+c chronological:               736        56.88 %  of conflicts
+c conflicts:                  1294      5500.34    per second
+c decisions:                  7254     30834.23    per second
+c fixed:                     15224         8.31 %  of all variables
+c learned:                    1220        94.28 %  per conflict
+c learned_lits:              11476       100.00 %  learned literals
+c minimized:                     0         0.00 %  learned literals
+c shrunken:                   1160        10.11 %  learned literals
+c minishrunken:                847         7.38 %  learned literals
+c otfs:                         18         1.39 %  of conflict
+c propagations:            2913351        12.38 M  per second
+c rephased:                      1      1294.00    interval
+c restarts:                    109        11.87    interval
+c stabilizing:                   1        22.49 %  of conflicts
+c subsumed:                     33         0.01 %  of all clauses
+c strengthened:                 18         0.00 %  of all clauses
+c 
+c seconds are measured in process time for solving
+c 
+c --- [ resources ] ----------------------------------------------------------
+c 
+c total process time since initialization:         0.32    seconds
+c total real time since initialization:            0.32    seconds
+c maximum resident set size of process:           85.21    MB
+c 
+c --- [ shutting down ] ------------------------------------------------------
+c 
+c exit 20

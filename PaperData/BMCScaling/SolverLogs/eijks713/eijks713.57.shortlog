@@ -1,0 +1,131 @@
+CMD:
+./solvers/bin/cadical --plain --no-reduce -t 1600 ./data/cnfs//eijks713/eijks713.57.cnf
+
+c --- [ banner ] -------------------------------------------------------------
+c 
+c CaDiCaL SAT Solver
+c Copyright (c) 2016-2024
+c A. Biere, M. Fleury, N. Froleyks, K. Fazekas, F. Pollitt, T. Faller
+c JKU Linz, University of Freiburg, TU Wien
+c 
+c Version 2.1.3 5296d3d2a9bf48c154ab2acb5e44625776d821bf
+c g++ (Gentoo 12.3.1_p20230526 p2) 12.3.1 20230526 -Wall -Wextra -O3 -DNDEBUG
+c Sat Aug 9 07:26:21 PDT 2025 Linux cedar2.int.cedar.computecanada.ca 5.14.0-362.24.2.el9_3.x86_64 x86_64
+c 
+c --- [ limit ] --------------------------------------------------------------
+c 
+c setting time limit to 1600 seconds real time (due to '-t 1600')
+c 
+c --- [ parsing input ] ------------------------------------------------------
+c 
+c reading DIMACS file from './data/cnfs//eijks713/eijks713.57.cnf'
+c opening file to read './data/cnfs//eijks713/eijks713.57.cnf'
+c found 'p cnf 24283 67026' header
+c parsed 67026 clauses in 0.01 seconds process time
+c 
+c --- [ options ] ------------------------------------------------------------
+c 
+c   --compact=false                (different from default 'true')
+c   --decompose=false              (different from default 'true')
+c   --deduplicate=false            (different from default 'true')
+c   --elim=false                   (different from default 'true')
+c   --probe=false                  (different from default 'true')
+c   --reduce=false                 (different from default 'true')
+c   --subsume=false                (different from default 'true')
+c   --ternary=false                (different from default 'true')
+c   --transred=false               (different from default 'true')
+c   --vivify=false                 (different from default 'true')
+c 
+c --- [ solving ] ------------------------------------------------------------
+c 
+c time measured in process time since initialization
+c 
+c  seconds  reductions  redundant  irredundant
+c         MB    restarts       trail      variables
+c          level   conflicts       glue        remaining
+c 
+c *  0.01 14  0 0   0    0    0  0% 0 62184 16713 69%
+c {  0.02 14  0 0   0    0    0  0% 0 62184 16713 69%
+c }  0.07 15 309 0 191 1002  944 56% 2 62184 16713 69%
+c [  0.07 15  0 0 191 1002  944  0% 0 62184 16713 69%
+c O  0.07 15 1609 0 191 1003  945 100% 2 62184 16713 69%
+c i  0.08 15 1541 0 191 1669 1545 98% 6 62184 16710 69%
+c ]  0.10 15 1088 0 192 3002 2678 81% 5 62184 16710 69%
+c {  0.10 15 309 0 192 3002 2678 56% 2 62184 16710 69%
+c F  0.10 15 309 0 192 3004 2680 56% 2 62184 16710 69%
+c #  0.20 15 164 0 695 6005 5389 49% 3 62184 16710 69%
+c }  0.23 16 151 0 832 7004 6302 48% 3 62184 16710 69%
+c [  0.23 16 1088 0 832 7004 6302 81% 5 62184 16710 69%
+c I  0.31 16 977 0 834 10007 9005 79% 15 62184 16710 69%
+c ]  0.45 18 625 0 837 15004 13378 73% 16 62184 16710 69%
+c {  0.45 18 151 0 837 15004 13378 48% 3 62184 16710 69%
+c B  0.45 18 151 0 839 15008 13382 48% 3 62184 16710 69%
+c W  0.72 20 108 0 2140 21009 18772 45% 4 45544 16710 69%
+c F  0.92 20 83 0 3403 28011 25019 42% 4 45544 16710 69%
+c i  0.94 20 81 0 3530 28608 25529 42% 4 45544 16707 69%
+c i  0.94 20 80 0 3537 28701 25584 42% 4 45544 16706 69%
+c 
+c  seconds  reductions     redundant  irredundant
+c         MB    restarts          trail      variables
+c          level     conflicts        glue        remaining
+c 
+c i  0.94 20 80 0 3549 28791 25648 42% 4 45544 16705 69%
+c i  0.94 20 80 0 3552 28831 25682 42% 4 45544 16702 69%
+c i  0.94 20 80 0 3552 28845 25689 42% 4 45544 16673 69%
+c i  0.94 20 80 0 3552 28853 25692 42% 4 45544 16637 69%
+c }  0.94 20 80 0 3552 28857 25693 42% 4 45544 16539 68%
+c 0  0.94 20 80 0 3552 28857 25693 42% 4 45544 16539 68%
+c 
+c --- [ result ] -------------------------------------------------------------
+c 
+s UNSATISFIABLE
+c 
+c --- [ run-time profiling ] -------------------------------------------------
+c 
+c process time taken by individual solving procedures
+c (percentage relative to process time for solving)
+c 
+c         0.93   99.99% search
+c         0.67   71.68% unstable
+c         0.24   26.36% stable
+c         0.01    1.52% walk
+c         0.01    1.17% parse
+c         0.00    0.42% lucky
+c         0.00    0.00% simplify
+c   =================================
+c         0.93   98.79% solve
+c 
+c last line shows process time for solving
+c (percentage relative to total process time)
+c 
+c --- [ statistics ] ---------------------------------------------------------
+c 
+c chronological:             12864        44.58 %  of conflicts
+c conflicts:                 28857     31104.89    per second
+c decisions:                366865    395442.86    per second
+c fixed:                      7741        31.88 %  of all variables
+c learned:                   27554        95.48 %  per conflict
+c learned_lits:             507593       100.00 %  learned literals
+c minimized:                     0         0.00 %  learned literals
+c shrunken:                  49847         9.82 %  learned literals
+c minishrunken:              41393         8.15 %  learned literals
+c otfs:                        543         1.88 %  of conflict
+c propagations:           14842175        16.00 M  per second
+c rephased:                      7      4122.43    interval
+c restarts:                   3552         8.12    interval
+c stabilizing:                   2        34.61 %  of conflicts
+c subsumed:                   1886         2.10 %  of all clauses
+c strengthened:                503         0.56 %  of all clauses
+c walked:                        1     28857.00    interval
+c 
+c seconds are measured in process time for solving
+c 
+c --- [ resources ] ----------------------------------------------------------
+c 
+c total process time since initialization:         0.94    seconds
+c total real time since initialization:            0.94    seconds
+c maximum resident set size of process:           30.72    MB
+c 
+c --- [ shutting down ] ------------------------------------------------------
+c 
+c exit 20

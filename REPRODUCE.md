@@ -180,7 +180,8 @@ Same pipelines with above but with all K from 5 to 10.
 Figure is drawn by
 
 ```bash
-python scripts/strongest_pd/stat_spd.py --K 5 --K_max 10  --plot --extendx2
+python scripts/strongest_pd/stat_spd.py --K 5 --K_max 10  --plot
+# python scripts/strongest_pd/stat_spd.py --K 5 --K_max 10  --plot --extendx2 #with scatter line estimating interpolant sizes of first timeout indexes
 ```
 
 Original data is stored at TODO

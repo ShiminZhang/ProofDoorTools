@@ -1,0 +1,128 @@
+CMD:
+./solvers/bin/cadical --plain --no-reduce -t 1600 ./data/cnfs//zipcpu-zipmmu-p39/zipcpu-zipmmu-p39.77.cnf
+
+c --- [ banner ] -------------------------------------------------------------
+c 
+c CaDiCaL SAT Solver
+c Copyright (c) 2016-2024
+c A. Biere, M. Fleury, N. Froleyks, K. Fazekas, F. Pollitt, T. Faller
+c JKU Linz, University of Freiburg, TU Wien
+c 
+c Version 2.1.3 5296d3d2a9bf48c154ab2acb5e44625776d821bf
+c g++ (Gentoo 12.3.1_p20230526 p2) 12.3.1 20230526 -Wall -Wextra -O3 -DNDEBUG
+c Sat Aug 9 07:26:21 PDT 2025 Linux cedar2.int.cedar.computecanada.ca 5.14.0-362.24.2.el9_3.x86_64 x86_64
+c 
+c --- [ limit ] --------------------------------------------------------------
+c 
+c setting time limit to 1600 seconds real time (due to '-t 1600')
+c 
+c --- [ parsing input ] ------------------------------------------------------
+c 
+c reading DIMACS file from './data/cnfs//zipcpu-zipmmu-p39/zipcpu-zipmmu-p39.77.cnf'
+c opening file to read './data/cnfs//zipcpu-zipmmu-p39/zipcpu-zipmmu-p39.77.cnf'
+c found 'p cnf 370236 1085089' header
+c parsed 1085089 clauses in 0.19 seconds process time
+c 
+c --- [ options ] ------------------------------------------------------------
+c 
+c   --compact=false                (different from default 'true')
+c   --decompose=false              (different from default 'true')
+c   --deduplicate=false            (different from default 'true')
+c   --elim=false                   (different from default 'true')
+c   --probe=false                  (different from default 'true')
+c   --reduce=false                 (different from default 'true')
+c   --subsume=false                (different from default 'true')
+c   --ternary=false                (different from default 'true')
+c   --transred=false               (different from default 'true')
+c   --vivify=false                 (different from default 'true')
+c 
+c --- [ solving ] ------------------------------------------------------------
+c 
+c time measured in process time since initialization
+c 
+c  seconds   reductions  redundant   irredundant
+c          MB    restarts       trail        variables
+c           level   conflicts       glue           remaining
+c 
+c *  0.19 170  0 0   0    0    0  0% 0 1072826 362050 98%
+c {  0.27 175  0 0   0    0    0  0% 0 1072826 362050 98%
+c i  0.27 175 38 0   0    2    1  2% 0 1072826 362049 98%
+c i  0.27 175 36 0   0    5    3  2% 1 1072826 361970 98%
+c i  0.28 175 271 0   0  145   90  5% 2 1072826 361385 98%
+c i  0.28 175 269 0   0  146   90  5% 2 1072826 361305 98%
+c i  0.28 175 266 0   0  150   91  5% 2 1072826 361304 98%
+c i  0.34 176 383 0   5  189  129  8% 2 1072826 361292 98%
+c i  0.42 176 734 0  11  288  221 16% 2 1072826 360911 97%
+c i  0.53 177 461 0  60  487  401 13% 2 1072826 360887 97%
+c i  0.53 177 416 0  67  544  451 12% 2 1072826 360886 97%
+c i  0.54 177 366 0  82  623  525 11% 3 1072826 360879 97%
+c i  0.58 177 275 0 115  868  752 10% 3 1072826 360873 97%
+c }  0.67 177 251 0 136 1000  871 10% 3 1072826 360873 97%
+c [  0.67 177  0 0 136 1000  871  0% 0 1072826 360873 97%
+c O  0.74 177 2036 0 136 1002  873 31% 2 1072826 360873 97%
+c i  0.87 178 4781 0 136 1021  889 67% 2 1072826 360810 97%
+c i  0.87 178 5031 0 136 1026  890 71% 2 1072826 358338 97%
+c i  0.87 178 5078 0 136 1027  890 72% 2 1072826 358324 97%
+c i  0.87 178 5196 0 136 1030  892 74% 2 1072826 357671 97%
+c 
+c  seconds     reductions  redundant   irredundant
+c          MB      restarts       trail        variables
+c            level    conflicts       glue           remaining
+c 
+c i  0.98 178 3982 0 136 1121  978 60% 2 1072826 357582 97%
+c i  1.04 178 3027 0 136 1168 1021 49% 2 1072826 339729 92%
+c i  1.04 178 3008 0 136 1169 1021 49% 2 1072826 339072 92%
+c ]  1.05 178 2972 0 136 1173 1022 48% 2 1072826 337591 91%
+c 0  1.05 178 2972 0 136 1173 1022 48% 2 1072826 337591 91%
+c 
+c --- [ result ] -------------------------------------------------------------
+c 
+s UNSATISFIABLE
+c 
+c --- [ run-time profiling ] -------------------------------------------------
+c 
+c process time taken by individual solving procedures
+c (percentage relative to process time for solving)
+c 
+c         0.85   99.99% search
+c         0.40   46.73% unstable
+c         0.38   44.38% stable
+c         0.19   22.31% parse
+c         0.08    8.86% lucky
+c         0.00    0.00% simplify
+c   =================================
+c         0.85   81.71% solve
+c 
+c last line shows process time for solving
+c (percentage relative to total process time)
+c 
+c --- [ statistics ] ---------------------------------------------------------
+c 
+c chronological:               797        67.95 %  of conflicts
+c conflicts:                  1173      1373.32    per second
+c decisions:                 36652     42911.15    per second
+c fixed:                     32550         8.79 %  of all variables
+c learned:                    1081        92.16 %  per conflict
+c learned_lits:               6873       100.00 %  learned literals
+c minimized:                     0         0.00 %  learned literals
+c shrunken:                    764        11.12 %  learned literals
+c minishrunken:                384         5.59 %  learned literals
+c otfs:                          3         0.26 %  of conflict
+c propagations:            6646645         7.78 M  per second
+c rephased:                      1      1173.00    interval
+c restarts:                    136         8.62    interval
+c stabilizing:                   1        14.75 %  of conflicts
+c subsumed:                     38         0.00 %  of all clauses
+c strengthened:                  3         0.00 %  of all clauses
+c 
+c seconds are measured in process time for solving
+c 
+c --- [ resources ] ----------------------------------------------------------
+c 
+c total process time since initialization:         1.05    seconds
+c total real time since initialization:            1.06    seconds
+c maximum resident set size of process:          176.54    MB
+c 
+c --- [ shutting down ] ------------------------------------------------------
+c 
+c exit 20

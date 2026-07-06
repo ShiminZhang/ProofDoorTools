@@ -1,0 +1,126 @@
+CMD:
+./solvers/bin/cadical --plain --no-reduce -t 1600 ./data/cnfs//zipcpu-pfcache-p02/zipcpu-pfcache-p02.91.cnf
+
+c --- [ banner ] -------------------------------------------------------------
+c 
+c CaDiCaL SAT Solver
+c Copyright (c) 2016-2024
+c A. Biere, M. Fleury, N. Froleyks, K. Fazekas, F. Pollitt, T. Faller
+c JKU Linz, University of Freiburg, TU Wien
+c 
+c Version 2.1.3 5296d3d2a9bf48c154ab2acb5e44625776d821bf
+c g++ (Gentoo 12.3.1_p20230526 p2) 12.3.1 20230526 -Wall -Wextra -O3 -DNDEBUG
+c Sat Aug 9 07:26:21 PDT 2025 Linux cedar2.int.cedar.computecanada.ca 5.14.0-362.24.2.el9_3.x86_64 x86_64
+c 
+c --- [ limit ] --------------------------------------------------------------
+c 
+c setting time limit to 1600 seconds real time (due to '-t 1600')
+c 
+c --- [ parsing input ] ------------------------------------------------------
+c 
+c reading DIMACS file from './data/cnfs//zipcpu-pfcache-p02/zipcpu-pfcache-p02.91.cnf'
+c opening file to read './data/cnfs//zipcpu-pfcache-p02/zipcpu-pfcache-p02.91.cnf'
+c found 'p cnf 1859859 5555582' header
+c parsed 5555582 clauses in 0.86 seconds process time
+c 
+c --- [ options ] ------------------------------------------------------------
+c 
+c   --compact=false                (different from default 'true')
+c   --decompose=false              (different from default 'true')
+c   --deduplicate=false            (different from default 'true')
+c   --elim=false                   (different from default 'true')
+c   --probe=false                  (different from default 'true')
+c   --reduce=false                 (different from default 'true')
+c   --subsume=false                (different from default 'true')
+c   --ternary=false                (different from default 'true')
+c   --transred=false               (different from default 'true')
+c   --vivify=false                 (different from default 'true')
+c 
+c --- [ solving ] ------------------------------------------------------------
+c 
+c time measured in process time since initialization
+c 
+c  seconds   reductions  redundant   irredundant
+c          MB    restarts       trail         variables
+c           level   conflicts       glue            remaining
+c 
+c *  0.86 847  0 0   0    0    0  0% 0 5520817 1845815 99%
+c {  1.12 878  0 0   0    0    0  0% 0 5520817 1845815 99%
+c i  1.14 878  1 0   0    1    0  1% 0 5520817 1659257 89%
+c i  1.18 880 1013 0   0   10    7 14% 3 5520817 1651625 89%
+c i  1.37 881 616 0   9   80   63 17% 8 5520817 1651353 89%
+c i  1.37 881 583 0   9   84   66 17% 8 5520817 1651335 89%
+c i  1.37 881 554 0   9   90   69 17% 7 5520817 1651114 89%
+c i  1.38 881 498 0   9  101   76 16% 7 5520817 1650894 89%
+c i  1.39 881 467 0   9  108   81 16% 6 5520817 1650876 89%
+c i  1.41 881 440 0   9  115   86 16% 6 5520817 1650858 89%
+c i  1.42 881 415 0   9  122   91 16% 6 5520817 1650840 89%
+c i  1.43 881 381 0   9  133  100 16% 5 5520817 1650822 89%
+c i  1.44 881 369 0   9  137  103 16% 5 5520817 1650804 89%
+c i  1.53 882 334 0   9  260  209 16% 4 5520817 1648189 89%
+c i  1.53 882 333 0   9  261  209 16% 4 5520817 1647289 89%
+c i  1.54 882 324 0   9  269  215 16% 4 5520817 1647238 89%
+c i  1.54 882 320 0   9  272  217 16% 4 5520817 1645512 88%
+c i  1.54 882 318 0   9  273  217 16% 4 5520817 1644996 88%
+c i  1.54 882 306 0   9  285  220 16% 4 5520817 1642331 88%
+c i  1.54 882 305 0   9  286  220 16% 4 5520817 1636880 88%
+c 
+c  seconds    reductions  redundant   irredundant
+c          MB     restarts       trail         variables
+c            level   conflicts       glue            remaining
+c 
+c i  1.54 882 303 0   9  288  221 16% 4 5520817 1636289 88%
+c i  1.54 882 302 0   9  289  221 16% 4 5520817 1635946 88%
+c i  1.54 882 297 0   9  293  224 16% 4 5520817 1635846 88%
+c i  1.54 882 296 0   9  294  224 16% 4 5520817 1635810 88%
+c }  1.54 882 295 0   9  296  224 16% 4 5520817 1635603 88%
+c 0  1.54 882 295 0   9  296  224 16% 4 5520817 1635603 88%
+c 
+c --- [ result ] -------------------------------------------------------------
+c 
+s UNSATISFIABLE
+c 
+c --- [ run-time profiling ] -------------------------------------------------
+c 
+c process time taken by individual solving procedures
+c (percentage relative to process time for solving)
+c 
+c         0.86  125.17% parse
+c         0.68   99.99% search
+c         0.42   60.95% unstable
+c         0.27   39.03% lucky
+c         0.00    0.00% simplify
+c   =================================
+c         0.68   44.39% solve
+c 
+c last line shows process time for solving
+c (percentage relative to total process time)
+c 
+c --- [ statistics ] ---------------------------------------------------------
+c 
+c chronological:               138        46.62 %  of conflicts
+c conflicts:                   296       432.49    per second
+c decisions:                  4758      6951.92    per second
+c fixed:                    224253        12.06 %  of all variables
+c learned:                     269        90.88 %  per conflict
+c learned_lits:               2907       100.00 %  learned literals
+c minimized:                     0         0.00 %  learned literals
+c shrunken:                    476        16.37 %  learned literals
+c minishrunken:                276         9.49 %  learned literals
+c otfs:                          5         1.69 %  of conflict
+c propagations:            5254011         7.68 M  per second
+c restarts:                      9        32.89    interval
+c subsumed:                     20         0.00 %  of all clauses
+c strengthened:                  5         0.00 %  of all clauses
+c 
+c seconds are measured in process time for solving
+c 
+c --- [ resources ] ----------------------------------------------------------
+c 
+c total process time since initialization:         1.54    seconds
+c total real time since initialization:            1.55    seconds
+c maximum resident set size of process:          880.16    MB
+c 
+c --- [ shutting down ] ------------------------------------------------------
+c 
+c exit 20

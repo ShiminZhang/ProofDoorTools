@@ -1,0 +1,133 @@
+CMD:
+./solvers/bin/cadical --plain --no-reduce -t 1600 ./data/cnfs//eijks713/eijks713.41.cnf
+
+c --- [ banner ] -------------------------------------------------------------
+c 
+c CaDiCaL SAT Solver
+c Copyright (c) 2016-2024
+c A. Biere, M. Fleury, N. Froleyks, K. Fazekas, F. Pollitt, T. Faller
+c JKU Linz, University of Freiburg, TU Wien
+c 
+c Version 2.1.3 5296d3d2a9bf48c154ab2acb5e44625776d821bf
+c g++ (Gentoo 12.3.1_p20230526 p2) 12.3.1 20230526 -Wall -Wextra -O3 -DNDEBUG
+c Sat Aug 9 07:26:21 PDT 2025 Linux cedar2.int.cedar.computecanada.ca 5.14.0-362.24.2.el9_3.x86_64 x86_64
+c 
+c --- [ limit ] --------------------------------------------------------------
+c 
+c setting time limit to 1600 seconds real time (due to '-t 1600')
+c 
+c --- [ parsing input ] ------------------------------------------------------
+c 
+c reading DIMACS file from './data/cnfs//eijks713/eijks713.41.cnf'
+c opening file to read './data/cnfs//eijks713/eijks713.41.cnf'
+c found 'p cnf 17595 48546' header
+c parsed 48546 clauses in 0.01 seconds process time
+c 
+c --- [ options ] ------------------------------------------------------------
+c 
+c   --compact=false                (different from default 'true')
+c   --decompose=false              (different from default 'true')
+c   --deduplicate=false            (different from default 'true')
+c   --elim=false                   (different from default 'true')
+c   --probe=false                  (different from default 'true')
+c   --reduce=false                 (different from default 'true')
+c   --subsume=false                (different from default 'true')
+c   --ternary=false                (different from default 'true')
+c   --transred=false               (different from default 'true')
+c   --vivify=false                 (different from default 'true')
+c 
+c --- [ solving ] ------------------------------------------------------------
+c 
+c time measured in process time since initialization
+c 
+c  seconds  reductions  redundant  irredundant
+c         MB    restarts       trail      variables
+c          level   conflicts       glue        remaining
+c 
+c *  0.01 11  0 0   0    0    0  0% 0 44808 12009 68%
+c {  0.01 11  0 0   0    0    0  0% 0 44808 12009 68%
+c }  0.05 12 188 0 194 1002  950 55% 3 44808 12009 68%
+c [  0.05 12  0 0 194 1002  950  0% 0 44808 12009 68%
+c O  0.05 12 1170 0 194 1003  951 100% 3 44808 12009 68%
+c ]  0.07 12 748 0 195 3002 2664 80% 5 44808 12009 68%
+c {  0.07 12 188 0 195 3002 2664 55% 3 44808 12009 68%
+c F  0.07 12 188 0 197 3006 2668 55% 3 44808 12009 68%
+c #  0.16 13 113 0 712 6008 5359 50% 3 44808 12009 68%
+c }  0.19 13 110 0 825 7002 6230 51% 3 44808 12009 68%
+c [  0.19 13 748 0 825 7002 6230 80% 5 44808 12009 68%
+c I  0.26 13 508 0 827 10011 8997 75% 15 44808 12009 68%
+c ]  0.37 14 308 0 830 15004 13525 64% 14 44808 12009 68%
+c {  0.37 14 110 0 830 15004 13525 51% 3 44808 12009 68%
+c B  0.37 15 110 0 833 15012 13532 51% 3 44808 12009 68%
+c i  0.53 16 83 0 1825 19478 17523 47% 4 44808 12006 68%
+c W  0.59 16 77 0 2156 21013 18871 46% 4 32648 12006 68%
+c i  0.61 16 71 0 2350 22167 19846 45% 4 32648 12003 68%
+c i  0.61 16 70 0 2359 22280 19913 45% 4 32648 11978 68%
+c i  0.61 16 70 0 2359 22324 19942 45% 4 32648 11975 68%
+c 
+c  seconds  reductions     redundant  irredundant
+c         MB    restarts          trail      variables
+c          level     conflicts        glue        remaining
+c 
+c i  0.61 16 70 0 2359 22337 19949 45% 4 32648 11974 68%
+c i  0.61 16 70 0 2359 22345 19951 45% 4 32648 11939 68%
+c i  0.61 16 70 0 2359 22353 19956 45% 4 32648 11938 68%
+c i  0.61 16 70 0 2359 22354 19956 45% 4 32648 11935 68%
+c i  0.61 16 70 0 2359 22361 19962 45% 4 32648 11907 68%
+c i  0.61 16 70 0 2359 22362 19962 45% 4 32648 11899 68%
+c }  0.61 16 70 0 2359 22365 19962 45% 4 32648 11894 68%
+c 0  0.61 16 70 0 2359 22365 19962 45% 4 32648 11894 68%
+c 
+c --- [ result ] -------------------------------------------------------------
+c 
+s UNSATISFIABLE
+c 
+c --- [ run-time profiling ] -------------------------------------------------
+c 
+c process time taken by individual solving procedures
+c (percentage relative to process time for solving)
+c 
+c         0.60   99.98% search
+c         0.39   64.49% unstable
+c         0.20   33.26% stable
+c         0.01    1.72% walk
+c         0.01    1.24% parse
+c         0.00    0.50% lucky
+c         0.00    0.00% simplify
+c   =================================
+c         0.61   98.69% solve
+c 
+c last line shows process time for solving
+c (percentage relative to total process time)
+c 
+c --- [ statistics ] ---------------------------------------------------------
+c 
+c chronological:              9344        41.78 %  of conflicts
+c conflicts:                 22365     36962.60    per second
+c decisions:                217167    358911.60    per second
+c fixed:                      5698        32.38 %  of all variables
+c learned:                   21473        96.01 %  per conflict
+c learned_lits:             404471       100.00 %  learned literals
+c minimized:                     0         0.00 %  learned literals
+c shrunken:                  41105        10.16 %  learned literals
+c minishrunken:              34017         8.41 %  learned literals
+c otfs:                        377         1.69 %  of conflict
+c propagations:            9489218        15.68 M  per second
+c rephased:                      6      3727.50    interval
+c restarts:                   2359         9.48    interval
+c stabilizing:                   2        44.68 %  of conflicts
+c subsumed:                   1512         2.28 %  of all clauses
+c strengthened:                358         0.54 %  of all clauses
+c walked:                        1     22365.00    interval
+c 
+c seconds are measured in process time for solving
+c 
+c --- [ resources ] ----------------------------------------------------------
+c 
+c total process time since initialization:         0.61    seconds
+c total real time since initialization:            0.62    seconds
+c maximum resident set size of process:           30.72    MB
+c 
+c --- [ shutting down ] ------------------------------------------------------
+c 
+c exit 20

@@ -51,4 +51,6 @@ run locally; SMOKETEST.md collects the local path.
 
 The scripts use cached data aggressively.
 
-Absorption checker is a joint functionality provided by External/minisat_absorption_checker/ and scripts/AbsorptionExperiment.py
+Absorption checking is a joint functionality provided by External/minisat_absorption_checker/ and scripts/AbsorptionExperiment.py. BVE based proofdoor computation has part of implementation in External/kissat_bve. The other implementations are in scripts/.
+
+The paper related data/log/figures are organized into PaperData/
