@@ -1,17 +1,17 @@
 import csv
 import os
 
-CATEGORY_CSV_PATH = os.path.join(os.path.dirname(__file__), "../../category.csv")
+REGRESSION_SUMMARY_CSV_PATH = os.path.join(os.path.dirname(__file__), "../../regression_summary.csv")
 
 class CategoryData:
     _instance = None
     _initialized = False
-    
+
     def __new__(cls, csv_path=None):
         if cls._instance is None:
             cls._instance = super(CategoryData, cls).__new__(cls)
         return cls._instance
-    
+
     def __init__(self, csv_path=None):
         # Only initialize once, even if __init__ is called multiple times
         if not self._initialized:
@@ -20,10 +20,8 @@ class CategoryData:
             self.exponential_instances = []
             self.valid_instances = []
             self.unknown_instances = []
-            self.too_few_data_instances = []
-            self.exponential_too_many_data_instances = []
             self.all_instances = []
-            self._load(csv_path or CATEGORY_CSV_PATH)
+            self._load(csv_path or REGRESSION_SUMMARY_CSV_PATH)
             self._initialized = True
 
     def _load(self, csv_path):
@@ -32,7 +30,7 @@ class CategoryData:
                 reader = csv.DictReader(csvfile)
                 for row in reader:
                     name = row['instance_name']
-                    category = row['type_of_equation'].strip().lower()
+                    category = (row.get('best_model') or '').strip().lower()
                     self.all_instances.append(name)
                     if category == "linear":
                         self.linear_instances.append(name)
@@ -40,12 +38,10 @@ class CategoryData:
                         self.polynomial_instances.append(name)
                     elif category == "exponential":
                         self.exponential_instances.append(name)
-                    elif category == "too few data":
-                        self.too_few_data_instances.append(name)
-                    elif category == "exponential( too many data)":
-                        self.exponential_too_many_data_instances.append(name)
                     else:
                         self.unknown_instances.append(name)
+                    if category in ("linear", "polynomial", "exponential"):
+                        self.valid_instances.append(name)
         except Exception as e:
             print(e)
             # If the file is missing or malformed, leave lists empty

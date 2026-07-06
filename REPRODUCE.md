@@ -185,6 +185,8 @@ Original data is stored at TODO
 
 First generate the permuted formulas and run
 ```bash
+python scripts/formula_permutation.py   --category linear   --permute_type clause_and_iteration   --permute_n 1   --only_success_instance   --generate   --slurm # permute iterations and order of clauses within them
+python scripts/formula_permutation.py   --category linear   --permute_type clause   --permute_n 1   --only_success_instance   --generate   --slurm # permute the order of all clauses
 python scripts/formula_permutation.py   --category linear   --permute_type clause_and_iteration   --permute_n 1   --only_success_instance   --run   --slurm # permute iterations and order of clauses within them
 python scripts/formula_permutation.py   --category linear   --permute_type clause   --permute_n 1   --only_success_instance   --run   --slurm # permute the order of all clauses
 ```
