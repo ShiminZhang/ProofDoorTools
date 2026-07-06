@@ -4,7 +4,7 @@ This repository contains the scripts for the experiments in
 the paper *Understanding CDCL Solvers via Scalability Studies and Proofdoors*.
 
 The code is intentionally kept close to the version used for the paper. During
-review, we avoid refactoring experiment before publish for stability.
+review, we avoid refactoring experiment before paper publishing for stability.
 
 ## Documentation Map
 
