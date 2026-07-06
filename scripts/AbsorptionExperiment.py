@@ -701,7 +701,7 @@ class AbsorptionExperiment(Experiment):
                 permute_index=self.config.permute_index,
             )
             if not os.path.exists(interpolant_cnf_path):
-                print(f"SMT CNF file {interpolant_cnf_path} missing, fake a dummy interpolant")
+                print(f"SMT CNF file {interpolant_cnf_path} missing, fake a dummy interpolant, the result is invalid")
                 interpolant_map[interpolation_index] = []
                 continue
             if os.path.getsize(interpolant_cnf_path) == 0:
@@ -709,7 +709,7 @@ class AbsorptionExperiment(Experiment):
                 if self.config.interpolant_pddef == 4:
                     interpolant_map[interpolation_index] = []
                     continue
-                print(f"SMT CNF file {interpolant_cnf_path} empty/invalid, fake a dummy interpolant")
+                print(f"SMT CNF file {interpolant_cnf_path} empty/invalid, fake a dummy interpolant, the result is invalid")
                 interpolant_map[interpolation_index] = []
                 continue
             interpolant_cnf_obj = CNF.from_file(interpolant_cnf_path, skip_parse_literal_map=True)

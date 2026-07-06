@@ -51,21 +51,22 @@ result: results/139442p0_regression.json
 python scripts/prepare_single.py --name 139442p0 --K 10 --index 0 --pddef 1 --pre_interpolant
 python scripts/prepare_single.py --name 139442p0 --K 10 --index 0 --pddef 1 --interpolant_only
 
-# Option B strongest/weakest proofdoors (BVE)
-python scripts/strongest_pd/compute_spd.py --name 139442p0 --K 10 --i 0            # strongest
-python scripts/strongest_pd/compute_spd.py --name 139442p0 --K 10 --i 0 --reverse  # weakest
+# Option B strongest proofdoors (BVE)
+python scripts/strongest_pd/compute_spd.py --name 139442p0 --K 10 --i 0            # strongest, for weakest please see REPRODUCE.md
+
 ```
 result: `ProofDoorBenchmark/interpolants_def1/10/139442p0.10.0.interpolant` (Option A) or `ProofDoorBenchmark/interpolants_def5/10/139442p0.10.0.interpolant` (Option B)
 
-## Step 5: Absorption check + heatmap
+Note: pddef number represents different proofdoor type/computation methods, in the paper we used iz3 proofdoors (pddef=1), strongest proofdoors (pddef=5) and weakest proofdoors(pddef=7). 
 
+## Step 5: Absorption check + heatmap
+note that the --index/--i above has to cover 0~9 before the following heatmap being meaningful
 ```bash
-python scripts/AbsorptionExperiment.py --K 10 --main --force_instance 139442p0 --category linear
-python scripts/AbsorptionExperiment.py --K 10 --draw --force_instance 139442p0
+python scripts/AbsorptionExperiment.py \
+  --instance 139442p0 \
+  --K 10 \
+  --category linear
+  --pddef 1
 ```
 
 results: `figures/absorption_experiments/10/pddef_1/Literal Absorption Pass Percentage Heatmap 139442p0 (CaDiCaL)_withFormula_notrimmed_forward.png`
-## Success Criteria
-
-- [ ] All steps exit 0.
-- [ ] Linear heatmap is near upper-triangular; exponential heatmap is not.

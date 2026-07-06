@@ -1,7 +1,7 @@
 # Reproduction Guide (Slurm/HPC)
 
 This guide assumes [SMOKETEST.md](SMOKETEST.md) passes and a Slurm cluster is
-available. Commands with `--manage` submit Slurm jobs. Note that, due to policy difference, the slurm commands might not necessarily work in all clusters. Some editing is need should that happen.
+available. Commands with `--manage` submit Slurm jobs. Note that, due to hpc policy difference, the slurm commands might not necessarily work in all clusters. Some editing is need should that happen.
 
 Two tiers:
 - **Small-scale**: a handful of instances per category, each step should be able to finish in a day. 
@@ -14,13 +14,13 @@ Activate the BMCBenchmark environment first:
 ```bash
 cd BMCBenchmark
 source .env
-source $PYENVPATH   # TODO: README previously said $PYENVPATH_BMC — unify
+source $PYENVPATH_BMC
 ```
 The subsections assume we are in ./BMCBenchmark/
 
 ### Full-scale (1 day)
 
-Generate formulas (Slurm, 1day):
+Generate formulas and solve (Slurm, 1day):
 
 ```bash
 python src/scripts/prepare_formulas.py --k_limit 100 --manage
@@ -40,7 +40,9 @@ python src/scripts/Experiments/direct_regression_analysis.py
 
 Outputs: `regression_summary.csv` and `figures/scalability/`.
 
-### Small-scale
+### (Optional) Small-scale
+
+By deleting the .aig circuits from  data/aigs/, we can perform the experiment in a smaller scale, for example:
 
 ```bash
 # Run from BMCBenchmark after activating the environment above.
@@ -71,16 +73,16 @@ python src/scripts/Experiments/direct_regression_analysis.py
 ```
 
 ### (Optional) Select K upper bounds for proofdoor computation
-A map has already been provided 
+A instance-K-map has already been provided in the main folder, this is optional
 
 ```bash
 python find_local_max_k.py --summary regression_summary.json
 cp regression_summary_k.json ../regression_summary.json
 ```
 
-K selection rules: linear families always use K=10; polynomial families are
+The goal is to use small but representative K here. K selection rules: linear families always use K=10; polynomial families are
 skipped (-1); exponential families use the smallest K ≥ 5 at a local
-solving-time maximum (many exponential families oscillate between even/odd K as reported in Appendix).
+solving-time maximum (many exponential families oscillate between even/odd K (as reported in paper Appendix) and we found that, for the linear datapoints in exponential family, their proofdoor size is also small. Therefore the local max K are of higher probability to be unfolding depths belonging to exponential trend).
 
 ## Section V-B: Proofdoor Computation
 
@@ -90,6 +92,9 @@ Cluster manager per category:
 ```bash
 python scripts/strongest_pd/manage_spd_computation.py --K 10 --category linear
 python scripts/strongest_pd/manage_spd_computation.py --K 10 --category exponential
+
+# weakest proofdoors are computed by spd pipeline reversely and then converted to forward wpd (named mpd in the code)
+python scripts/strongest_pd/manage_spd_computation.py --K 5 --category exponential --reverse 
 ```
 
 Outputs under `ProofDoorBenchmark/` (paths managed by `scripts/utils/paths.py`).
@@ -109,7 +114,7 @@ python scripts/strongest_pd/stat_spd.py \
   --output spd_stats_exponential_k5_to_10.csv
 ```
 
-Note: pddef number represents different proofdoor type/computation methods, in the paper we used iz3 proofdoors (pddef=1), strongest proofdoors (pddef=5) and weakest proofdoors(pddef=6). 
+Note: pddef number represents different proofdoor type/computation methods, in the paper we used iz3 proofdoors (pddef=1), strongest proofdoors (pddef=5) and weakest proofdoors(pddef=7). 
 
 ### McMillan interpolants (IPCCP, iZ3)
 
@@ -154,7 +159,7 @@ python scripts/AbsorptionExperiment.py   --from_summary proofdoor_computation_su
 Outputs: `Dashboard/AbsorptionExperiment_results_<K>.json`,
 `figures/absorption_experiments/<K>/`.
 
-figure naming convention: TODO
+Absorption experiment detailed caches are in ProofDoorBenchmark/absorption_experiments/<K>
 
 ### Strongest proofdoors
 First normalize the proofdoor computation data to input format of absorption experiments
@@ -183,20 +188,20 @@ Original data is stored at TODO
 
 ## Section V-C RQ3: Scrambling
 
-First generate the permuted formulas and run
+First generate the permuted formulas and run, permute_n is the number of samples. (Fast)
 ```bash
-python scripts/formula_permutation.py   --category linear   --permute_type clause_and_iteration   --permute_n 1   --only_success_instance   --generate   --slurm # permute iterations and order of clauses within them
-python scripts/formula_permutation.py   --category linear   --permute_type clause   --permute_n 1   --only_success_instance   --generate   --slurm # permute the order of all clauses
-python scripts/formula_permutation.py   --category linear   --permute_type clause_and_iteration   --permute_n 1   --only_success_instance   --run   --slurm # permute iterations and order of clauses within them
-python scripts/formula_permutation.py   --category linear   --permute_type clause   --permute_n 1   --only_success_instance   --run   --slurm # permute the order of all clauses
+python scripts/formula_permutation.py   --category linear   --permute_type clause_and_iteration   --permute_n 1   --only_success_instance   --generate  # permute iterations and order of clauses within them
+python scripts/formula_permutation.py   --category linear   --permute_type clause   --permute_n 1   --only_success_instance   --generate # permute the order of all clauses
+python scripts/formula_permutation.py   --category linear   --permute_type clause_and_iteration   --permute_n 1   --only_success_instance   --run # permute iterations and order of clauses within them
+python scripts/formula_permutation.py   --category linear   --permute_type clause   --permute_n 1   --only_success_instance   --run # permute the order of all clauses
 ```
 
 The formulas will be at
 ProofDoorBenchmark/scrambled_cnfs/<K>/<permute_index>/<instance>.<K>.<permute_type>.cnf
 
-After solving complete, to see the results:
+After solving complete, to see the results (Fast): 
 
 ```bash
-python scripts/formula_permutation.py   --category linear   --permute_type clause_and_iteration   --permute_n 1   --only_success_instance   --compare   --slurm # permute iterations and order of clauses within them
-python scripts/formula_permutation.py   --category linear   --permute_type clause   --permute_n 1   --only_success_instance   --compare   --slurm # permute the order of all clauses
+python scripts/formula_permutation.py   --category linear   --permute_type clause_and_iteration   --permute_n 1   --only_success_instance   --compare # permute iterations and order of clauses within them
+python scripts/formula_permutation.py   --category linear   --permute_type clause   --permute_n 1   --only_success_instance   --compare # permute the order of all clauses
 ```
