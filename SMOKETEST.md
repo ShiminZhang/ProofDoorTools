@@ -69,8 +69,14 @@ result: `ProofDoorBenchmark/interpolants_def1/10/139442p0.10.0.interpolant` (Opt
 Note: pddef number represents different proofdoor type/computation methods, in the paper we used iz3 proofdoors (pddef=1), strongest proofdoors (pddef=5) and weakest proofdoors(pddef=7). 
 
 ## Step 5: Absorption check + heatmap
-note that the --index/--i above has to cover 0~9 before the following heatmap being valid. (it would take a long time for strongest proofdoor to compute with all indexes, so it is not recommanded to do it here). It's fine to see invalid warning from the following command.
+note that the --index/--i above has to cover 0~9 before the following heatmap being valid. (it would take a long time for strongest proofdoor to compute with all indexes, so it is not recommanded to do it in smoketest). It's fine to see invalid warning from the following command.
 ```bash
+# for i in $(seq 0 9); do
+#   python scripts/prepare_single.py --name 139442p0 --K 10 --index $i --pddef 1 --pre_interpolant
+#   python scripts/prepare_single.py --name 139442p0 --K 10 --index $i --pddef 1 --interpolant_only
+#   python scripts/SMTTranslationToCNFExperiment.py --instance 139442p0 --K 10 --index $i
+# done
+
 python scripts/AbsorptionExperiment.py \
   --instance 139442p0 \
   --K 10 \

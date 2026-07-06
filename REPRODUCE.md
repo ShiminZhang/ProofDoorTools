@@ -40,33 +40,8 @@ python src/scripts/Experiments/direct_regression_analysis.py
 
 Outputs: `regression_summary.csv` and `figures/scalability/`.
 
-### (Optional) Small-scale
 
-By deleting the .aig circuits from  data/aigs/, we can perform the experiment in a smaller scale, for example:
-
-```bash
-# Run from BMCBenchmark after activating the environment above.
-
-# Keep the full AIG set, then replace data/aigs with the 10-instance subset.
-mv data/aigs "data/aigs.full-scale.$(date +%Y%m%d-%H%M%S)"
-mkdir -p data/aigs
-
-for name in \
-  6s355rb08740 \
-  bobmiterbm1or \
-  bobtuint21neg \
-  cmuperiodic \
-  neclaftp1002 \
-  intel020 \
-  intel012 \
-  intel040 \
-  cmudme2 \
-  eijks444
-do
-  cp "../ProofDoorBenchmark/aigs/${name}.aig" data/aigs/
-done
-
-# Run the same BMC pipeline on the reduced AIG set.
+### Run the same BMC pipeline on the reduced AIG set.
 python src/scripts/prepare_formulas.py --k_limit 100 --manage
 python src/scripts/Experiments/collect_solving_time.py --all_slurm
 python src/scripts/Experiments/direct_regression_analysis.py
@@ -156,10 +131,8 @@ python scripts/AbsorptionExperiment.py   --from_summary proofdoor_computation_su
 python scripts/AbsorptionExperiment.py   --from_summary proofdoor_computation_summary_exponential.csv   --category exponential
 ```
 
-Outputs: `Dashboard/AbsorptionExperiment_results_<K>.json`,
-`figures/absorption_experiments/<K>/`.
-
 Absorption experiment detailed caches are in ProofDoorBenchmark/absorption_experiments/<K>
+Absorption experiment figures are in figures/absorption_experiments/
 
 ### Strongest proofdoors
 First normalize the proofdoor computation data to input format of absorption experiments
@@ -183,9 +156,6 @@ Figure is drawn by
 python scripts/strongest_pd/stat_spd.py --K 5 --K_max 10  --plot
 # python scripts/strongest_pd/stat_spd.py --K 5 --K_max 10  --plot --extendx2 #with scatter line estimating interpolant sizes of first timeout indexes
 ```
-
-Original data is stored at TODO
-./spd_stats_k_5_to_10.csv
 
 ## Section V-C RQ3: Scrambling
 
