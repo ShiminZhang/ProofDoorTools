@@ -9,7 +9,7 @@ This document is tested on compute canada rorqual/fir/narval hpc
 ## Prerequisites
 
 - Linux x86-64 (binaries in `solvers/` and repo root are built for this).
-- Python 3.10 environment set up as in [README.md](README.md).
+- Python 3.11 environment set up as in [README.md](README.md).
 - Environment activated:
 
 ```bash
@@ -46,15 +46,22 @@ plot will be at: ./results/plots/139442p0_regression_analysis.png
 result: results/139442p0_regression.json
 
 ## Step 3: proofdoor computation
-
+first go back to ProofDoorTools dir 
+```bash
+cd ..
+source .env
+source $PYENVPATH
+```
 
 ```bash
 # Option A iz3 proofdoors (McMillan proofdoors) — manage scripts use pddef=1
 python scripts/prepare_single.py --name 139442p0 --K 10 --index 0 --pddef 1 --pre_interpolant
 python scripts/prepare_single.py --name 139442p0 --K 10 --index 0 --pddef 1 --interpolant_only
+python scripts/SMTTranslationToCNFExperiment.py --instance 139442p0 --K 10 --index 0
 
 # Option B strongest proofdoors (BVE)
 python scripts/strongest_pd/compute_spd.py --name 139442p0 --K 10 --i 0            # strongest, for weakest please see REPRODUCE.md
+python scripts/Def5InterpolantToSMTCNF.py --instance 139442p0 --K 10 --index 0
 
 ```
 result: `ProofDoorBenchmark/interpolants_def1/10/139442p0.10.0.interpolant` (Option A) or `ProofDoorBenchmark/interpolants_def5/10/139442p0.10.0.interpolant` (Option B)
@@ -62,13 +69,22 @@ result: `ProofDoorBenchmark/interpolants_def1/10/139442p0.10.0.interpolant` (Opt
 Note: pddef number represents different proofdoor type/computation methods, in the paper we used iz3 proofdoors (pddef=1), strongest proofdoors (pddef=5) and weakest proofdoors(pddef=7). 
 
 ## Step 5: Absorption check + heatmap
-note that the --index/--i above has to cover 0~9 before the following heatmap being meaningful
+note that the --index/--i above has to cover 0~9 before the following heatmap being valid. (it would take a long time for strongest proofdoor to compute with all indexes, so it is not recommanded to do it here). It's fine to see invalid warning from the following command.
 ```bash
 python scripts/AbsorptionExperiment.py \
   --instance 139442p0 \
   --K 10 \
-  --category linear
-  --pddef 1
+  --category linear \
+  --interpolant_pddef 1 #for I_m proofdoor
 ```
 
 results: `figures/absorption_experiments/10/pddef_1/Literal Absorption Pass Percentage Heatmap 139442p0 (CaDiCaL)_withFormula_notrimmed_forward.png`
+
+(Optional) The following absorption experiment for strongest proofdoor would take a long time:
+```bash
+# python scripts/AbsorptionExperiment.py \
+#   --instance 139442p0 \
+#   --K 10 \
+#   --category linear \
+#   --interpolant_pddef 5 #for strongest proofdoor
+```
