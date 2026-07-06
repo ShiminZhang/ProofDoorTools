@@ -19,10 +19,10 @@ source .env
 
 ## Test Instances
 
-| Category | Instance | K | Why chosen |
-|----------|----------|---|------------|
-| linear | `139442p0` | 2 | small |
-| exponential | `beemprdcell2f1` | 3 | small, note that this is only to test the pipeline. Higher K might be needed to reproduce. |
+| Category | Instance | K  |
+|----------|----------|---|
+| linear | `139442p0` | 2  |
+| exponential | `beemprdcell2f1` | 3  |
 
 ## Step 1: Generate CNF (Section IV pipeline) and solve
 
