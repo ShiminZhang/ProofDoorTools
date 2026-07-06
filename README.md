@@ -45,12 +45,8 @@ git submodule update
 
 ## Reviewer Notes
 
-Commands with `--manage` submit Slurm jobs and are intended for the cluster
-environment used for the paper. Single-instance commands without `--manage`
-run locally; SMOKETEST.md collects the local path.
-
-The scripts use cached data aggressively and generates tens of thousands of files. It may take TBs of disk storage. One way to save storage is to delete BMCBenchmark/data/cnfs after the BMCScaling study is done.
-
 For implementation details: Absorption checking is a joint functionality provided by External/minisat_absorption_checker/ and scripts/AbsorptionExperiment.py. BVE based proofdoor computation has part of implementation in External/kissat_bve. The other implementations are in scripts/.
 
 For data: Paper related data & logs & figures are in PaperData/
+
+The scripts use cached data aggressively and generates tens of thousands of files. It may take TBs of disk storage. One way to save storage is to delete BMCBenchmark/data/cnfs after the BMCScaling study is done.
