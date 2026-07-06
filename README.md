@@ -25,11 +25,11 @@ source .env
 ```
 
 The `.env` file adds `./scripts` to `PYTHONPATH`. Source it from the repository
-root before running any scripts.
+root before running any scripts. The BMCBenchmark repo uses another .env.
 
-Note on Z3: the interpolation experiments use a separately built iZ3-capable Z3
+Note on Z3: the interpolation experiments use a separately built Z3-4.7.1
 binary (`./bin/z3`); the `z3-solver` pip package is a different artifact used only
-by helper scripts. See REPRODUCE.md §Prerequisites.
+by helper scripts. In case the included distribution cannot build, please download a suitable Z3-4.7.1 from their repo and put in External/.
 
 ## Submodules
 
@@ -38,7 +38,7 @@ git submodule init
 git submodule update
 ```
 
-## Setup dependencies
+## Setup dependencies and prepare the binaries
 ```bash
 ./build_dependencies.sh
 ```
@@ -49,8 +49,8 @@ Commands with `--manage` submit Slurm jobs and are intended for the cluster
 environment used for the paper. Single-instance commands without `--manage`
 run locally; SMOKETEST.md collects the local path.
 
-The scripts use cached data aggressively.
+The scripts use cached data aggressively and generates tens of thousands of files. It may take TBs of disk storage. One way to save storage is to delete BMCBenchmark/data/cnfs after the BMCScaling study is done.
 
-Absorption checking is a joint functionality provided by External/minisat_absorption_checker/ and scripts/AbsorptionExperiment.py. BVE based proofdoor computation has part of implementation in External/kissat_bve. The other implementations are in scripts/.
+For implementation details: Absorption checking is a joint functionality provided by External/minisat_absorption_checker/ and scripts/AbsorptionExperiment.py. BVE based proofdoor computation has part of implementation in External/kissat_bve. The other implementations are in scripts/.
 
-The paper related data/log/figures are organized into PaperData/
+For data: Paper related data & logs & figures are in PaperData/
