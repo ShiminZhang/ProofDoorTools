@@ -3,7 +3,7 @@ import random
 from typing import List
 from utils.process_cnf import CNF
 # from process_cnf import CNF
-PERMUTE_LIMIT = 20
+PERMUTE_LIMIT = 48
 class ScrambleType:
     CLAUSE = "clause"
     ITERATION = "iteration"

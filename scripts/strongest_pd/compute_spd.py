@@ -7,10 +7,37 @@ import argparse
 # Allow imports from the scripts/ directory (parent of this file's directory)
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from utils.paths import get_CNF_dir, get_interpolant_dir, get_progressive_qdimacs_dir
-
+from utils.paths import get_CNF_dir, get_interpolant_dir, get_progressive_qdimacs_dir, get_scrambled_CNF
+from utils.scramble import SCRAMBLE_TYPES, scramble_cnf
+from utils.utils import generate_cnf
 PREPROCESS_BIN = "./External/kissat_bve/build/preprocess"
 CADICAL_BIN    = "./solvers/cadical"
+
+
+def _perm_suffix(permute=None, permute_index=0):
+    return f".perm_{permute}_{permute_index}" if permute else ""
+
+
+def _get_formula_cnf_path(name, K, permute=None, permute_index=0):
+    if permute:
+        return get_scrambled_CNF(name, K, permute, permute_index)
+    return f"{get_CNF_dir(K)}/{name}.{K}.cnf"
+
+
+def _ensure_formula_cnf_exists(name, K, permute=None, permute_index=0):
+    if not permute:
+        cnf_path = _get_formula_cnf_path(name, K)
+        if not os.path.exists(cnf_path):
+            generate_cnf(cnf_path)
+        return cnf_path
+
+    original = _get_formula_cnf_path(name, K)
+    if not os.path.exists(original):
+        generate_cnf(original)
+    scrambled = _get_formula_cnf_path(name, K, permute, permute_index)
+    if not os.path.exists(scrambled) or os.path.getsize(scrambled) == 0:
+        scramble_cnf(original, scrambled, permute)
+    return scrambled
 
 
 def read_qdimacs_clauses(path):
@@ -345,11 +372,14 @@ def compute_spd(name, K, i, export_qdimacs_only=False,
                 eliminatebound=None, eliminaterounds=None,
                 eliminateclslim=None, eliminateocclim=None,
                 eliminateeffort=None,
-                reverse=False):
+                reverse=False,
+                permute=None,
+                permute_index=0):
     from utils.process_cnf import CNF
 
-    cnf_path = f"{get_CNF_dir(K)}/{name}.{K}.cnf"
+    cnf_path = _ensure_formula_cnf_exists(name, K, permute, permute_index)
     cnf = CNF(cnf_path, use_cache=True, skip_parse_literal_map=True)
+    perm_suffix = _perm_suffix(permute, permute_index)
 
     iter_map = cnf.get_iter_map()
 
@@ -368,7 +398,7 @@ def compute_spd(name, K, i, export_qdimacs_only=False,
         if i == 0:
             i_clauses = []
         else:
-            prev_path = os.path.join(interp_dir, f"{name}.{K}.{i-1}.interpolant")
+            prev_path = os.path.join(interp_dir, f"{name}.{K}.{i-1}{perm_suffix}.interpolant")
             if not os.path.exists(prev_path):
                 raise FileNotFoundError(f"Previous interpolant not found: {prev_path}")
             i_clauses = read_qdimacs_clauses(prev_path)
@@ -393,7 +423,7 @@ def compute_spd(name, K, i, export_qdimacs_only=False,
         if i + 1 == k_max:
             i_clauses = []
         else:
-            next_path = os.path.join(interp_dir, f"{name}.{K}.{i+1}.interpolant")
+            next_path = os.path.join(interp_dir, f"{name}.{K}.{i+1}{perm_suffix}.interpolant")
             if not os.path.exists(next_path):
                 raise FileNotFoundError(f"Next reverse interpolant not found: {next_path}")
             i_clauses = read_qdimacs_clauses(next_path)
@@ -410,7 +440,7 @@ def compute_spd(name, K, i, export_qdimacs_only=False,
 
     # Write the input QDIMACS
     qdimacs_dir  = get_progressive_qdimacs_dir(K, tag=qdimacs_tag)
-    qdimacs_path = os.path.join(qdimacs_dir, f"{name}.{K}.{i}.qdimacs")
+    qdimacs_path = os.path.join(qdimacs_dir, f"{name}.{K}.{i}{perm_suffix}.qdimacs")
     write_qdimacs(qdimacs_path, max_var, ia_clauses, elim_vars)
     print(f"QDIMACS written to: {qdimacs_path}")
 
@@ -418,7 +448,7 @@ def compute_spd(name, K, i, export_qdimacs_only=False,
         return qdimacs_path
 
     # Run preprocess to produce the next strongest interpolant
-    output_path = os.path.join(interp_dir, f"{name}.{K}.{i}.interpolant")
+    output_path = os.path.join(interp_dir, f"{name}.{K}.{i}{perm_suffix}.interpolant")
     cmd = [PREPROCESS_BIN, qdimacs_path, output_path]
     if initialbound is not None:
         cmd.append(f"--initialbound={initialbound}")
@@ -444,12 +474,12 @@ def compute_spd(name, K, i, export_qdimacs_only=False,
         raise RuntimeError(f"preprocess failed with exit code {result.returncode}")
     if "[ELIM_WARNING]" in result.stdout:
         print(f"[FORCED_ELIM] {name}.{K}.{i}: attempting exact elimination fallback")
-        forced_eliminate_remaining_vars(output_path, label=f"{name}.{K}.{i}")
+        forced_eliminate_remaining_vars(output_path, label=f"{name}.{K}.{i}{perm_suffix}")
     print(f"Strongest interpolant written to: {output_path}")
 
     # Verify the produced interpolant
     i_out_clauses = read_qdimacs_clauses(output_path)
-    label = f"{name}.{K}.{i}"
+    label = f"{name}.{K}.{i}{perm_suffix}"
     ok = verify_interpolant(ia_clauses, i_out_clauses, b_clauses, label=label)
     if not ok:
         print(f"ERROR: interpolant validity check FAILED for {label}")
@@ -470,6 +500,10 @@ def main():
                         help='Only write the input QDIMACS; skip the preprocess step')
     parser.add_argument('--reverse', action='store_true',
                         help='Reverse mode (pddef7): compute I_i using A_{i+1} and I_{i+1}, stepping forward from the last chunk')
+    parser.add_argument('--permute', choices=SCRAMBLE_TYPES, default=None,
+                        help='Use scrambled CNF formula (clause/iteration/clause_and_iteration)')
+    parser.add_argument('--permute_index', type=int, default=0,
+                        help='Permutation index under scrambled_cnfs/<K>/<index>/')
     parser.add_argument('--initialbound', type=int, default=50,
                         help='Override preprocess initial additional_clauses bound')
     parser.add_argument('--eliminatebound', type=int, default=16000,
@@ -496,6 +530,8 @@ def main():
         eliminateocclim=args.eliminateocclim,
         eliminateeffort=args.eliminateeffort,
         reverse=args.reverse,
+        permute=args.permute,
+        permute_index=args.permute_index,
     )
 
 

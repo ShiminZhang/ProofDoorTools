@@ -1,20 +1,29 @@
 #!/usr/bin/env python3
 """
-三阶段调度器（interpolants -> SMT→CNF -> absorption），按 (instance, K, index) 细粒度管理依赖：
+Three-stage scheduler (interpolants -> SMT->CNF -> absorption), tracking dependencies at
+the (instance, K, index) granularity:
 
-1. interpolants：
-   - 扫描所有 K 个 interpolant 文件，区分 ok / missing / empty / error / timeout（timeout 通过本脚本自己的 log 判断）。
-   - 对于从未尝试过的 missing/empty index，按 index 顺序提交一串有 afterok 依赖的 Slurm job，
-     每个 job 调用 `prepare_single.py --interpolant_only` 来计算对应 interpolant。
-   - 对于 timeout/error 的 index 不自动重试，整条 pipeline 跳过该 index。
-2. SMT→CNF：
-   - 对每个 index 独立判断：若 cnf 缺失/空且该 index 的 interpolant 不是 timeout/error，
-     则提交一个 SMT→CNF job，必要时依赖本轮对应的 interpolant job（afterok）。
-3. absorption：
-   - 若 Dashboard 中 absorption 结果还不是 success，则在本轮所有 SMT→CNF job 完成之后（afterany 依赖）提交一个
-     `AbsorptionExperiment.py --K K --main --force_instance instance` 的 job，让它自己按内部逻辑检查哪些 index 可用。
+1. interpolants:
+   - Scan all K interpolant files and classify them as ok / missing / empty /
+     error / timeout (timeouts are inferred from this scheduler's own logs).
+   - For missing/empty indices that have never been attempted, submit a chain of
+     Slurm jobs in index order with afterok dependencies. Each job calls
+     `prepare_single.py --interpolant_only` to compute the corresponding
+     interpolant.
+   - Do not automatically retry timeout/error indices; skip those indices for the
+     rest of the pipeline.
+2. SMT->CNF:
+   - Handle each index independently. If the CNF is missing/empty and the
+     interpolant for that index is not timeout/error, submit an SMT->CNF job,
+     depending on this run's corresponding interpolant job when needed (afterok).
+3. absorption:
+   - If the Dashboard absorption result is not success, submit an
+     `AbsorptionExperiment.py --K K --main --force_instance instance` job after
+     all SMT->CNF jobs from this run finish (afterany dependency). That job then
+     checks which indices are usable using its own internal logic.
 
-该脚本是幂等的：可以多次运行，它只会为“当前缺的、且本脚本尚未尝试过”的部分补 job。
+This script is idempotent: it can be run multiple times and only fills in the
+currently missing pieces that this scheduler has not attempted before.
 """
 
 import argparse
@@ -27,7 +36,7 @@ from utils.paths import get_interpolant_cnf_dir
 from pathlib import Path
 from typing import Dict, Tuple, List, Optional
 from utils.scramble import ScrambleType, SCRAMBLE_TYPES, PERMUTE_LIMIT
-# 这些 import 复用你现有的路径工具和 Dashboard 约定
+# Reuse the existing path helpers and Dashboard conventions.
 from utils.paths import (
     get_CNF_dir,
     get_interpolant_dir,
@@ -36,10 +45,11 @@ from utils.paths import (
     get_latest_absorption_result,
 )
 from utils.catagory import get_instance_list
+from utils.utils import get_python_activate_command
 
-# ----------------- 全局配置（按需改） -----------------
+# ----------------- Global configuration (edit as needed) -----------------
 
-# 和 dumb_sceduler.sh 中的 target_list 对应
+# Matches target_list in dumb_sceduler.sh.
 DEFAULT_TARGET_INSTANCES = [
     # "cal123",
     # "cal142",
@@ -69,13 +79,13 @@ INSTANCE_K_MAP = {
 TEST_TARGET_INSTANCES = [
     "139442p0"
 ]
-# 你现在常用的 K 集合
+# Commonly used K values.
 DEFAULT_K_LIST = [10, 15, 20, 25, 30, 35, 40, 45, 50]
 TEST_K_LIST = [3, 4, 5,6,7,8,9]
-# interpolant 定义：你现在主要用 def1
+# Interpolant definition: def1 is the main default.
 PDDEF = 1
 
-# 每个 K,i 的 job 的时间和内存
+# Time and memory for each (K, i) job.
 TIME_PER_JOB = "20:00:00"
 MEM_INTERP = "32g"
 MEM_SMT2CNF = "32g"
@@ -83,17 +93,16 @@ MEM_ABSORPTION = "64g"
 MEM_PREPARE_FORMULA = "32g"
 TIME_PREPARE_FORMULA = "20:00:00"
 
-VENV_ACTIVATE = "source ../../general/bin/activate"  # 从 scripts/ 下看是这个路径
 class status:
     done = "done"
     not_started = "not started"
     partial = "partial"
     failed = "failed"
 
-# ----------------- 一些工具函数 -----------------
+# ----------------- Utility functions -----------------
 
 def run_cmd(cmd: str) -> str:
-    """运行 shell 命令，返回 stdout.strip()，并打印命令方便 debug。"""
+    """Run a shell command, return stdout.strip(), and print it for debugging."""
     print(f"[CMD] {cmd}")
     out = subprocess.check_output(cmd, shell=True, text=True)
     return out.strip()
@@ -109,11 +118,12 @@ def sbatch_wrap(
     cpus: int = 1,
 ) -> str:
     """
-    提交一个 sbatch --wrap job，返回 job id。
-    inner_cmd 不需要自己激活 venv，这里统一包一层。
+    Submit an sbatch --wrap job and return the job id.
+    inner_cmd does not need to activate the venv; this wrapper handles it.
     """
     os.makedirs(os.path.dirname(output_log), exist_ok=True)
-    wrapped = f'{VENV_ACTIVATE} && {inner_cmd}'
+    pycmd = get_python_activate_command()
+    wrapped = f'{pycmd} && {inner_cmd}'
     dep_part = f" --dependency=afterok:{dependency}" if dependency else ""
     cmd = (
         f"sbatch --job-name={job_name} --time={time_limit} --mem={mem} "
@@ -125,7 +135,7 @@ def sbatch_wrap(
     return out.split()[-1]
 
 
-# ----------------- 阶段 1：检查 / 提交 interpolant（顺序计算） -----------------
+# ----------------- Stage 1: check / submit interpolants (sequential) -----------------
 
 def _perm_suffix(permute: Optional[str], permute_index: int) -> str:
     return f".perm_{permute}_{permute_index}" if permute else ""
@@ -140,14 +150,15 @@ def was_interpolant_attempted(
     permute_index: int = 0,
 ) -> bool:
     """
-    通过 **本调度器自己的 per-index 日志** 判断某个 interpolant 是否“尝试过计算”（可能是 timeout / 被杀掉）。
-    只要这些 log 里出现过 `<instance>.<K>.<index>.interpolant` 就认为尝试过。
+    Use this scheduler's own per-index logs to decide whether an interpolant was
+    attempted (possibly timed out or killed).
+    If these logs contain `<instance>.<K>.<index>.interpolant`, treat it as attempted.
     """
     perm_suffix = _perm_suffix(permute, permute_index)
     suffix = ".reverse.interpolant" if reverse else ".interpolant"
     name_fragment = f"{instance}.{K}.{index}{perm_suffix}{suffix}"
 
-    # 只看新调度器自己的 per-index 日志
+    # Only inspect this scheduler's own per-index logs.
     logs_root = f"./SlurmLogs/prepare_interpolants_def{pddef}/k_{K}"
     if os.path.isdir(logs_root):
         for fname in os.listdir(logs_root):
@@ -167,11 +178,11 @@ def was_interpolant_attempted(
 
 def classify_single_interpolant(path: str) -> str:
     """
-    返回单个 interpolant 文件的状态：
-    - 'missing': 不存在
-    - 'empty'  : 文件存在但 size=0
-    - 'error'  : 第一行包含 'error'
-    - 'ok'     : 看起来正常
+    Return the status of a single interpolant file:
+    - 'missing': file does not exist
+    - 'empty'  : file exists but has size 0
+    - 'error'  : first line contains 'error'
+    - 'ok'     : file looks normal
     """
     if not os.path.exists(path):
         return "missing"
@@ -196,8 +207,8 @@ def classify_interpolants(
     permute_index: int = 0,
 ) -> Tuple[str, Dict[int, str]]:
     """
-    检查某个 (instance, K) 的 K 个 interpolant 文件。
-    返回:
+    Check the K interpolant files for a given (instance, K).
+    Returns:
     - overall_status: 'none' | 'partial' | 'done' | 'failed'
     - per_index: {index -> 'missing'|'empty'|'error'|'ok'}
     """
@@ -206,7 +217,7 @@ def classify_interpolants(
     per_index: Dict[int, str] = {}
     has_ok = False
     has_unattempted_missing_or_empty = False
-    has_failed = False  # 包括 error 和 timeout 这类“尝试过但没成”
+    has_failed = False  # Includes error and timeout cases that were attempted but failed.
 
     for i in range(K):
         if reverse:
@@ -216,7 +227,7 @@ def classify_interpolants(
         st = classify_single_interpolant(path)
 
         if st in ("missing", "empty"):
-            # 需要区分：从未尝试 vs. 曾经尝试（timeout/kill 等）
+            # Distinguish never attempted from attempted before (timeout/kill, etc.).
             if was_interpolant_attempted(
                 instance,
                 K,
@@ -226,7 +237,7 @@ def classify_interpolants(
                 permute=permute,
                 permute_index=permute_index,
             ):
-                # 视为“尝试过但失败”（可能是 timeout）
+                # Treat as attempted but failed (possibly timed out).
                 st = "timeout"
                 has_failed = True
             else:
@@ -260,15 +271,16 @@ def submit_compute_interpolants_job(
     force_refresh: bool = False,
 ) -> Dict[int, str]:
     """
-    提交一串有依赖关系的 slurm job，顺序计算 (instance, K) 的所有“尚未成功”的 interpolants。
+    Submit a dependency chain of Slurm jobs to compute all interpolants for
+    (instance, K) that are not yet successful.
 
-    要求：
-    - 对于已经是 'ok' 的 index 不重复计算；
-    - 对于 'missing' / 'empty' 的 index，按照从小到大的顺序，
-      每个 (instance, K, i) 一个 job，并使用 --dependency=afterok
-      确保这些 job 在同一次调度中按 index 递增的顺序执行。
+    Requirements:
+    - Do not recompute indices that are already 'ok'.
+    - For 'missing' / 'empty' indices, submit one job per (instance, K, i) in
+      increasing index order and use --dependency=afterok so these jobs run in
+      increasing index order within the same scheduling pass.
 
-    具体每个 job 内部做的事情等价于：
+    Each job is equivalent to:
         python ./scripts/prepare_single.py --name <instance> --K <K> --index <i> --interpolant_only --pddef <pddef> --force_refresh
     """
     logs_dir = f"./SlurmLogs/prepare_interpolants_def{pddef}/k_{K}"
@@ -343,10 +355,10 @@ def submit_compute_interpolants_job(
     indices = range(K - 1, -1, -1) if reverse else range(K)
     for i in indices:
         status = per_index.get(i, "missing")
-        # 默认模式：只对“从未尝试过的 missing/empty” 提交补算；timeout/error 交给人工查看
+        # Default mode: only fill never-attempted missing/empty indices; leave timeout/error for manual inspection.
         if not force_refresh:
             if status in ("timeout", "error"):
-                # 后续 index 会依赖这个失败点，继续提交也只会失败/浪费资源
+                # Later indices depend on this failure point, so continuing would fail or waste resources.
                 print(f"[{instance}.{K}.{i}] interpolant is {status}; stop scheduling dependent indices")
                 break
             if status not in ("missing", "empty"):
@@ -374,7 +386,7 @@ def submit_compute_interpolants_job(
     return job_ids
 
 
-# ----------------- 阶段 2：SMT → CNF -----------------
+# ----------------- Stage 2: SMT -> CNF -----------------
 
 def classify_smt_cnf(
     instance: str,
@@ -385,7 +397,7 @@ def classify_smt_cnf(
     permute_index: int = 0,
 ) -> Tuple[str, Dict[int, str]]:
     """
-    类似地检查 smtcnf 文件：
+    Similarly check smtcnf files:
     - 'missing' / 'empty' / 'ok'
     """
     base = get_interpolant_cnf_dir(K, pddef)
@@ -422,13 +434,13 @@ def classify_smt_cnf(
 
 def get_smt_cnf_status(instance: str, K: int, pddef: int = PDDEF) -> str:
     """
-    获取 SMT→CNF 的整体状态，只返回 overall（'none'/'partial'/'done'）。
+    Get the overall SMT->CNF status only ('none'/'partial'/'done').
     """
     overall, _ = classify_smt_cnf(instance, K, pddef)
     return overall
 
 
-# 兼容旧名字
+# Backward-compatible old name.
 get_smtcnf_status = get_smt_cnf_status
 
 
@@ -445,12 +457,12 @@ def submit_smt_to_cnf_jobs(
     force_refresh: bool = False,
 ) -> Dict[int, str]:
     """
-    为所有需要的 index 提交 SMT→CNF 任务：
-    - 若某 index 的 interpolant 是 'timeout'/'error'，跳过该 index；
-    - 若 smtcnf 已经是 ok，则不重复；
-    - 若 interpolant 需要在本次补算，则 smt2cnf 依赖对应的 interpolant job；
-      否则直接提交，无依赖。
-    返回 {index -> smt2cnf_job_id}。
+    Submit SMT->CNF jobs for all indices that need them:
+    - If an index's interpolant is 'timeout'/'error', skip that index.
+    - If smtcnf is already ok, do not repeat it.
+    - If the interpolant is being filled in this run, make smt2cnf depend on the
+      corresponding interpolant job; otherwise submit it without a dependency.
+    Returns {index -> smt2cnf_job_id}.
     """
     logs_dir = f"./SlurmLogs/smt_to_cnf_def{pddef}/k_{K}"
     os.makedirs(logs_dir, exist_ok=True)
@@ -460,7 +472,7 @@ def submit_smt_to_cnf_jobs(
     permute_flag = f"--permute {permute} --permute_index {permute_index}" if permute else ""
     for i in range(K):
         istatus = interp_status.get(i, "missing")
-        # 对于明确失败 / timeout 的 index，整个 pipeline 跳过该 index
+        # Skip the whole pipeline for indices with explicit failure / timeout.
         if (not force_refresh) and istatus in ("timeout", "error"):
             continue
 
@@ -486,7 +498,7 @@ def submit_smt_to_cnf_jobs(
             )
 
         dependency = None
-        # 如果本轮提交了 interpolant job，则 smt2cnf 依赖对应 interpolant job
+        # If an interpolant job was submitted in this run, make smt2cnf depend on it.
         if force_refresh and i in interp_job_ids:
             dependency = interp_job_ids[i]
         elif istatus in ("missing", "empty") and i in interp_job_ids:
@@ -505,7 +517,7 @@ def submit_smt_to_cnf_jobs(
     return smt_job_ids
 
 
-# ----------------- 阶段 3：Absorption -----------------
+# ----------------- Stage 3: Absorption -----------------
 
 def load_json_if_exists(path: str):
     if not os.path.exists(path):
@@ -516,8 +528,8 @@ def load_json_if_exists(path: str):
 
 def get_absorption_status(instance: str, K: int) -> str:
     """
-    读取 absorption Dashboard：
-    - 返回 'success' / 'error' / 'not started' / 'WIP' / ...
+    Read the absorption Dashboard:
+    - Returns 'success' / 'error' / 'not started' / 'WIP' / ...
     """
     path = get_latest_absorption_result(K)
     report = load_json_if_exists(path)
@@ -537,8 +549,8 @@ def submit_absorption_job(
     permute_index: int = 0,
 ) -> None:
     """
-    为单个 (instance, K) 提交 absorption 管理 job：
-    它内部会像 AbsorptionExperiment.manage 一样再往 slurm 扔一批子 job。
+    Submit an absorption manage job for one (instance, K).
+    Internally, it submits child Slurm jobs similarly to AbsorptionExperiment.manage.
     """
     logs_dir = f"./SlurmLogs/absorption_manage/k_{K}"
     os.makedirs(logs_dir, exist_ok=True)
@@ -554,13 +566,14 @@ def submit_absorption_job(
         f"--K {K} --main --force_instance {instance} {category_flag} {reverse_flag} {pddef_flag} {permute_flag}"
     )
 
-    # 构造依赖：在所有 smt2cnf jobs 完成后再启动（允许部分失败，因此用 afterany）
+    # Build the dependency so it starts after all smt2cnf jobs finish; use afterany to allow partial failures.
     dep_part = ""
     if dependency_job_ids:
         deps = ":".join(dependency_job_ids)
         dep_part = f" --dependency=afterany:{deps}"
+    pycmd = get_python_activate_command()
 
-    wrapped = f"{VENV_ACTIVATE} && {inner_cmd}"
+    wrapped = f"{pycmd} && {inner_cmd}"
     cmd = (
         f"sbatch --job-name={job_name} --time={TIME_PER_JOB} --mem={MEM_ABSORPTION} "
         f"--cpus-per-task=4 --output={log_path}{dep_part} --wrap=\"{wrapped}\""
@@ -573,9 +586,10 @@ def submit_prepare_formula_jobs(
     category: Optional[str] = None,
 ) -> None:
     """
-    为 regression_summary 中每个 name 提交一个 Slurm 任务：生成 K=2..20 的 formula，
-    用 CaDiCaL 顺序求解（保留 proof），超时 1600s 则终止后续求解，最后写 info JSON。
-    每任务 32G 内存、20h 时间。
+    Submit one Slurm job for each name in regression_summary: generate formulas
+    for K=2..20, solve them sequentially with CaDiCaL (keeping proofs), stop later
+    solves after a 1600s timeout, and finally write the info JSON.
+    Each job uses 32G memory and a 20h time limit.
     """
     logs_dir = "./SlurmLogs/prepare_formula"
     os.makedirs(logs_dir, exist_ok=True)
@@ -604,16 +618,19 @@ def prepare_all_formula_interpolants(
     force_refresh: bool = False,
 ) -> None:
     """
-    为 regression_summary 中每个 (name, K) 补齐 interpolants（仅调度 interpolant 相关 job）。
+    Fill interpolants for each (name, K) in regression_summary, scheduling only
+    interpolant-related jobs.
 
-    行为：
-    - 对每个 name，遍历 K=2..min(local_max_k, k_limit)；
-    - 先检查 interpolants 是否整体 done；
-    - 若未 done，则按本调度器的核心逻辑提交 Slurm jobs（等价于 schedule_for_instance 的 stage-1）。
+    Behavior:
+    - For each name, iterate over K=2..min(local_max_k, k_limit).
+    - First check whether interpolants are globally done.
+    - If not done, submit Slurm jobs using this scheduler's core logic
+      (equivalent to schedule_for_instance stage 1).
 
-    说明：
-    - 默认只补算从未成功的 missing/empty；timeout/error 默认跳过（除非 force_refresh=True）。
-    - k_limit 目前按需求先固定默认 10。
+    Notes:
+    - By default, only fill never-successful missing/empty entries; timeout/error
+      entries are skipped unless force_refresh=True.
+    - k_limit is currently fixed to the default 10 per the current requirement.
     """
     if k_limit < 2:
         print(f"[prepare_all_formula_interpolants] k_limit={k_limit} < 2; nothing to do.")
@@ -645,7 +662,7 @@ def prepare_all_formula_interpolants(
             if overall == "done" and not force_refresh:
                 continue
             if overall == "failed" and not force_refresh:
-                # 默认不自动重算 error/timeout（避免无限重提），除非显式 force_refresh
+                # By default, do not rerun error/timeout entries to avoid infinite resubmission.
                 print(f"[prepare_all_formula_interpolants] [{name}.{K}] interpolants status=failed; skip (use --force_refresh to override).")
                 continue
 
@@ -671,7 +688,7 @@ def prepare_all_formula_interpolants(
 
 def check_instance_status(instance: str, K: int, pddef: int = PDDEF) -> str:
     """
-    汇总某个 (instance, K) 的整体进度，返回简要字符串：
+    Summarize overall progress for a given (instance, K) and return a short string:
     - interpolants: overall(count_ok/K)
     - smt2cnf     : overall(count_ok/K)
     - absorption  : dashboard status
@@ -693,7 +710,7 @@ def check_instance_status(instance: str, K: int, pddef: int = PDDEF) -> str:
         f"absorption:{absorp_status}"
     )
 
-# ----------------- 主调度逻辑 -----------------
+# ----------------- Main scheduling logic -----------------
 
 def schedule_for_instance(
     instance: str,
@@ -709,9 +726,9 @@ def schedule_for_instance(
 ) -> None:
     print(f"=== Scheduling pipeline for {instance}, K={K}, pddef={pddef} ===")
     # return
-    # 0) K 已在上游选定（summary/映射），此处直接使用
+    # 0) K is already selected upstream (summary/mapping); use it directly here.
 
-    # 1) interpolants：按 index 细粒度调度
+    # 1) interpolants: schedule at per-index granularity.
     interp_overall, interp_per_index = classify_interpolants(
         instance,
         K,
@@ -721,18 +738,18 @@ def schedule_for_instance(
         permute_index=permute_index,
     )
     print(f"[{instance}.{K}] Interpolants status: {interp_overall}")
-    # 在 force_refresh 下，即便当前状态是 failed，也应该重算，而不是直接跳过
+    # Under force_refresh, recompute even if the current status is failed instead of skipping.
     interp_job_ids: Dict[int, str] = {}
     if interp_overall == "failed" and not force_refresh:
         print(f"[{instance}.{K}] Some interpolants failed (error/timeout); will skip those indices but continue for others.")
         return
 
-    # 为所有尚未尝试的 missing/empty index 提交顺序 interpolant jobs
+    # Submit sequential interpolant jobs for all unattempted missing/empty indices.
     counts = {}
     for st in interp_per_index.values():
         counts[st] = counts.get(st, 0) + 1
     print(f"[{instance}.{K}] Interpolant counts: {counts}")
-    # force_refresh 或 interpolation 模式：提交 interpolant 计算（force_refresh 时会覆盖所有 index）
+    # In force_refresh or interpolation mode, submit interpolant computation; force_refresh overwrites all indices.
     if force_refresh or interpolation:
         interp_job_ids = submit_compute_interpolants_job(
             instance,
@@ -746,11 +763,11 @@ def schedule_for_instance(
         )
         if interpolation:
             return
-    # 1.5) 输出该 instance 的完成情况
+    # 1.5) Print completion status for this instance.
     # num_ok = sum(1 for st in interp_per_index.values() if st == "ok")
     # print(f"[{instance}.{K}] Interpolants ok: {num_ok}/{K}")
 
-    # 2) SMT→CNF：对所有index都ok的Interpolant提交smt2cnf job
+    # 2) SMT->CNF: submit smt2cnf jobs for indices whose interpolants are all ok.
     cnf_overall, cnf_per_index = classify_smt_cnf(
         instance,
         K,
@@ -763,7 +780,7 @@ def schedule_for_instance(
     print(f"[{instance}.{K}] Submitting SMT→CNF jobs where needed (possibly with dependency on interpolant jobs).")
     smt_job_ids = {}
     if force_refresh:
-        # 强制重算：即便某些 index 之前是 error/timeout，也允许继续尝试（由 Z3/资源决定）
+        # Force recomputation: even prior error/timeout indices may be retried, subject to Z3/resources.
         smt_job_ids = submit_smt_to_cnf_jobs(
             instance,
             K,
@@ -794,7 +811,7 @@ def schedule_for_instance(
                 force_refresh=False,
             )
 
-    # 3) absorption：按需启动（默认不跑，避免误发大量 job）
+    # 3) absorption: start on demand; disabled by default to avoid submitting many jobs accidentally.
     if do_absorption:
         absorp_status = get_absorption_status(instance, K)
         print(f"[{instance}.{K}] Absorption dashboard: {absorp_status}")
@@ -835,7 +852,8 @@ def get_proofdoor_size(instance: str, K: int, pddef: int = PDDEF) -> int:
 
 def get_formula_size(instance: str, K: int) -> int:
     """
-    读取原始 CNF 公式的子句数量（优先使用 header，缺失则按行数统计）。
+    Read the number of clauses in the original CNF formula, preferring the header
+    and falling back to counting lines when the header is missing.
     """
     cnf_path = os.path.join(get_CNF_dir(K), f"{instance}.{K}.cnf")
     if not os.path.exists(cnf_path) or os.path.getsize(cnf_path) == 0:
@@ -891,16 +909,16 @@ def output_status_to_csv(
     scaling: bool = False,
     pddef: int = PDDEF,
 ):
-    # 生成 CSV：
-    # - scaling=False: 每个 instance 只输出 local_max_k 的一行（保持兼容现有 category*.csv 用法）
-    # - scaling=True : 对每个 instance 输出 K=1..local_max_k-1 的多行（与 --scaling 调度逻辑一致）
+    # Generate CSV:
+    # - scaling=False: output one local_max_k row per instance, preserving current category*.csv compatibility.
+    # - scaling=True : output multiple rows for K=1..local_max_k-1, matching the --scaling scheduling logic.
     rows: List[Dict[str, str]] = []
     summary_df = pd.read_csv("regression_summary.csv")
 
     required_cols = {"instance_name", "local_max_k", "best_model"}
     missing = required_cols - set(summary_df.columns)
     if missing:
-        raise ValueError(f"summary CSV 缺少必要列: {sorted(missing)}")
+        raise ValueError(f"summary CSV is missing required columns: {sorted(missing)}")
 
     # filtered = summary_df[(summary_df["best_model"] == "linear") or (summary_df["best_model"] == "exponential")]
     filtered = summary_df[summary_df["best_model"] == category]
@@ -915,13 +933,31 @@ def output_status_to_csv(
             return "done"
         if s == "none":
             return "none"
-        # 将 'partial' / 'failed' 等其它状态都归并为 'partial'
+        # Collapse 'partial' / 'failed' and other statuses into 'partial'.
         return "partial"
 
     instances = list(instance_k_map.keys())
     if permute:
-        # 和 main() 的调度逻辑保持一致：scramble 只跑前若干个实例
-        instances = instances[:PERMUTE_LIMIT]
+        # Keep this consistent with main() and formula_permutation.py: only the
+        # success-filtered instances (interpolant_status == smt2cnf_status == "done"
+        # in the base, non-permuted "<category>.csv") are ever scrambled/run, so
+        # only report on those here too.
+        # Match formula_permutation.py's default csv_path exactly (it is always
+        # "<category>.csv", independent of pddef), so the same instances are picked.
+        base_csv_path = f"{category}.csv"
+        if not os.path.exists(base_csv_path):
+            raise ValueError(
+                f"--permute requires the base status CSV '{base_csv_path}' "
+                f"(generate it first via `--output_status_to_csv --category {category}` without --permute)"
+            )
+        base_df = pd.read_csv(base_csv_path)
+        base_df["interpolant_status"] = base_df["interpolant_status"].fillna("").astype(str).str.strip().str.lower()
+        base_df["smt2cnf_status"] = base_df["smt2cnf_status"].fillna("").astype(str).str.strip().str.lower()
+        success_names = base_df[
+            (base_df["interpolant_status"] == "done") & (base_df["smt2cnf_status"] == "done")
+        ]["instance_name"]
+        success_set = set(success_names.astype(str))
+        instances = [inst for inst in instances if inst in success_set][:PERMUTE_LIMIT]
 
     for instance in instances:
         # schedule_for_instance(instance, int(instance_k_map[instance]))
@@ -972,7 +1008,7 @@ def output_status_to_csv(
     print(f"Wrote {len(rows)} rows to {out_path}")
     # exit()
 
-    # 汇总 done 比例
+    # Summarize done ratios.
     total = len(rows)
     if total > 0:
         interp_done = sum(1 for r in rows if r["interpolant_status"] == "done")
@@ -991,31 +1027,31 @@ def main():
         "--instances",
         type=str,
         default=",".join(DEFAULT_TARGET_INSTANCES),
-        help="逗号分隔的 instance 列表（默认使用 dumb_sceduler.sh 的 target_list）",
+        help="Comma-separated instance list; defaults to target_list from dumb_sceduler.sh",
     )
     parser.add_argument(
         "--K_list",
         type=str,
         default=",".join(str(k) for k in DEFAULT_K_LIST),
-        help="逗号分隔的 K 列表，例如 '10,20,30'",
+        help="Comma-separated K list, for example '10,20,30'",
     )
     parser.add_argument(
         "--category",
         type=str,
         default=None,
-        help="传给 AbsorptionExperiment 的 category（可选：exponential, linear, all 等）",
+        help="Category passed to AbsorptionExperiment, for example exponential, linear, or all",
     )
     parser.add_argument(
         "--use_summary",
         type=str,
         default="regression_summary.csv",
-        help="是否使用 summary 文件来判断 interpolant file和k",
+        help="Summary file used to determine interpolant files and K values",
     )
     parser.add_argument(
         "--output_status_to_csv",
         action="store_true",
         default=False,
-        help="输出 status 汇总 CSV；若同时指定 --scaling，则输出 K=1..local_max_k-1 的长表到 *.scaling*.csv",
+        help="Output a status summary CSV; with --scaling, output a long K=1..local_max_k-1 table to *.scaling*.csv",
     )
     parser.add_argument(
         "--check_pds_ratio",
@@ -1032,31 +1068,31 @@ def main():
         "--reverse",
         dest="reverse",
         action="store_true",
-        help="生成反向的 smt / interpolant（默认关闭）",
+        help="Generate reverse smt / interpolant files; disabled by default",
     )
     parser.add_argument(
         "--interpolation",
         action="store_true",
         default=False,
-        help="是否只计算 interpolant",
+        help="Only compute interpolants",
     )
     parser.add_argument(
         "--force_refresh",
         action="store_true",
         default=False,
-        help="强制重算：interpolation 时重算 interpolants；full pipeline 时重算 smt2cnf（覆盖已有文件）",
+        help="Force recomputation: recompute interpolants in interpolation mode; recompute smt2cnf in full-pipeline mode, overwriting existing files",
     )
     parser.add_argument(
         "--limit",
         type=int,
         default=-1,
-        help="最多调度前 N 个 instance（<=0 表示不限制）",
+        help="Schedule at most the first N instances; <=0 means no limit",
     )
     parser.add_argument(
         "--do_absorption",
         action="store_true",
         default=False,
-        help="是否在 SMT→CNF 之后提交 absorption manage job（默认关闭）",
+        help="Submit absorption manage jobs after SMT->CNF; disabled by default",
     )
     parser.add_argument(
         "--scaling",
@@ -1089,7 +1125,7 @@ def main():
         "--no_reverse",
         dest="reverse",
         action="store_false",
-        help="禁用反向 smt / interpolant",
+        help="Disable reverse smt / interpolant files",
     )
     parser.add_argument(
         "--permute",
@@ -1104,7 +1140,7 @@ def main():
         default=0,
         help="Permutation index (used as subfolder under scrambled_cnfs/<K>/<index>/)",
     )
-    # reverse 默认关闭：只有显式传 --reverse 才开启
+    # reverse is disabled by default; it is enabled only by explicit --reverse.
     parser.set_defaults(reverse=False, permute=None)
 
     args = parser.parse_args()
@@ -1124,7 +1160,7 @@ def main():
             raise ValueError("--prepare_formula requires --use_summary pointing to an existing CSV (e.g. regression_summary.csv)")
         summary_df = pd.read_csv(args.use_summary)
         if "instance_name" not in summary_df.columns:
-            raise ValueError("summary CSV 缺少列: instance_name")
+            raise ValueError("summary CSV is missing column: instance_name")
         if args.category is not None and "best_model" in summary_df.columns:
             filtered = summary_df[summary_df["best_model"] == args.category]
         else:
@@ -1146,7 +1182,7 @@ def main():
         required_cols = {"instance_name", "local_max_k"}
         missing = required_cols - set(summary_df.columns)
         if missing:
-            raise ValueError(f"summary CSV 缺少必要列: {sorted(missing)}")
+            raise ValueError(f"summary CSV is missing required columns: {sorted(missing)}")
 
         # Per user request: this option schedules for *all* instances, regardless of --category.
         filtered = summary_df
@@ -1170,12 +1206,40 @@ def main():
         required_cols = {"instance_name", "local_max_k", "best_model"}
         missing = required_cols - set(summary_df.columns)
         if missing:
-            raise ValueError(f"summary CSV 缺少必要列: {sorted(missing)}")
+            raise ValueError(f"summary CSV is missing required columns: {sorted(missing)}")
 
         filtered = summary_df[summary_df["best_model"] == args.category]
         # filtered = summary_df[summary_df["best_model"] == "linear"]
         instance_k_map = dict(zip(filtered["instance_name"], filtered["local_max_k"]))
         instance_k_map = dict(sorted(instance_k_map.items()))
+
+        if args.permute:
+            # Select the same success-filtered instances that formula_permutation.py
+            # picks (it reads "<category>.csv", produced by --output_status_to_csv,
+            # and keeps only instances whose original/unpermuted interpolant and
+            # smt2cnf status are both "done"). Previously this branch just took the
+            # first PERMUTE_LIMIT instances alphabetically, regardless of success,
+            # which produced a different instance set than formula_permutation.py.
+            perm_csv_path = f"{args.category}.csv"
+            if not os.path.exists(perm_csv_path):
+                raise ValueError(
+                    f"--permute requires '{perm_csv_path}' to select success-filtered "
+                    "instances (run `--output_status_to_csv --category "
+                    f"{args.category}` first); this keeps the instance selection "
+                    "consistent with formula_permutation.py"
+                )
+            status_df = pd.read_csv(perm_csv_path)
+            status_df["interpolant_status"] = (
+                status_df["interpolant_status"].fillna("").astype(str).str.strip().str.lower()
+            )
+            status_df["smt2cnf_status"] = (
+                status_df["smt2cnf_status"].fillna("").astype(str).str.strip().str.lower()
+            )
+            success_df = status_df[
+                (status_df["interpolant_status"] == "done") & (status_df["smt2cnf_status"] == "done")
+            ]
+            instance_k_map = dict(zip(success_df["instance_name"], success_df["K"]))
+
         # limit = 10
         # limit = 100
         limit = args.limit
@@ -1188,7 +1252,7 @@ def main():
                 if get_smt_cnf_status(inst, instance_k_map[inst], pddef=pddef) != status.done:
                     continue
 
-            if args.permute:
+            if args.permute and limit <= 0:
                 limit = PERMUTE_LIMIT
             if limit > 0 and count >= limit:
                 break
@@ -1233,7 +1297,7 @@ def main():
     # instances: List[str] = [x for x in args.instances.split(",") if x]
     # k_list: List[int] = [int(x) for x in args.K_list.split(",") if x]
 
-    # 也可以在这里按 category 从 get_instance_list 动态选实例
+    # Instances could also be selected dynamically here from get_instance_list by category.
     # if args.category and args.instances == "":
     #     instances = get_instance_list(args.category)
     # print(instances)
@@ -1254,6 +1318,6 @@ def main():
 
 
 if __name__ == "__main__":
-    # 确保工作目录在项目根（假设本文件位于 scripts/ 下）
+    # Ensure the working directory is the project root, assuming this file is under scripts/.
     os.chdir(Path(__file__).resolve().parent.parent)
     main()

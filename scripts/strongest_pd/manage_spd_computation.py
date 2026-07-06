@@ -19,6 +19,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from utils.utils import get_python_activate_command
 from utils.paths import get_spd7_success_csv
+from utils.scramble import SCRAMBLE_TYPES
 
 
 REGRESSION_SUMMARY_PATH = "./regression_summary.csv"
@@ -65,7 +66,11 @@ def _sbatch(cmd, job_name, log_path, mem, time, depend_id=None):
     return job_id
 
 
-def submit_spd_chain(name, K, mem="16g", time="4:00:00", reverse=False):
+def _perm_suffix(permute=None, permute_index=0):
+    return f".perm_{permute}_{permute_index}" if permute else ""
+
+
+def submit_spd_chain(name, K, mem="16g", time="4:00:00", reverse=False, permute=None, permute_index=0):
     """
     Submit K Slurm jobs as an afterok dependency chain.
 
@@ -80,29 +85,31 @@ def submit_spd_chain(name, K, mem="16g", time="4:00:00", reverse=False):
     log_dir = os.path.join(SLURM_LOG_DIR_REV if reverse else SLURM_LOG_DIR, f"k_{K}")
     os.makedirs(log_dir, exist_ok=True)
 
+    perm_suffix = _perm_suffix(permute, permute_index)
     prefix = "spd7" if reverse else "spd"
     indices = range(K - 1, -1, -1) if reverse else range(K)
 
     wait_id = None
     for i in indices:
         reverse_flag = " --reverse" if reverse else ""
+        permute_flag = f" --permute {permute} --permute_index {permute_index}" if permute else ""
         compute_cmd = (
             f"python ./scripts/strongest_pd/compute_spd.py"
-            f" --name {name} --K {K} --i {i}{reverse_flag}"
+            f" --name {name} --K {K} --i {i}{reverse_flag}{permute_flag}"
         )
-        job_name = f"{prefix}_{name}.{K}.{i}"
-        log_path = os.path.join(log_dir, f"{name}.{K}.%A_{i}.log")
+        job_name = f"{prefix}_{name}.{K}{perm_suffix}.{i}"
+        log_path = os.path.join(log_dir, f"{name}.{K}{perm_suffix}.%A_{i}.log")
 
         job_id = _sbatch(compute_cmd, job_name, log_path, mem, time, depend_id=wait_id)
         print(f"  Submitted job {job_id}: {job_name}")
         wait_id = job_id
 
     direction = "reverse" if reverse else "forward"
-    print(f"Submitted SPD {direction} chain for {name}.{K} ({K} jobs); last job id: {wait_id}")
+    print(f"Submitted SPD {direction} chain for {name}.{K}{perm_suffix} ({K} jobs); last job id: {wait_id}")
     return wait_id
 
 
-def get_successful_instances(K, instances=None):
+def get_successful_instances(K, instances=None, permute=None, permute_index=0):
     """
     For the given K, return instance names where all K indices (0..K-1) have
     a log containing 'Interpolant validity check passed'.
@@ -112,11 +119,12 @@ def get_successful_instances(K, instances=None):
     if not os.path.isdir(log_dir):
         print(f"Log directory not found: {log_dir}")
         return []
+    perm_suffix = _perm_suffix(permute, permute_index)
 
     if instances is None:
-        marker = f".{K}."
+        marker = f".{K}{perm_suffix}."
         seen = set()
-        for f in glob_mod.glob(os.path.join(log_dir, f"*.{K}.*_*.log")):
+        for f in glob_mod.glob(os.path.join(log_dir, f"*.{K}{perm_suffix}.*_*.log")):
             basename = os.path.basename(f)
             idx = basename.find(marker)
             if idx >= 0:
@@ -127,11 +135,11 @@ def get_successful_instances(K, instances=None):
     for name in sorted(instances):
         all_ok = True
         for i in range(K):
-            logs = sorted(glob_mod.glob(os.path.join(log_dir, f"{name}.{K}.*_{i}.log")))
+            logs = sorted(glob_mod.glob(os.path.join(log_dir, f"{name}.{K}{perm_suffix}.*_{i}.log")))
             if not logs:
                 all_ok = False
                 break
-            success_str = f"Interpolant validity check passed for {name}.{K}.{i}"
+            success_str = f"Interpolant validity check passed for {name}.{K}.{i}{perm_suffix}"
             found = any(success_str in open(log).read() for log in logs)
             if not found:
                 all_ok = False
@@ -254,6 +262,10 @@ def main():
                         help='Only submit jobs for instances where all NUM indices succeeded for K=NUM')
     parser.add_argument('--reverse', action='store_true',
                         help='Submit reverse chains (pddef7): jobs run i=K-1 down to 0')
+    parser.add_argument('--permute', choices=SCRAMBLE_TYPES, default=None,
+                        help='Use scrambled CNF formula (clause/iteration/clause_and_iteration)')
+    parser.add_argument('--permute_index', type=int, default=0,
+                        help='Permutation index under scrambled_cnfs/<K>/<index>/')
     parser.add_argument('--min_forward_success', type=int, metavar='X',
                         help='Only submit for instances where forward success count >= X (for the current K)')
     parser.add_argument('--submit_mpd', action='store_true',
@@ -301,7 +313,12 @@ def main():
             print(f"{len(successes)} successful (name, K, i) triples for K={args.K} (reverse).")
             print(f"Written to: {csv_path}")
         else:
-            successful = get_successful_instances(args.K, instances)
+            successful = get_successful_instances(
+                args.K,
+                instances,
+                permute=args.permute,
+                permute_index=args.permute_index,
+            )
             if successful:
                 print(f"{len(successful)} instance(s) fully successful for K={args.K}:")
                 for name in successful:
@@ -317,7 +334,12 @@ def main():
             return
         if args.use_success_only is not None:
             num = args.use_success_only
-            instances = get_successful_instances(num, instances)
+            instances = get_successful_instances(
+                num,
+                instances,
+                permute=args.permute,
+                permute_index=args.permute_index,
+            )
             if not instances:
                 print(f"No instances fully succeeded for K={num}.")
                 return
@@ -332,7 +354,15 @@ def main():
         else:
             print(f"Found {len(instances)} '{args.category}' instances. Submitting K={args.K} chains...")
         for name in instances:
-            submit_spd_chain(name, args.K, mem=args.mem, time=args.time, reverse=args.reverse)
+            submit_spd_chain(
+                name,
+                args.K,
+                mem=args.mem,
+                time=args.time,
+                reverse=args.reverse,
+                permute=args.permute,
+                permute_index=args.permute_index,
+            )
     else:
         if args.name is None:
             parser.error("--name is required when --category is not specified")
@@ -341,7 +371,15 @@ def main():
             if not instances:
                 print(f"{args.name} does not have >= {args.min_forward_success} forward successes for K={args.K}; skipping.")
                 return
-        submit_spd_chain(args.name, args.K, mem=args.mem, time=args.time, reverse=args.reverse)
+        submit_spd_chain(
+            args.name,
+            args.K,
+            mem=args.mem,
+            time=args.time,
+            reverse=args.reverse,
+            permute=args.permute,
+            permute_index=args.permute_index,
+        )
 
 
 if __name__ == '__main__':

@@ -8,7 +8,9 @@ import pandas as pd
 
 from utils.paths import get_CNF_dir, get_interpolant_cnf_dir, get_scrambled_CNF
 from utils.scramble import PERMUTE_LIMIT, SCRAMBLE_TYPES, ScrambleType, scramble_cnf
+from utils.catagory import get_lucky_instances
 from utils.utils import GetDataFromLog, get_python_activate_command
+from strongest_pd.manage_spd_computation import submit_spd_chain
 CADICAL_BINARY = "./solvers/cadical"
 SLURM_LOG_DIR = "./SlurmLogs/solve_permutation/"
 
@@ -56,7 +58,7 @@ def _cadical_paths(cnf_path: str) -> tuple[str, str]:
 
 def _run_cadical_local(cnf_path: str) -> None:
     log_path, drat_path = _cadical_paths(cnf_path)
-    extra_flags = "--plain --no-binary"
+    extra_flags = "--plain --no-reduce --no-binary"
     cmd = f"{CADICAL_BINARY} {extra_flags} {cnf_path} {drat_path} > {log_path} 2>&1"
     os.system(cmd)
 
@@ -64,7 +66,7 @@ def _run_cadical_local(cnf_path: str) -> None:
 def _run_cadical_slurm(cnf_path: str, job_name: str) -> None:
     os.makedirs(SLURM_LOG_DIR, exist_ok=True)
     log_path, drat_path = _cadical_paths(cnf_path)
-    extra_flags = "--plain --no-binary"
+    extra_flags = "--plain --no-reduce --no-binary"
     activate_python = get_python_activate_command()
     cadical_cmd = f"{activate_python} && {CADICAL_BINARY} {extra_flags} {cnf_path} {drat_path} > {log_path} 2>&1"
     slurm_out = f"{SLURM_LOG_DIR}/{job_name}.%j.log"
@@ -79,6 +81,7 @@ def _collect_targets_from_csv(
     category: str,
     name: Optional[str],
     limit: int,
+    only_success_instance: bool,
 ) -> list[Target]:
     summary_df = pd.read_csv(csv_path)
     if "category" in summary_df.columns:
@@ -96,6 +99,23 @@ def _collect_targets_from_csv(
         (summary_df["interpolant_status"] == "done")
         & (summary_df["smt2cnf_status"] == "done")
     ]
+    if only_success_instance:
+        lucky_by_k: dict[int, set[str]] = {}
+        keep_rows = []
+        for _, row in success_df.iterrows():
+            try:
+                K = int(row["K"])
+            except Exception:
+                keep_rows.append(False)
+                continue
+            if K not in lucky_by_k:
+                lucky_by_k[K] = set(get_lucky_instances(K, category=category))
+            if str(row["instance_name"]) in lucky_by_k[K]:
+                keep_rows.append(True)
+            else:
+                keep_rows.append(False)
+        success_df = success_df.loc[keep_rows]
+        print(f"[only_success_instance] {len(success_df)} target row(s) remain before limit")
 
     targets: list[Target] = []
     for idx, row in success_df.iterrows():
@@ -501,13 +521,33 @@ if __name__ == "__main__":
     parser.add_argument("--permute_n", type=int, default=3, help="How many permute_index values to generate/run/compare")
     parser.add_argument("--limit", type=int, default=PERMUTE_LIMIT, help="Max #instances from CSV to process")
     parser.add_argument(
+        "--only_success_instance",
+        action="store_true",
+        default=False,
+        help="Restrict scramble targets to pddef=5 lucky/success instances before applying --limit.",
+    )
+    parser.add_argument(
         "--generate",
         action="store_true",
         default=False,
         help="Generate missing permuted CNFs (scramble). If not set, missing permuted CNFs are skipped.",
     )
     parser.add_argument("--run", action="store_true", default=False, help="Solve original & permuted CNFs (CaDiCaL)")
+    parser.add_argument(
+        "--skip_original",
+        action="store_true",
+        default=False,
+        help="With --run, solve only permuted CNFs and skip original CNFs.",
+    )
     parser.add_argument("--slurm", action="store_true", default=False, help="If set, submit sbatch jobs instead of local runs")
+    parser.add_argument(
+        "--compute_spd",
+        action="store_true",
+        default=False,
+        help="Submit strongest-PD computation chains for the permuted CNFs.",
+    )
+    parser.add_argument("--spd_mem", type=str, default="20g", help="Memory per strongest-PD job")
+    parser.add_argument("--spd_time", type=str, default="15:00:00", help="Time limit per strongest-PD job")
     parser.add_argument("--compare", action="store_true", default=False, help="Compare solving time between original and permuted CNFs")
     parser.add_argument("--out_csv", type=str, default=None, help="Write per-instance comparison rows to CSV")
     parser.add_argument(
@@ -535,17 +575,20 @@ if __name__ == "__main__":
         category=args.category,
         name=args.name,
         limit=args.limit,
+        only_success_instance=args.only_success_instance,
     )
     print(f"Found {len(targets)} targets from {csv_path}")
 
-    if args.generate:
+    if args.generate and not args.compute_spd:
         # Only generate when explicitly requested.
         for t, perm_idx, perm_cnf in _iter_permuted_cnfs(targets, args.permute_type, args.permute_n):
             if os.path.exists(perm_cnf) and os.path.getsize(perm_cnf) > 0:
                 continue
             permute_formula(t.instance, t.K, args.permute_type, perm_idx)
+    elif args.generate and args.compute_spd:
+        print("[compute_spd] --generate ignored; strongest-PD jobs only use existing scrambled CNFs.")
 
-    if args.run:
+    if args.run and not args.skip_original:
         for t in targets:
             orig_cnf = f"{get_CNF_dir(t.K)}/{t.instance}.{t.K}.cnf"
             if not os.path.exists(orig_cnf):
@@ -572,6 +615,22 @@ if __name__ == "__main__":
             permute_n=args.permute_n,
             out_csv=args.out_csv,
         )
+
+    if args.compute_spd:
+        for t in targets:
+            for perm_idx in range(args.permute_n):
+                perm_cnf = get_scrambled_CNF(t.instance, t.K, args.permute_type, perm_idx)
+                if not os.path.exists(perm_cnf) or os.path.getsize(perm_cnf) == 0:
+                    print(f"[SKIP] Scrambled CNF not found: {perm_cnf}")
+                    continue
+                submit_spd_chain(
+                    t.instance,
+                    t.K,
+                    mem=args.spd_mem,
+                    time=args.spd_time,
+                    permute=args.permute_type,
+                    permute_index=perm_idx,
+                )
 
     if args.compare_smtcnf:
         _compare_smtcnf(

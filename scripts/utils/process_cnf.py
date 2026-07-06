@@ -42,8 +42,13 @@ class CNF:
 
         if self.smtcnf_format:
             smtcnf_path = cnf_path
-            cnf_path = cnf_path.replace(".smtcnf", ".cnf")
-            parse_interpolant_cnf_to_dimacs_nice_format(smtcnf_path,cnf_path)
+            converted_cnf_path = cnf_path.replace(".smtcnf", ".cnf")
+            try:
+                parse_interpolant_cnf_to_dimacs_nice_format(smtcnf_path, converted_cnf_path)
+                cnf_path = converted_cnf_path
+            except Exception as e:
+                print(f"parsing meets error, but maybe the suffix is incorrect. {e}")
+                cnf_path = smtcnf_path
 
         self.cnf_path = cnf_path
         if cnf_path is not None:

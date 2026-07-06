@@ -1158,7 +1158,10 @@ def main():
     else:
         resolved_K_effective = args.K
 
-    # Batch mode: load (instance,K) from a CSV summary and submit absorption runs for those with SMT→CNF done
+    # Batch mode: load rows from a computation summary and submit absorption runs
+    # for those with SMT->CNF done. Supports both the legacy status CSV
+    # (instance_name,K,smt2cnf_status) and proofdoor_computation_summary.csv
+    # (name,K,category,pddef,interpolant_computation_status,smt2cnf_status).
     if args.from_summary:
         summary_path = args.from_summary
         if not os.path.exists(summary_path):
@@ -1166,38 +1169,52 @@ def main():
         targets = []
         with open(summary_path, "r") as f:
             reader = csv.DictReader(f)
-            required = {"instance_name", "K", "smt2cnf_status"}
-            missing = required - set(reader.fieldnames or [])
+            fieldnames = set(reader.fieldnames or [])
+            if "name" in fieldnames:
+                name_col = "name"
+            elif "instance_name" in fieldnames:
+                name_col = "instance_name"
+            else:
+                raise ValueError("CSV missing required instance column: expected 'name' or 'instance_name'")
+            required = {name_col, "K", "smt2cnf_status"}
+            missing = required - fieldnames
             if missing:
                 raise ValueError(f"CSV missing required columns: {sorted(missing)}")
             for row in reader:
                 status = (row.get("smt2cnf_status") or "").strip().lower()
                 if status != "done":
                     continue
-                instance = (row.get("instance_name") or "").strip()
+                row_category = (row.get("category") or "").strip()
+                if args.category is not None and row_category and row_category != args.category:
+                    continue
+                instance = (row.get(name_col) or "").strip()
                 if not instance:
                     continue
                 try:
                     K = int(row.get("K"))
                 except Exception:
                     continue
-                targets.append((instance, K))
+                try:
+                    row_pddef = int(row.get("pddef")) if row.get("pddef") not in (None, "") else args.interpolant_pddef
+                except Exception:
+                    row_pddef = args.interpolant_pddef
+                targets.append((instance, K, row_category or args.category, row_pddef))
         print(f"[from_summary] Found {len(targets)} (instance,K) with SMT→CNF done from {summary_path}")
-        for instance, K in targets:
+        for instance, K, row_category, row_pddef in targets:
             config = AbsorptionExperimentConfig(
                 name="absorption",
                 data_dir="data",
                 result_dir="result",
                 log_dir="log",
                 K=K,
-                category=args.category,
+                category=row_category,
                 force_instance=instance,
                 use_minisat_proof=args.use_minisat_proof,
                 use_glucose_proof=args.use_glucose_proof,
                 include_formula_in_checking=args.include_formula_in_checking,
                 use_pbh_proof=args.use_pbh_proof,
                 reverse=args.reverse,
-                interpolant_pddef=args.interpolant_pddef,
+                interpolant_pddef=row_pddef,
                 permute=args.permute,
                 permute_index=args.permute_index,
                 K_effective=resolved_K_effective if not args.auto_effective_K else None, auto_effective_K=args.auto_effective_K,

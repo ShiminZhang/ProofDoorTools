@@ -1,5 +1,6 @@
 import csv
 import os
+from utils.paths import get_interpolant_cnf_dir
 
 CATEGORY_CSV_PATH = os.path.join(os.path.dirname(__file__), "../../category.csv")
 
@@ -110,6 +111,126 @@ def get_instance_list(category):
         return linear_instances() + polynomial_instances() + exponential_instances()
     else:
         return []
+
+
+def _perm_suffix(permute: str = None, permute_index: int = 0) -> str:
+    if not permute:
+        return ""
+    return f".perm_{permute}_{permute_index}"
+
+
+def get_category_set_from_dashboard(category: str, csv_path="./dashboard_data.csv") -> set:
+    """Return instance names with the requested category in dashboard_data.csv."""
+    result = set()
+    if not category or not os.path.exists(csv_path):
+        return result
+    with open(csv_path, "r") as f:
+        reader = csv.reader(f)
+        next(reader, None)
+        for row in reader:
+            if len(row) > 2 and row[2] == category:
+                result.add(row[0])
+    return result
+
+
+def _find_def5_complete_smtcnf_instances(
+    K: int,
+    *,
+    reverse: bool = False,
+    permute: str = None,
+    permute_index: int = 0,
+) -> list:
+    base_dir = get_interpolant_cnf_dir(K, 5)
+    if not os.path.exists(base_dir):
+        return []
+
+    smtcnf_suffix = ".reverse.smtcnf" if reverse else ".smtcnf"
+    ending = f"{_perm_suffix(permute, permute_index)}{smtcnf_suffix}"
+    marker = f".{K}."
+    full_set = set(range(K))
+    index_map = {}
+
+    for fname in os.listdir(base_dir):
+        if not fname.endswith(ending):
+            continue
+        core = fname[: -len(ending)]
+        if marker not in core:
+            continue
+        instance, idx_str = core.rsplit(marker, 1)
+        if not instance or not idx_str:
+            continue
+        try:
+            idx = int(idx_str)
+        except ValueError:
+            continue
+        if idx < 0 or idx >= K:
+            continue
+        if os.path.getsize(os.path.join(base_dir, fname)) == 0:
+            continue
+        index_map.setdefault(instance, set()).add(idx)
+
+    return sorted(inst for inst, idxs in index_map.items() if idxs == full_set)
+
+
+def _find_def5_any_smtcnf_instances(
+    K: int,
+    *,
+    reverse: bool = False,
+    permute: str = None,
+    permute_index: int = 0,
+) -> list:
+    base_dir = get_interpolant_cnf_dir(K, 5)
+    if not os.path.exists(base_dir):
+        return []
+
+    smtcnf_suffix = ".reverse.smtcnf" if reverse else ".smtcnf"
+    ending = f"{_perm_suffix(permute, permute_index)}{smtcnf_suffix}"
+    marker = f".{K}."
+    instances = set()
+
+    for fname in os.listdir(base_dir):
+        if not fname.endswith(ending):
+            continue
+        core = fname[: -len(ending)]
+        if marker not in core:
+            continue
+        instance, idx_str = core.rsplit(marker, 1)
+        if instance and idx_str.isdigit():
+            instances.add(instance)
+
+    return sorted(instances)
+
+
+def get_lucky_instances(
+    K: int,
+    category: str = None,
+    *,
+    auto_effective_K: bool = False,
+    reverse: bool = False,
+    permute: str = None,
+    permute_index: int = 0,
+    dashboard_csv_path: str = "./dashboard_data.csv",
+) -> list:
+    """
+    Return pddef=5 instances eligible for absorption.
+
+    By default this requires all K converted non-empty .smtcnf files under
+    interpolant_as_cnfs_5/<K>/. With auto_effective_K, any instance with at
+    least one converted file is accepted and the caller can infer effective K.
+    """
+    if auto_effective_K:
+        instances = _find_def5_any_smtcnf_instances(
+            K, reverse=reverse, permute=permute, permute_index=permute_index
+        )
+    else:
+        instances = _find_def5_complete_smtcnf_instances(
+            K, reverse=reverse, permute=permute, permute_index=permute_index
+        )
+
+    if category is not None:
+        allowed = get_category_set_from_dashboard(category, dashboard_csv_path)
+        instances = [inst for inst in instances if inst in allowed]
+    return instances
     
 def get_linear_instances():
     return linear_instances()
