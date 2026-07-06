@@ -3,9 +3,9 @@
 This guide assumes [SMOKETEST.md](SMOKETEST.md) passes and a Slurm cluster is
 available. Commands with `--manage` submit Slurm jobs. Note that, due to hpc policy difference, the slurm commands might not necessarily work in all clusters. Some editing is need should that happen.
 
-Two tiers:
-- **Small-scale**: a handful of instances per category, each step should be able to finish in a day. 
-- **Full-scale**: all 766 families, days to weeks.
+A full reproduction takes days to weeks.
+
+This document is tested on compute canada rorqual/fir/narval hpc
 
 ## Section IV: BMC Scalability Study
 

@@ -4,6 +4,8 @@ Goal: verify on a single machine that the toolchain works end to end, using one
 small linear instance and one small exponential instance. This does NOT
 reproduce the paper's numbers — see [REPRODUCE.md](REPRODUCE.md) for that.
 
+This document is tested on compute canada rorqual/fir/narval hpc
+
 ## Prerequisites
 
 - Linux x86-64 (binaries in `solvers/` and repo root are built for this).
