@@ -43,8 +43,8 @@ Outputs: `regression_summary.csv` and `figures/scalability/`.
 
 ### Run the same BMC pipeline on the reduced AIG set.
 
-bash
-```
+
+```bash
 python src/scripts/prepare_formulas.py --k_limit 100 --manage
 python src/scripts/Experiments/collect_solving_time.py --all_slurm
 python src/scripts/Experiments/direct_regression_analysis.py
@@ -55,7 +55,7 @@ A instance-K-map has already been provided in the main folder, this is optional
 
 ```bash
 python find_local_max_k.py --summary regression_summary.json
-cp regression_summary_k.json ../regression_summary.json
+# cp regression_summary_k.json ../regression_summary.json
 ```
 
 The goal is to use small but representative K here. K selection rules: linear families always use K=10; polynomial families are
@@ -118,7 +118,7 @@ Note: the number of successfully computed iz3 proofdoors is given by exponential
 Note: `scripts/spd_cadet/` contains the exploratory Manthan/BFSS pipeline
 mentioned in the paper; it is not needed for the main claims.
 
-## Section V-C RQ1: Incremental Absorption (linear)
+## Section V-C RQ1: Incremental Absorption of proofdoors
 
 
 ### iZ3 proofdoors
@@ -140,6 +140,7 @@ Absorption experiment figures are in figures/absorption_experiments/
 ### Strongest proofdoors
 First normalize the proofdoor computation data to input format of absorption experiments
 ``` bash
+python scripts/Def5InterpolantToSMTCNF.py --all
 python scripts/build_proofdoor_computation_summary.py   --summary regression_summary.csv --output proofdoor_computation_summary_linear_spd.csv   --category linear   --pddef 5
 python scripts/build_proofdoor_computation_summary.py   --summary regression_summary.csv --output proofdoor_computation_summary_exponential_spd.csv   --category exponential   --pddef 5
 ```
@@ -164,10 +165,10 @@ python scripts/strongest_pd/stat_spd.py --K 5 --K_max 10  --plot
 
 First generate the permuted formulas and run, permute_n is the number of samples. (Fast)
 ```bash
-python scripts/formula_permutation.py   --category linear   --permute_type clause_and_iteration   --permute_n 1   --only_success_instance   --generate  # permute iterations and order of clauses within them
-python scripts/formula_permutation.py   --category linear   --permute_type clause   --permute_n 1   --only_success_instance   --generate # permute the order of all clauses
-python scripts/formula_permutation.py   --category linear   --permute_type clause_and_iteration   --permute_n 1   --only_success_instance   --run # permute iterations and order of clauses within them
-python scripts/formula_permutation.py   --category linear   --permute_type clause   --permute_n 1   --only_success_instance   --run # permute the order of all clauses
+python scripts/formula_permutation.py   --category linear   --permute_type iteration   --permute_n 1   --generate  # permute iterations and order of clauses within them
+python scripts/formula_permutation.py   --category linear   --permute_type clause   --permute_n 1    --generate # permute the order of all clauses
+python scripts/formula_permutation.py   --category linear   --permute_type iteration   --permute_n 1   --run # permute iterations and order of clauses within them
+python scripts/formula_permutation.py   --category linear   --permute_type clause   --permute_n 1    --run # permute the order of all clauses
 ```
 
 The formulas will be at
@@ -176,6 +177,6 @@ ProofDoorBenchmark/scrambled_cnfs/<K>/<permute_index>/<instance>.<K>.<permute_ty
 After solving complete, to see the results (Fast): 
 
 ```bash
-python scripts/formula_permutation.py   --category linear   --permute_type clause_and_iteration   --permute_n 1   --only_success_instance   --compare # permute iterations and order of clauses within them
-python scripts/formula_permutation.py   --category linear   --permute_type clause   --permute_n 1   --only_success_instance   --compare # permute the order of all clauses
+python scripts/formula_permutation.py   --category linear   --permute_type iteration   --permute_n 1   --compare # permute iterations and order of clauses within them
+python scripts/formula_permutation.py   --category linear   --permute_type clause   --permute_n 1    --compare # permute the order of all clauses
 ```
