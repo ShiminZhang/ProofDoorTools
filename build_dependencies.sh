@@ -48,4 +48,11 @@ log "Copying cadical binary to solvers/"
 mkdir -p "$ROOT_DIR/solvers"
 cp "$ROOT_DIR/External/cadical/build/cadical" "$ROOT_DIR/solvers/cadical"
 
+log "Building External/scranfilize"
+(
+    cd "$ROOT_DIR/External/scranfilize"
+    ./configure
+    make -j"$JOBS"
+)
+
 log "Done"

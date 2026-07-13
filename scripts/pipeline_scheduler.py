@@ -36,6 +36,7 @@ from utils.paths import get_interpolant_cnf_dir
 from pathlib import Path
 from typing import Dict, Tuple, List, Optional
 from utils.scramble import ScrambleType, SCRAMBLE_TYPES, PERMUTE_LIMIT
+from utils.formula_variants import add_variant_args, make_formula_variant
 # Reuse the existing path helpers and Dashboard conventions.
 from utils.paths import (
     get_CNF_dir,
@@ -137,8 +138,48 @@ def sbatch_wrap(
 
 # ----------------- Stage 1: check / submit interpolants (sequential) -----------------
 
-def _perm_suffix(permute: Optional[str], permute_index: int) -> str:
-    return f".perm_{permute}_{permute_index}" if permute else ""
+def _variant(
+    permute: Optional[str] = None,
+    permute_index: int = 0,
+    scranfilize_profile: Optional[str] = None,
+    scranfilize_seed: int = 0,
+    boundary_mode: str = "physical",
+):
+    return make_formula_variant(
+        permute=permute,
+        permute_index=permute_index,
+        scranfilize_profile=scranfilize_profile,
+        scranfilize_seed=scranfilize_seed,
+        boundary_mode=boundary_mode,
+    )
+
+def _perm_suffix(
+    permute: Optional[str],
+    permute_index: int,
+    scranfilize_profile: Optional[str] = None,
+    scranfilize_seed: int = 0,
+) -> str:
+    return _variant(
+        permute=permute,
+        permute_index=permute_index,
+        scranfilize_profile=scranfilize_profile,
+        scranfilize_seed=scranfilize_seed,
+    ).suffix()
+
+def _variant_flags(
+    permute: Optional[str] = None,
+    permute_index: int = 0,
+    scranfilize_profile: Optional[str] = None,
+    scranfilize_seed: int = 0,
+    boundary_mode: str = "physical",
+) -> str:
+    return _variant(
+        permute=permute,
+        permute_index=permute_index,
+        scranfilize_profile=scranfilize_profile,
+        scranfilize_seed=scranfilize_seed,
+        boundary_mode=boundary_mode,
+    ).cli_flags()
 
 def was_interpolant_attempted(
     instance: str,
@@ -148,13 +189,15 @@ def was_interpolant_attempted(
     reverse: bool = False,
     permute: Optional[str] = None,
     permute_index: int = 0,
+    scranfilize_profile: Optional[str] = None,
+    scranfilize_seed: int = 0,
 ) -> bool:
     """
     Use this scheduler's own per-index logs to decide whether an interpolant was
     attempted (possibly timed out or killed).
     If these logs contain `<instance>.<K>.<index>.interpolant`, treat it as attempted.
     """
-    perm_suffix = _perm_suffix(permute, permute_index)
+    perm_suffix = _perm_suffix(permute, permute_index, scranfilize_profile, scranfilize_seed)
     suffix = ".reverse.interpolant" if reverse else ".interpolant"
     name_fragment = f"{instance}.{K}.{index}{perm_suffix}{suffix}"
 
@@ -205,6 +248,8 @@ def classify_interpolants(
     reverse: bool = False,
     permute: Optional[str] = None,
     permute_index: int = 0,
+    scranfilize_profile: Optional[str] = None,
+    scranfilize_seed: int = 0,
 ) -> Tuple[str, Dict[int, str]]:
     """
     Check the K interpolant files for a given (instance, K).
@@ -213,7 +258,7 @@ def classify_interpolants(
     - per_index: {index -> 'missing'|'empty'|'error'|'ok'}
     """
     base = get_interpolant_dir(K, pddef)
-    perm_suffix = _perm_suffix(permute, permute_index)
+    perm_suffix = _perm_suffix(permute, permute_index, scranfilize_profile, scranfilize_seed)
     per_index: Dict[int, str] = {}
     has_ok = False
     has_unattempted_missing_or_empty = False
@@ -236,6 +281,8 @@ def classify_interpolants(
                 reverse=reverse,
                 permute=permute,
                 permute_index=permute_index,
+                scranfilize_profile=scranfilize_profile,
+                scranfilize_seed=scranfilize_seed,
             ):
                 # Treat as attempted but failed (possibly timed out).
                 st = "timeout"
@@ -268,6 +315,9 @@ def submit_compute_interpolants_job(
     reverse: bool = False,
     permute: Optional[str] = None,
     permute_index: int = 0,
+    scranfilize_profile: Optional[str] = None,
+    scranfilize_seed: int = 0,
+    boundary_mode: str = "physical",
     force_refresh: bool = False,
 ) -> Dict[int, str]:
     """
@@ -288,8 +338,8 @@ def submit_compute_interpolants_job(
 
     last_job_id = None
     job_ids: Dict[int, str] = {}
-    perm_suffix = _perm_suffix(permute, permute_index)
-    permute_flag = f"--permute {permute} --permute_index {permute_index}" if permute else ""
+    perm_suffix = _perm_suffix(permute, permute_index, scranfilize_profile, scranfilize_seed)
+    permute_flag = _variant_flags(permute, permute_index, scranfilize_profile, scranfilize_seed, boundary_mode)
 
     # pddef=3 ("proofgate") interpolants are generated for *all indices at once*
     # by `prepare_single.prepare_interpolant_def3`, so we must not schedule one job
@@ -395,13 +445,15 @@ def classify_smt_cnf(
     reverse: bool = False,
     permute: Optional[str] = None,
     permute_index: int = 0,
+    scranfilize_profile: Optional[str] = None,
+    scranfilize_seed: int = 0,
 ) -> Tuple[str, Dict[int, str]]:
     """
     Similarly check smtcnf files:
     - 'missing' / 'empty' / 'ok'
     """
     base = get_interpolant_cnf_dir(K, pddef)
-    perm_suffix = _perm_suffix(permute, permute_index)
+    perm_suffix = _perm_suffix(permute, permute_index, scranfilize_profile, scranfilize_seed)
     per_index: Dict[int, str] = {}
     has_ok = False
     has_missing_or_empty = False
@@ -432,11 +484,29 @@ def classify_smt_cnf(
     return overall, per_index
 
 
-def get_smt_cnf_status(instance: str, K: int, pddef: int = PDDEF) -> str:
+def get_smt_cnf_status(
+    instance: str,
+    K: int,
+    pddef: int = PDDEF,
+    reverse: bool = False,
+    permute: Optional[str] = None,
+    permute_index: int = 0,
+    scranfilize_profile: Optional[str] = None,
+    scranfilize_seed: int = 0,
+) -> str:
     """
     Get the overall SMT->CNF status only ('none'/'partial'/'done').
     """
-    overall, _ = classify_smt_cnf(instance, K, pddef)
+    overall, _ = classify_smt_cnf(
+        instance,
+        K,
+        pddef,
+        reverse=reverse,
+        permute=permute,
+        permute_index=permute_index,
+        scranfilize_profile=scranfilize_profile,
+        scranfilize_seed=scranfilize_seed,
+    )
     return overall
 
 
@@ -454,6 +524,9 @@ def submit_smt_to_cnf_jobs(
     reverse: bool = False,
     permute: Optional[str] = None,
     permute_index: int = 0,
+    scranfilize_profile: Optional[str] = None,
+    scranfilize_seed: int = 0,
+    boundary_mode: str = "physical",
     force_refresh: bool = False,
 ) -> Dict[int, str]:
     """
@@ -468,8 +541,8 @@ def submit_smt_to_cnf_jobs(
     os.makedirs(logs_dir, exist_ok=True)
 
     smt_job_ids: Dict[int, str] = {}
-    perm_suffix = _perm_suffix(permute, permute_index)
-    permute_flag = f"--permute {permute} --permute_index {permute_index}" if permute else ""
+    perm_suffix = _perm_suffix(permute, permute_index, scranfilize_profile, scranfilize_seed)
+    permute_flag = _variant_flags(permute, permute_index, scranfilize_profile, scranfilize_seed, boundary_mode)
     for i in range(K):
         istatus = interp_status.get(i, "missing")
         # Skip the whole pipeline for indices with explicit failure / timeout.
@@ -547,6 +620,9 @@ def submit_absorption_job(
     interpolant_pddef: int = PDDEF,
     permute: Optional[str] = None,
     permute_index: int = 0,
+    scranfilize_profile: Optional[str] = None,
+    scranfilize_seed: int = 0,
+    boundary_mode: str = "physical",
 ) -> None:
     """
     Submit an absorption manage job for one (instance, K).
@@ -559,7 +635,7 @@ def submit_absorption_job(
 
     category_flag = f"--category {category}" if category else ""
     reverse_flag = "--reverse" if reverse else "--no_reverse"
-    permute_flag = f"--permute {permute} --permute_index {permute_index}" if permute else ""
+    permute_flag = _variant_flags(permute, permute_index, scranfilize_profile, scranfilize_seed, boundary_mode)
     pddef_flag = "" if interpolant_pddef == 1 else f"--interpolant_pddef {interpolant_pddef}"
     inner_cmd = (
         f"python scripts/AbsorptionExperiment.py "
@@ -615,6 +691,9 @@ def prepare_all_formula_interpolants(
     reverse: bool = False,
     permute: Optional[str] = None,
     permute_index: int = 0,
+    scranfilize_profile: Optional[str] = None,
+    scranfilize_seed: int = 0,
+    boundary_mode: str = "physical",
     force_refresh: bool = False,
 ) -> None:
     """
@@ -658,6 +737,8 @@ def prepare_all_formula_interpolants(
                 reverse=reverse,
                 permute=permute,
                 permute_index=permute_index,
+                scranfilize_profile=scranfilize_profile,
+                scranfilize_seed=scranfilize_seed,
             )
             if overall == "done" and not force_refresh:
                 continue
@@ -675,6 +756,9 @@ def prepare_all_formula_interpolants(
                 reverse=reverse,
                 permute=permute,
                 permute_index=permute_index,
+                scranfilize_profile=scranfilize_profile,
+                scranfilize_seed=scranfilize_seed,
+                boundary_mode=boundary_mode,
                 force_refresh=force_refresh,
             )
             if job_ids:
@@ -721,6 +805,9 @@ def schedule_for_instance(
     interpolation: bool = False,
     permute: Optional[str] = None,
     permute_index: int = 0,
+    scranfilize_profile: Optional[str] = None,
+    scranfilize_seed: int = 0,
+    boundary_mode: str = "physical",
     do_absorption: bool = False,
     force_refresh: bool = False,
 ) -> None:
@@ -736,6 +823,8 @@ def schedule_for_instance(
         reverse=reverse,
         permute=permute,
         permute_index=permute_index,
+        scranfilize_profile=scranfilize_profile,
+        scranfilize_seed=scranfilize_seed,
     )
     print(f"[{instance}.{K}] Interpolants status: {interp_overall}")
     # Under force_refresh, recompute even if the current status is failed instead of skipping.
@@ -759,6 +848,9 @@ def schedule_for_instance(
             reverse=reverse,
             permute=permute,
             permute_index=permute_index,
+            scranfilize_profile=scranfilize_profile,
+            scranfilize_seed=scranfilize_seed,
+            boundary_mode=boundary_mode,
             force_refresh=force_refresh,
         )
         if interpolation:
@@ -775,6 +867,8 @@ def schedule_for_instance(
         reverse=reverse,
         permute=permute,
         permute_index=permute_index,
+        scranfilize_profile=scranfilize_profile,
+        scranfilize_seed=scranfilize_seed,
     )
     print(f"[{instance}.{K}] SMT→CNF status: {cnf_overall}, interp_per_index: {interp_per_index}")
     print(f"[{instance}.{K}] Submitting SMT→CNF jobs where needed (possibly with dependency on interpolant jobs).")
@@ -791,6 +885,9 @@ def schedule_for_instance(
             reverse=reverse,
             permute=permute,
             permute_index=permute_index,
+            scranfilize_profile=scranfilize_profile,
+            scranfilize_seed=scranfilize_seed,
+            boundary_mode=boundary_mode,
             force_refresh=True,
         )
     else:
@@ -808,6 +905,9 @@ def schedule_for_instance(
                 reverse=reverse,
                 permute=permute,
                 permute_index=permute_index,
+                scranfilize_profile=scranfilize_profile,
+                scranfilize_seed=scranfilize_seed,
+                boundary_mode=boundary_mode,
                 force_refresh=False,
             )
 
@@ -828,6 +928,9 @@ def schedule_for_instance(
             interpolant_pddef=pddef,
             permute=permute,
             permute_index=permute_index,
+            scranfilize_profile=scranfilize_profile,
+            scranfilize_seed=scranfilize_seed,
+            boundary_mode=boundary_mode,
         )
 
 def get_proofdoor_size(instance: str, K: int, pddef: int = PDDEF) -> int:
@@ -906,6 +1009,8 @@ def output_status_to_csv(
     reverse: bool = False,
     permute: Optional[str] = None,
     permute_index: int = 0,
+    scranfilize_profile: Optional[str] = None,
+    scranfilize_seed: int = 0,
     scaling: bool = False,
     pddef: int = PDDEF,
 ):
@@ -926,7 +1031,7 @@ def output_status_to_csv(
     instance_k_map = dict(zip(filtered["instance_name"], filtered["local_max_k"]))
     category_map = dict(zip(filtered["instance_name"], filtered["best_model"]))
     instance_k_map = dict(sorted(instance_k_map.items()))
-    perm_suffix = _perm_suffix(permute, permute_index)
+    perm_suffix = _perm_suffix(permute, permute_index, scranfilize_profile, scranfilize_seed)
 
     def normalize_status(s: str) -> str:
         if s == "done":
@@ -937,7 +1042,7 @@ def output_status_to_csv(
         return "partial"
 
     instances = list(instance_k_map.keys())
-    if permute:
+    if permute or scranfilize_profile:
         # Keep this consistent with main(): scramble only runs the first few instances.
         instances = instances[:PERMUTE_LIMIT]
 
@@ -954,6 +1059,8 @@ def output_status_to_csv(
                 reverse=reverse,
                 permute=permute,
                 permute_index=permute_index,
+                scranfilize_profile=scranfilize_profile,
+                scranfilize_seed=scranfilize_seed,
             )
             cnf_overall, _ = classify_smt_cnf(
                 instance,
@@ -962,6 +1069,8 @@ def output_status_to_csv(
                 reverse=reverse,
                 permute=permute,
                 permute_index=permute_index,
+                scranfilize_profile=scranfilize_profile,
+                scranfilize_seed=scranfilize_seed,
             )
             row: Dict[str, str] = {
                 "instance_name": instance,
@@ -975,7 +1084,8 @@ def output_status_to_csv(
             rows.append(row)
             print(
                 f"[{instance}.{stepK}] Interp={row['interpolant_status']}, "
-                f"SMT2CNF={row['smt2cnf_status']} (reverse={reverse}, permute={permute}, permute_index={permute_index}, scaling={scaling})"
+                f"SMT2CNF={row['smt2cnf_status']} (reverse={reverse}, permute={permute}, permute_index={permute_index}, "
+                f"scranfilize_profile={scranfilize_profile}, scranfilize_seed={scranfilize_seed}, scaling={scaling})"
             )
 
     pddef_suffix = "" if pddef == 1 else f".pddef{pddef}"
@@ -1122,6 +1232,7 @@ def main():
         default=0,
         help="Permutation index (used as subfolder under scrambled_cnfs/<K>/<index>/)",
     )
+    add_variant_args(parser)
     # reverse is disabled by default; it is enabled only by explicit --reverse.
     parser.set_defaults(reverse=False, permute=None)
 
@@ -1133,6 +1244,8 @@ def main():
             reverse=args.reverse,
             permute=args.permute,
             permute_index=args.permute_index,
+            scranfilize_profile=args.scranfilize_profile,
+            scranfilize_seed=args.scranfilize_seed,
             scaling=args.scaling,
             pddef=pddef,
         )
@@ -1179,6 +1292,9 @@ def main():
             reverse=args.reverse,
             permute=args.permute,
             permute_index=args.permute_index,
+            scranfilize_profile=args.scranfilize_profile,
+            scranfilize_seed=args.scranfilize_seed,
+            boundary_mode=args.boundary_mode,
             force_refresh=args.force_refresh,
         )
         return
@@ -1203,10 +1319,19 @@ def main():
             return
         for idx, inst in enumerate(instance_k_map.keys()):
             if args.completed_interpolants_only:
-                if get_smt_cnf_status(inst, instance_k_map[inst], pddef=pddef) != status.done:
+                if get_smt_cnf_status(
+                    inst,
+                    instance_k_map[inst],
+                    pddef=pddef,
+                    reverse=args.reverse,
+                    permute=args.permute,
+                    permute_index=args.permute_index,
+                    scranfilize_profile=args.scranfilize_profile,
+                    scranfilize_seed=args.scranfilize_seed,
+                ) != status.done:
                     continue
 
-            if args.permute:
+            if args.permute or args.scranfilize_profile:
                 limit = PERMUTE_LIMIT
             if limit > 0 and count >= limit:
                 break
@@ -1225,6 +1350,9 @@ def main():
                         interpolation=args.interpolation,
                         permute=args.permute,
                         permute_index=args.permute_index,
+                        scranfilize_profile=args.scranfilize_profile,
+                        scranfilize_seed=args.scranfilize_seed,
+                        boundary_mode=args.boundary_mode,
                         do_absorption=args.do_absorption,
                         force_refresh=args.force_refresh,
                     )
@@ -1239,6 +1367,9 @@ def main():
                     interpolation=args.interpolation,
                     permute=args.permute,
                     permute_index=args.permute_index,
+                    scranfilize_profile=args.scranfilize_profile,
+                    scranfilize_seed=args.scranfilize_seed,
+                    boundary_mode=args.boundary_mode,
                     do_absorption=args.do_absorption,
                     force_refresh=args.force_refresh,
                 )

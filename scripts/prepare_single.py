@@ -17,6 +17,12 @@ import json
 import logging
 import time
 from utils.scramble import SCRAMBLE_TYPES, scramble_cnf
+from utils.formula_variants import (
+    add_variant_args,
+    ensure_formula_variant_exists,
+    get_formula_cnf_path as get_variant_cnf_path,
+    make_formula_variant,
+)
 
 DEBUG=False
 
@@ -49,24 +55,69 @@ def prepare_cnf(name,k_value,force_refresh=False):
     logger.info("Running command: %s", cmd)
     os.system(cmd)
 
-def _perm_suffix(permute: str = None, permute_index: int = 0) -> str:
-    return f".perm_{permute}_{permute_index}" if permute else ""
+def _variant(permute=None, permute_index: int = 0, scranfilize_profile=None, scranfilize_seed: int = 0, boundary_mode: str = "physical"):
+    return make_formula_variant(
+        permute=permute,
+        permute_index=permute_index,
+        scranfilize_profile=scranfilize_profile,
+        scranfilize_seed=scranfilize_seed,
+        boundary_mode=boundary_mode,
+    )
 
-def get_formula_cnf_path(name: str, k_value: int, permute: str = None, permute_index: int = 0) -> str:
-    if permute:
-        return get_scrambled_CNF(name, k_value, permute, permute_index)
-    return f"{get_CNF_dir(k_value)}/{name}.{k_value}.cnf"
+def _perm_suffix(
+    permute: str = None,
+    permute_index: int = 0,
+    scranfilize_profile: str = None,
+    scranfilize_seed: int = 0,
+) -> str:
+    return _variant(
+        permute=permute,
+        permute_index=permute_index,
+        scranfilize_profile=scranfilize_profile,
+        scranfilize_seed=scranfilize_seed,
+    ).suffix()
 
-def ensure_permuted_formula_exists(name: str, k_value: int, permute: str = None, permute_index: int = 0) -> None:
-    if not permute:
-        return
-    original = get_formula_cnf_path(name, k_value, None, 0)
-    scrambled = get_formula_cnf_path(name, k_value, permute, permute_index)
-    if os.path.exists(scrambled) and os.path.getsize(scrambled) > 0:
-        return
-    if not os.path.exists(original):
-        raise FileNotFoundError(f"Original CNF not found: {original}")
-    scramble_cnf(original, scrambled, permute)
+def get_formula_cnf_path(
+    name: str,
+    k_value: int,
+    permute: str = None,
+    permute_index: int = 0,
+    scranfilize_profile: str = None,
+    scranfilize_seed: int = 0,
+    boundary_mode: str = "physical",
+) -> str:
+    return get_variant_cnf_path(
+        name,
+        k_value,
+        _variant(
+            permute=permute,
+            permute_index=permute_index,
+            scranfilize_profile=scranfilize_profile,
+            scranfilize_seed=scranfilize_seed,
+            boundary_mode=boundary_mode,
+        ),
+    )
+
+def ensure_permuted_formula_exists(
+    name: str,
+    k_value: int,
+    permute: str = None,
+    permute_index: int = 0,
+    scranfilize_profile: str = None,
+    scranfilize_seed: int = 0,
+    boundary_mode: str = "physical",
+) -> None:
+    ensure_formula_variant_exists(
+        name,
+        k_value,
+        _variant(
+            permute=permute,
+            permute_index=permute_index,
+            scranfilize_profile=scranfilize_profile,
+            scranfilize_seed=scranfilize_seed,
+            boundary_mode=boundary_mode,
+        ),
+    )
 
 def prepare_smt_def2(name,k_value,force_refresh=False):
     smt_dir = get_smts_dir(k_value,pddef=2)
@@ -90,16 +141,26 @@ def prepare_interpolant_def3(name,k_value,force_refresh=False):
                     file.write(str(literal) + " ")
                 file.write(" 0\n")
 
-def prepare_smt_def1(name,k_value,force_refresh=False, reverse=False, permute=None, permute_index: int = 0):
+def prepare_smt_def1(
+    name,
+    k_value,
+    force_refresh=False,
+    reverse=False,
+    permute=None,
+    permute_index: int = 0,
+    scranfilize_profile=None,
+    scranfilize_seed: int = 0,
+    boundary_mode: str = "physical",
+):
     smt_dir = get_smt_def1_dir(k_value)
-    perm_suffix = _perm_suffix(permute, permute_index)
+    perm_suffix = _perm_suffix(permute, permute_index, scranfilize_profile, scranfilize_seed)
     if reverse:
         # Reverse mode starts from the last index (k-1) and goes backward.
         smt_path = f"{smt_dir}/{name}.{k_value}.{k_value - 1}{perm_suffix}.reverse.smt2"
     else:
         smt_path = f"{smt_dir}/{name}.{k_value}.0{perm_suffix}.smt2"
-    ensure_permuted_formula_exists(name, k_value, permute, permute_index)
-    cnf_path = get_formula_cnf_path(name, k_value, permute, permute_index)
+    ensure_permuted_formula_exists(name, k_value, permute, permute_index, scranfilize_profile, scranfilize_seed, boundary_mode)
+    cnf_path = get_formula_cnf_path(name, k_value, permute, permute_index, scranfilize_profile, scranfilize_seed, boundary_mode)
     if not os.path.exists(smt_path) or os.path.getsize(smt_path) == 0 or force_refresh:
         print(f"SMT file {smt_path} DNE or force_refresh, regenerating")
         cnf_to_smt2_def1(cnf_path,smt_path, reverse=reverse)
@@ -280,9 +341,11 @@ def prepare_interpolant_cnf(
     reverse: bool = False,
     permute=None,
     permute_index: int = 0,
+    scranfilize_profile=None,
+    scranfilize_seed: int = 0,
 ):
     interpolant_cnf_dir = get_interpolant_cnf_dir(k_value,pddef)
-    perm_suffix = _perm_suffix(permute, permute_index)
+    perm_suffix = _perm_suffix(permute, permute_index, scranfilize_profile, scranfilize_seed)
     if reverse:
         interpolant_cnf_path = f"{interpolant_cnf_dir}/{name}.{k_value}.{index}{perm_suffix}.reverse.smt2.cnf"
         interpolant_path = f"{get_interpolant_dir(k_value,pddef=pddef)}/{name}.{k_value}.{index}{perm_suffix}.reverse.interpolant"
@@ -297,7 +360,18 @@ def prepare_interpolant_cnf(
     else:
         print(f"Interpolant CNF file {interpolant_cnf_path} exists, skipping")
 
-def prepare_for_interpolant_computation(name,k_value,pddef=0,force_refresh=False, reverse=False, permute=None, permute_index: int = 0):
+def prepare_for_interpolant_computation(
+    name,
+    k_value,
+    pddef=0,
+    force_refresh=False,
+    reverse=False,
+    permute=None,
+    permute_index: int = 0,
+    scranfilize_profile=None,
+    scranfilize_seed: int = 0,
+    boundary_mode: str = "physical",
+):
     print(f"Preparing {name}.{k_value} with pddef {pddef}")
     if pddef == 0:
         prepare_cnf(name,k_value,force_refresh)
@@ -305,9 +379,19 @@ def prepare_for_interpolant_computation(name,k_value,pddef=0,force_refresh=False
     elif pddef == 1:
         print(f"Preparing {name}.{k_value} with pddef 1")
         prepare_cnf(name,k_value,force_refresh)
-        ensure_permuted_formula_exists(name, k_value, permute, permute_index)
+        ensure_permuted_formula_exists(name, k_value, permute, permute_index, scranfilize_profile, scranfilize_seed, boundary_mode)
         # pddef=1 依赖 CNF 分块（iter_map），必须与 permute 版本一致
-        prepare_smt_def1(name,k_value,force_refresh, reverse=reverse, permute=permute, permute_index=permute_index)
+        prepare_smt_def1(
+            name,
+            k_value,
+            force_refresh,
+            reverse=reverse,
+            permute=permute,
+            permute_index=permute_index,
+            scranfilize_profile=scranfilize_profile,
+            scranfilize_seed=scranfilize_seed,
+            boundary_mode=boundary_mode,
+        )
     elif pddef == 2:
         prepare_cnf(name,k_value,force_refresh)
         prepare_smt_def2(name,k_value,force_refresh)
@@ -347,15 +431,26 @@ def prepare_interpolant_def2(name,k_value,index,force_refresh=False):
     else:
         print(f"Interpolant file {interpolant_path} exists, skipping")
 
-def prepare_interpolant_def1(name,k_value,index,force_refresh=False, reverse=False, permute=None, permute_index: int = 0):
+def prepare_interpolant_def1(
+    name,
+    k_value,
+    index,
+    force_refresh=False,
+    reverse=False,
+    permute=None,
+    permute_index: int = 0,
+    scranfilize_profile=None,
+    scranfilize_seed: int = 0,
+    boundary_mode: str = "physical",
+):
     interpolant_dir = get_interpolant_dir(k_value,pddef=1)
-    perm_suffix = _perm_suffix(permute, permute_index)
+    perm_suffix = _perm_suffix(permute, permute_index, scranfilize_profile, scranfilize_seed)
     if reverse:
         interpolant_path = f"{interpolant_dir}/{name}.{k_value}.{index}{perm_suffix}.reverse.interpolant"
     else:
         interpolant_path = f"{interpolant_dir}/{name}.{k_value}.{index}{perm_suffix}.interpolant"
-    ensure_permuted_formula_exists(name, k_value, permute, permute_index)
-    cnf_path = get_formula_cnf_path(name, k_value, permute, permute_index)
+    ensure_permuted_formula_exists(name, k_value, permute, permute_index, scranfilize_profile, scranfilize_seed, boundary_mode)
+    cnf_path = get_formula_cnf_path(name, k_value, permute, permute_index, scranfilize_profile, scranfilize_seed, boundary_mode)
     if reverse:
         smt_path = f"{get_smt_def1_dir(k_value)}/{name}.{k_value}.{index}{perm_suffix}.reverse.smt2"
     else:
@@ -384,11 +479,34 @@ def prepare_interpolant_def1(name,k_value,index,force_refresh=False, reverse=Fal
     else:
         print(f"Interpolant file {interpolant_path} exists, skipping")
 
-def prepare_interpolant_only(name,k_value,index,pddef=0,force_refresh=False, reverse=False, permute=None, permute_index: int = 0):
+def prepare_interpolant_only(
+    name,
+    k_value,
+    index,
+    pddef=0,
+    force_refresh=False,
+    reverse=False,
+    permute=None,
+    permute_index: int = 0,
+    scranfilize_profile=None,
+    scranfilize_seed: int = 0,
+    boundary_mode: str = "physical",
+):
     if pddef == 0:
         prepare_interpolant(name,k_value,index,force_refresh)
     elif pddef == 1:
-        prepare_interpolant_def1(name,k_value,index,force_refresh, reverse=reverse, permute=permute, permute_index=permute_index)
+        prepare_interpolant_def1(
+            name,
+            k_value,
+            index,
+            force_refresh,
+            reverse=reverse,
+            permute=permute,
+            permute_index=permute_index,
+            scranfilize_profile=scranfilize_profile,
+            scranfilize_seed=scranfilize_seed,
+            boundary_mode=boundary_mode,
+        )
         # prepare_interpolant_cnf(name,k_value,index,True,pddef=1)
     elif pddef == 2:
         prepare_interpolant_def2(name,k_value,index,force_refresh)
@@ -401,6 +519,8 @@ def prepare_interpolant_only(name,k_value,index,pddef=0,force_refresh=False, rev
             reverse=reverse,
             permute=permute,
             permute_index=permute_index,
+            scranfilize_profile=scranfilize_profile,
+            scranfilize_seed=scranfilize_seed,
         )
     elif pddef == 3:
         prepare_interpolant_def3(name,k_value,force_refresh)
@@ -579,6 +699,7 @@ def main():
     parser.add_argument('--pddef', type=int, help='Definition of the interpolant',default=0, required=False)
     parser.add_argument('--permute', type=str, choices=SCRAMBLE_TYPES, default=None)
     parser.add_argument('--permute_index', type=int, default=0)
+    add_variant_args(parser)
     parser.add_argument('--debug', action='store_true', help='Debug mode', required=False)
     parser.add_argument('--sanity_check', action='store_true', help='Sanity check', required=False)
     parser.add_argument('--compute_strongest_interpolant', action='store_true', help='Compute strongest interpolant', required=False)
@@ -620,11 +741,34 @@ def main():
         return
 
     if args.pre_interpolant:
-        prepare_for_interpolant_computation(args.name,args.K,force_refresh=args.force_refresh,pddef=args.pddef, reverse=args.reverse, permute=args.permute, permute_index=args.permute_index)
+        prepare_for_interpolant_computation(
+            args.name,
+            args.K,
+            force_refresh=args.force_refresh,
+            pddef=args.pddef,
+            reverse=args.reverse,
+            permute=args.permute,
+            permute_index=args.permute_index,
+            scranfilize_profile=args.scranfilize_profile,
+            scranfilize_seed=args.scranfilize_seed,
+            boundary_mode=args.boundary_mode,
+        )
         return
 
     if args.interpolant_only:
-        prepare_interpolant_only(args.name,args.K,args.index,force_refresh=args.force_refresh,pddef=args.pddef, reverse=args.reverse, permute=args.permute, permute_index=args.permute_index)
+        prepare_interpolant_only(
+            args.name,
+            args.K,
+            args.index,
+            force_refresh=args.force_refresh,
+            pddef=args.pddef,
+            reverse=args.reverse,
+            permute=args.permute,
+            permute_index=args.permute_index,
+            scranfilize_profile=args.scranfilize_profile,
+            scranfilize_seed=args.scranfilize_seed,
+            boundary_mode=args.boundary_mode,
+        )
         return
 
     if args.prepare_sequential:

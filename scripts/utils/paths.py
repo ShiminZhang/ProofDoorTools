@@ -80,6 +80,18 @@ def get_scrambled_CNF(name,k_value,permute_type,permute_index):
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
     return file_path
 
+def get_scranfilized_CNF(name,k_value,profile,seed):
+    file_path = f"./ProofDoorBenchmark/scranfilized_cnfs/{profile}/seed_{seed}/{k_value}/{name}.{k_value}.scr_{profile}_s{seed}.cnf"
+    if not os.path.exists(file_path):
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+    return file_path
+
+def get_scranfilized_meta(name,k_value,profile,seed):
+    file_path = f"./ProofDoorBenchmark/scranfilized_cnfs/{profile}/seed_{seed}/{k_value}/{name}.{k_value}.scr_{profile}_s{seed}.meta.json"
+    if not os.path.exists(file_path):
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+    return file_path
+
 def get_interpolant_cnf_dir(k_value=10, pddef=0):
     if pddef == 7:
         d = f"./ProofDoorBenchmark/interpolant_as_cnfs_spd7/{k_value}/"

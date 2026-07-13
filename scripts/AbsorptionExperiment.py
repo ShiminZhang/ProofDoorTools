@@ -7,12 +7,17 @@ from utils.paths import (
     get_figures_dir,
     get_latest_PDC_result,
     get_latest_absorption_result,
-    get_scrambled_CNF,
 )
 from concurrent.futures import ProcessPoolExecutor
 from utils.process_cnf import CNF, read_proof
 from utils.absorption_analysis import check_formula_absorp_clause, check_formula_absorp_clause_accelerated
 from utils.scramble import SCRAMBLE_TYPES, scramble_cnf
+from utils.formula_variants import (
+    add_variant_args,
+    ensure_formula_variant_exists,
+    get_formula_cnf_path as get_variant_cnf_path,
+    make_formula_variant,
+)
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 import logging
@@ -51,15 +56,30 @@ def interpolant_pddef_to_title_suffix(interpolant_pddef: int) -> str:
         return "_strongest"
     return f"_pddef{interpolant_pddef}"
 
-def permute_flag_to_suffix(permute: str = None, permute_index: int = 0) -> str:
-    if not permute:
-        return ""
-    return f".perm_{permute}_{permute_index}"
+def _variant(permute=None, permute_index: int = 0, scranfilize_profile=None, scranfilize_seed: int = 0, boundary_mode: str = "physical"):
+    return make_formula_variant(
+        permute=permute,
+        permute_index=permute_index,
+        scranfilize_profile=scranfilize_profile,
+        scranfilize_seed=scranfilize_seed,
+        boundary_mode=boundary_mode,
+    )
 
-def permute_flag_to_title_suffix(permute: str = None, permute_index: int = 0) -> str:
-    if not permute:
-        return ""
-    return f"_perm_{permute}_{permute_index}"
+def permute_flag_to_suffix(permute: str = None, permute_index: int = 0, scranfilize_profile: str = None, scranfilize_seed: int = 0) -> str:
+    return _variant(
+        permute=permute,
+        permute_index=permute_index,
+        scranfilize_profile=scranfilize_profile,
+        scranfilize_seed=scranfilize_seed,
+    ).suffix()
+
+def permute_flag_to_title_suffix(permute: str = None, permute_index: int = 0, scranfilize_profile: str = None, scranfilize_seed: int = 0) -> str:
+    return _variant(
+        permute=permute,
+        permute_index=permute_index,
+        scranfilize_profile=scranfilize_profile,
+        scranfilize_seed=scranfilize_seed,
+    ).title_suffix()
 
 def find_complete_smtcnf_instances(
     K: int,
@@ -68,6 +88,8 @@ def find_complete_smtcnf_instances(
     reverse: bool = False,
     permute: str = None,
     permute_index: int = 0,
+    scranfilize_profile: str = None,
+    scranfilize_seed: int = 0,
     require_nonempty: bool = False,
 ):
     """
@@ -81,7 +103,7 @@ def find_complete_smtcnf_instances(
         return []
 
     smtcnf_suffix = ".reverse.smtcnf" if reverse else ".smtcnf"
-    perm_suffix = permute_flag_to_suffix(permute, permute_index)
+    perm_suffix = permute_flag_to_suffix(permute, permute_index, scranfilize_profile, scranfilize_seed)
     ending = f"{perm_suffix}{smtcnf_suffix}"
 
     full_set = set(range(K))
@@ -116,13 +138,15 @@ def find_any_smtcnf_instances(
     reverse: bool = False,
     permute: str = None,
     permute_index: int = 0,
+    scranfilize_profile: str = None,
+    scranfilize_seed: int = 0,
 ) -> list:
     """Return all instances that have at least one .smtcnf file (used with --auto_effective_K)."""
     base_dir = get_interpolant_cnf_dir(K, pddef)
     if not os.path.exists(base_dir):
         return []
     suffix = _smtcnf_file_suffix(pddef, reverse)
-    perm_suffix = permute_flag_to_suffix(permute, permute_index)
+    perm_suffix = permute_flag_to_suffix(permute, permute_index, scranfilize_profile, scranfilize_seed)
     ending = f"{perm_suffix}{suffix}"
     marker = f".{K}."
     instances = set()
@@ -152,9 +176,12 @@ def find_complete_strongest_smtcnf_instances(
     reverse: bool = False,
     permute: str = None,
     permute_index: int = 0,
+    scranfilize_profile: str = None,
+    scranfilize_seed: int = 0,
 ):
     return find_complete_smtcnf_instances(
         K, 4, reverse=reverse, permute=permute, permute_index=permute_index,
+        scranfilize_profile=scranfilize_profile, scranfilize_seed=scranfilize_seed,
         require_nonempty=False,
     )
 
@@ -191,28 +218,54 @@ def find_complete_spd7_instances(K: int):
     return sorted([inst for inst, idxs in index_map.items() if idxs == full_set])
 
 
-def get_formula_cnf_path(instance: str, K: int, permute: str = None, permute_index: int = 0) -> str:
-    if permute:
-        return get_scrambled_CNF(instance, K, permute, permute_index)
-    return f"{get_CNF_dir(K)}/{instance}.{K}.cnf"
+def get_formula_cnf_path(
+    instance: str,
+    K: int,
+    permute: str = None,
+    permute_index: int = 0,
+    scranfilize_profile: str = None,
+    scranfilize_seed: int = 0,
+    boundary_mode: str = "physical",
+) -> str:
+    return get_variant_cnf_path(
+        instance,
+        K,
+        _variant(
+            permute=permute,
+            permute_index=permute_index,
+            scranfilize_profile=scranfilize_profile,
+            scranfilize_seed=scranfilize_seed,
+            boundary_mode=boundary_mode,
+        ),
+    )
 
-def ensure_permuted_formula_exists(instance: str, K: int, permute: str = None, permute_index: int = 0) -> None:
-    if not permute:
-        return
-    original = get_formula_cnf_path(instance, K, None, 0)
-    scrambled = get_formula_cnf_path(instance, K, permute, permute_index)
-    if os.path.exists(scrambled) and os.path.getsize(scrambled) > 0:
-        return
-    if not os.path.exists(original):
-        raise FileNotFoundError(f"Original CNF not found: {original}")
-    scramble_cnf(original, scrambled, permute)
+def ensure_permuted_formula_exists(
+    instance: str,
+    K: int,
+    permute: str = None,
+    permute_index: int = 0,
+    scranfilize_profile: str = None,
+    scranfilize_seed: int = 0,
+    boundary_mode: str = "physical",
+) -> None:
+    ensure_formula_variant_exists(
+        instance,
+        K,
+        _variant(
+            permute=permute,
+            permute_index=permute_index,
+            scranfilize_profile=scranfilize_profile,
+            scranfilize_seed=scranfilize_seed,
+            boundary_mode=boundary_mode,
+        ),
+    )
 
 def check_single_clause_absorption_worker(args):
     logger = logging.getLogger("proofdoor.worker")
-    instance, K, proof_index, interpolation_index, interpolant_clause_index, interpolant_clause, use_minisat_proof, use_glucose_proof, include_formula_in_checking, interpolant_pddef, permute, permute_index = args
+    instance, K, proof_index, interpolation_index, interpolant_clause_index, interpolant_clause, use_minisat_proof, use_glucose_proof, include_formula_in_checking, interpolant_pddef, permute, permute_index, scranfilize_profile, scranfilize_seed = args
     
     proof_iteration = proof_index + 1  # partial proof i stores clauses up to iteration i
-    proof_path = get_partial_proof_path(instance, K, proof_iteration, use_minisat_proof, use_glucose_proof, include_formula_in_checking, permute, permute_index)
+    proof_path = get_partial_proof_path(instance, K, proof_iteration, use_minisat_proof, use_glucose_proof, include_formula_in_checking, permute, permute_index, scranfilize_profile, scranfilize_seed)
     logger.info("check_single_clause_absorption_worker: %s (proof_index=%s -> iteration=%s)", proof_path, proof_index, proof_iteration)
     proof_as_formula = CNF.from_file(proof_path)
     proof_clauses = proof_as_formula.clauses
@@ -231,15 +284,25 @@ def check_single_clause_absorption_worker(args):
         interpolant_clause,
         f"{instance}.{K}.interpolation_{interpolation_index}.interpolant_{interpolant_clause_index}.proof_{proof_index}"
         f"{interpolant_pddef_to_suffix(interpolant_pddef)}"
-        f"{permute_flag_to_suffix(permute, permute_index)}"
+        f"{permute_flag_to_suffix(permute, permute_index, scranfilize_profile, scranfilize_seed)}"
         f".{solver_suffix}{include_formula_in_checking_flag_to_suffix(include_formula_in_checking)}.check_absorb.json",
         K,
     )
 
-def get_proof_path(instance, K, use_minisat_proof=False, use_glucose_proof=False, not_trim_proof=False, permute: str = None, permute_index: int = 0):
+def get_proof_path(
+    instance,
+    K,
+    use_minisat_proof=False,
+    use_glucose_proof=False,
+    not_trim_proof=False,
+    permute: str = None,
+    permute_index: int = 0,
+    scranfilize_profile: str = None,
+    scranfilize_seed: int = 0,
+):
     if not not_trim_proof:
-        return f"{get_proof_path(instance, K, use_minisat_proof, use_glucose_proof, True, permute, permute_index)}.trimmed"
-    perm_suffix = permute_flag_to_suffix(permute, permute_index)
+        return f"{get_proof_path(instance, K, use_minisat_proof, use_glucose_proof, True, permute, permute_index, scranfilize_profile, scranfilize_seed)}.trimmed"
+    perm_suffix = permute_flag_to_suffix(permute, permute_index, scranfilize_profile, scranfilize_seed)
     if use_minisat_proof:
         return f"{get_CNF_dir(K)}/{instance}.{K}{perm_suffix}.cnf.minisatproof"
     elif use_glucose_proof:
@@ -247,9 +310,20 @@ def get_proof_path(instance, K, use_minisat_proof=False, use_glucose_proof=False
     else:
         return f"{get_CNF_dir(K)}/{instance}.{K}{perm_suffix}.cadicalplain.drat"
 
-def get_partial_proof_path(instance, K, iteration, use_minisat_proof=False, use_glucose_proof=False, include_formula_in_checking=False, permute: str = None, permute_index: int = 0):
+def get_partial_proof_path(
+    instance,
+    K,
+    iteration,
+    use_minisat_proof=False,
+    use_glucose_proof=False,
+    include_formula_in_checking=False,
+    permute: str = None,
+    permute_index: int = 0,
+    scranfilize_profile: str = None,
+    scranfilize_seed: int = 0,
+):
     suffix = "minisat" if use_minisat_proof else "glucose" if use_glucose_proof else "cadical"
-    perm_suffix = permute_flag_to_suffix(permute, permute_index)
+    perm_suffix = permute_flag_to_suffix(permute, permute_index, scranfilize_profile, scranfilize_seed)
     if include_formula_in_checking:
         return f"{get_CNF_dir(K)}/{instance}.{K}{perm_suffix}.{iteration}.{suffix}.withformulainproof.partialproof"
     else:
@@ -263,9 +337,11 @@ def get_smtcnf_path(
     interpolant_pddef: int = 1,
     permute: str = None,
     permute_index: int = 0,
+    scranfilize_profile: str = None,
+    scranfilize_seed: int = 0,
 ) -> str:
     suffix = _smtcnf_file_suffix(interpolant_pddef, reverse)
-    perm_suffix = permute_flag_to_suffix(permute, permute_index)
+    perm_suffix = permute_flag_to_suffix(permute, permute_index, scranfilize_profile, scranfilize_seed)
     return f"{get_interpolant_cnf_dir(K, interpolant_pddef)}/{instance}.{K}.{index}{perm_suffix}{suffix}"
 
 def get_absorption_result_path(
@@ -279,10 +355,12 @@ def get_absorption_result_path(
     base_dir: str = None,
     permute: str = None,
     permute_index: int = 0,
+    scranfilize_profile: str = None,
+    scranfilize_seed: int = 0,
 ) -> str:
     reverse_suffix = ".reverse" if reverse else ""
     base = base_dir or get_absorption_experiments_dir(K)
-    perm_suffix = permute_flag_to_suffix(permute, permute_index)
+    perm_suffix = permute_flag_to_suffix(permute, permute_index, scranfilize_profile, scranfilize_seed)
     return (
         f"{base}/{instance}.i_{interpolation_index}{reverse_suffix}"
         f"{interpolant_pddef_to_suffix(interpolant_pddef)}"
@@ -339,6 +417,9 @@ class AbsorptionExperimentConfig(ExperimentConfig):
         interpolant_pddef: int = 1,
         permute: str = None,
         permute_index: int = 0,
+        scranfilize_profile: str = None,
+        scranfilize_seed: int = 0,
+        boundary_mode: str = "physical",
         K_effective: int = None,
         auto_effective_K: bool = False,
     ):
@@ -361,6 +442,8 @@ class AbsorptionExperimentConfig(ExperimentConfig):
                     reverse=reverse,
                     permute=permute,
                     permute_index=permute_index,
+                    scranfilize_profile=scranfilize_profile,
+                    scranfilize_seed=scranfilize_seed,
                 )
                 if category is not None:
                     allowed = get_category_set_from_dashboard(category)
@@ -376,6 +459,7 @@ class AbsorptionExperimentConfig(ExperimentConfig):
                     # auto_effective_K: accept any instance with at least one converted file
                     def5_instances = find_any_smtcnf_instances(
                         K, 5, reverse=reverse, permute=permute, permute_index=permute_index,
+                        scranfilize_profile=scranfilize_profile, scranfilize_seed=scranfilize_seed,
                     )
                     label = "partial"
                 else:
@@ -384,6 +468,8 @@ class AbsorptionExperimentConfig(ExperimentConfig):
                         reverse=reverse,
                         permute=permute,
                         permute_index=permute_index,
+                        scranfilize_profile=scranfilize_profile,
+                        scranfilize_seed=scranfilize_seed,
                         require_nonempty=True,
                     )
                     label = "complete"
@@ -416,6 +502,9 @@ class AbsorptionExperimentConfig(ExperimentConfig):
         self.reverse = reverse
         self.permute = permute
         self.permute_index = permute_index
+        self.scranfilize_profile = scranfilize_profile
+        self.scranfilize_seed = scranfilize_seed
+        self.boundary_mode = boundary_mode
 def draw_greyscale_plot(percentage_trend, title, color='Greys', k_value=10, interpolant_pddef=1):
     plt.figure(figsize=(10, 6))
     plt.xticks(range(len(percentage_trend[0])), [f"{i}" for i in range(len(percentage_trend[0]))])
@@ -461,7 +550,7 @@ class AbsorptionExperiment(Experiment):
                 reverse=self.config.reverse,
                 interpolant_pddef=self.config.interpolant_pddef,
                 permute=self.config.permute,
-                permute_index=self.config.permute_index,
+                permute_index=self.config.permute_index, scranfilize_profile=self.config.scranfilize_profile, scranfilize_seed=self.config.scranfilize_seed,
             )
             # output_path = f"{get_absorption_experiments_dir()}/{basename}.k_{k_value}.i_{index}.check_absorb.json"
             result = json.load(open(output_path))
@@ -486,7 +575,7 @@ class AbsorptionExperiment(Experiment):
             percentage_for_iterations.append(interpolant_absorption_percentage_with_proof_index)
         solver_name = "MiniSat" if self.config.use_minisat_proof else "Glucose" if self.config.use_glucose_proof else "CaDiCaL"
         print(f"drawing heatmap for instance: {instance}, solver_name: {solver_name}, use_trimmed_proof: {USE_TRIMM_PROOF}")
-        permute_title_suffix = permute_flag_to_title_suffix(self.config.permute, self.config.permute_index)
+        permute_title_suffix = permute_flag_to_title_suffix(self.config.permute, self.config.permute_index, self.config.scranfilize_profile, self.config.scranfilize_seed)
         draw_greyscale_plot(
             percentage_for_iterations,
             f'Literal Absorption Pass Percentage Heatmap {instance} ({solver_name})_{include_formula_title}_{use_trimmed_proof_title}_{reverse_title}{pddef_title_suffix}{permute_title_suffix}',
@@ -570,7 +659,7 @@ class AbsorptionExperiment(Experiment):
                     reverse=self.config.reverse,
                 interpolant_pddef=self.config.interpolant_pddef,
                     permute=self.config.permute,
-                    permute_index=self.config.permute_index,
+                    permute_index=self.config.permute_index, scranfilize_profile=self.config.scranfilize_profile, scranfilize_seed=self.config.scranfilize_seed,
                 )
                 if not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
                     should_skip = True
@@ -591,8 +680,8 @@ class AbsorptionExperiment(Experiment):
     def check_cnf(self):
         assert(len(self.config.instance_list) == 1)
         instance = self.config.instance_list[0]
-        ensure_permuted_formula_exists(instance, self.config.K, self.config.permute, self.config.permute_index)
-        cnf_path = get_formula_cnf_path(instance, self.config.K, self.config.permute, self.config.permute_index)
+        ensure_permuted_formula_exists(instance, self.config.K, self.config.permute, self.config.permute_index, self.config.scranfilize_profile, self.config.scranfilize_seed)
+        cnf_path = get_formula_cnf_path(instance, self.config.K, self.config.permute, self.config.permute_index, self.config.scranfilize_profile, self.config.scranfilize_seed)
         if not os.path.exists(cnf_path):
             raise FileNotFoundError(f"CNF file {cnf_path} not found")
         pass
@@ -600,7 +689,7 @@ class AbsorptionExperiment(Experiment):
     def check_proof(self):
         assert(len(self.config.instance_list) == 1)
         instance = self.config.instance_list[0]
-        proof_path = get_proof_path(instance, self.config.K, self.config.use_minisat_proof, self.config.use_glucose_proof, not USE_TRIMM_PROOF, self.config.permute, self.config.permute_index)
+        proof_path = get_proof_path(instance, self.config.K, self.config.use_minisat_proof, self.config.use_glucose_proof, not USE_TRIMM_PROOF, self.config.permute, self.config.permute_index, self.config.scranfilize_profile, self.config.scranfilize_seed)
         if not os.path.exists(proof_path):
             raise FileNotFoundError(f"Proof file {proof_path} not found")
         pass
@@ -609,7 +698,7 @@ class AbsorptionExperiment(Experiment):
         assert(len(self.config.instance_list) == 1)
         instance = self.config.instance_list[0]
         for iteration in range(self.config.K):
-            proof_path = get_partial_proof_path(instance, self.config.K, iteration, self.config.use_minisat_proof, self.config.use_glucose_proof, False, self.config.permute, self.config.permute_index)
+            proof_path = get_partial_proof_path(instance, self.config.K, iteration, self.config.use_minisat_proof, self.config.use_glucose_proof, False, self.config.permute, self.config.permute_index, self.config.scranfilize_profile, self.config.scranfilize_seed)
             if not os.path.exists(proof_path):
                 raise FileNotFoundError(f"Partial proof file {proof_path} not found")
         pass
@@ -617,8 +706,8 @@ class AbsorptionExperiment(Experiment):
     def partition_proof(self):
         assert(len(self.config.instance_list) == 1)
         instance = self.config.instance_list[0]
-        ensure_permuted_formula_exists(instance, self.config.K, self.config.permute, self.config.permute_index)
-        cnf_path = get_formula_cnf_path(instance, self.config.K, self.config.permute, self.config.permute_index)
+        ensure_permuted_formula_exists(instance, self.config.K, self.config.permute, self.config.permute_index, self.config.scranfilize_profile, self.config.scranfilize_seed)
+        cnf_path = get_formula_cnf_path(instance, self.config.K, self.config.permute, self.config.permute_index, self.config.scranfilize_profile, self.config.scranfilize_seed)
         # the literals should be marked as belonging to which iteration
         cnf_obj = CNF(cnf_path, use_cache=False)
 
@@ -627,7 +716,7 @@ class AbsorptionExperiment(Experiment):
 
             # proof_path = get_proof_path(self.config.instance_list[0], self.config.K, self.config.use_minisat_proof, self.config.use_glucose_proof, not USE_TRIMM_PROOF)
         else:
-            proof_path = get_proof_path(instance, self.config.K, self.config.use_minisat_proof, self.config.use_glucose_proof, not USE_TRIMM_PROOF, self.config.permute, self.config.permute_index)
+            proof_path = get_proof_path(instance, self.config.K, self.config.use_minisat_proof, self.config.use_glucose_proof, not USE_TRIMM_PROOF, self.config.permute, self.config.permute_index, self.config.scranfilize_profile, self.config.scranfilize_seed)
         clauses_in_proof = read_proof(proof_path)
 
         # the clauses should be marked as belonging to which iteration
@@ -662,14 +751,14 @@ class AbsorptionExperiment(Experiment):
 
         # finally, save the partial proofs
         for iteration, partial_proof in partial_proofs.items():
-            with open(get_partial_proof_path(instance, self.config.K, iteration, self.config.use_minisat_proof, self.config.use_glucose_proof, False, self.config.permute, self.config.permute_index), "w") as f:
+            with open(get_partial_proof_path(instance, self.config.K, iteration, self.config.use_minisat_proof, self.config.use_glucose_proof, False, self.config.permute, self.config.permute_index, self.config.scranfilize_profile, self.config.scranfilize_seed), "w") as f:
                 for clause in partial_proof:
                     for literal in clause:
                         f.write(f"{literal} ")
                     f.write("0\n")
         if self.config.include_formula_in_checking:
             for iteration, partial_proof in partial_proofs.items():
-                partial_proof_path = get_partial_proof_path(instance, self.config.K, iteration, self.config.use_minisat_proof, self.config.use_glucose_proof, include_formula_in_checking=True, permute=self.config.permute, permute_index=self.config.permute_index)
+                partial_proof_path = get_partial_proof_path(instance, self.config.K, iteration, self.config.use_minisat_proof, self.config.use_glucose_proof, include_formula_in_checking=True, permute=self.config.permute, permute_index=self.config.permute_index, scranfilize_profile=self.config.scranfilize_profile, scranfilize_seed=self.config.scranfilize_seed)
                 print(f"adding original formula to the proof {partial_proof_path}")
                 with open(partial_proof_path, "w") as f:
                     for clause in partial_proof:
@@ -698,7 +787,7 @@ class AbsorptionExperiment(Experiment):
                 reverse=self.config.reverse,
                 interpolant_pddef=self.config.interpolant_pddef,
                 permute=self.config.permute,
-                permute_index=self.config.permute_index,
+                permute_index=self.config.permute_index, scranfilize_profile=self.config.scranfilize_profile, scranfilize_seed=self.config.scranfilize_seed,
             )
             if not os.path.exists(interpolant_cnf_path):
                 print(f"SMT CNF file {interpolant_cnf_path} missing, fake a dummy interpolant, the result is invalid")
@@ -745,6 +834,8 @@ class AbsorptionExperiment(Experiment):
                 self.config.interpolant_pddef,
                 self.config.permute,
                 self.config.permute_index,
+                self.config.scranfilize_profile,
+                self.config.scranfilize_seed,
             )
             for (proof_index, interpolant_clause_index, interpolation_index, interpolant_clause) in task_records
         ]
@@ -780,7 +871,7 @@ class AbsorptionExperiment(Experiment):
                 reverse=self.config.reverse,
                 interpolant_pddef=self.config.interpolant_pddef,
                 permute=self.config.permute,
-                permute_index=self.config.permute_index,
+                permute_index=self.config.permute_index, scranfilize_profile=self.config.scranfilize_profile, scranfilize_seed=self.config.scranfilize_seed,
             )
             with open(output_path, "w") as f:
                 json.dump(results[interpolation_index], f)
@@ -794,7 +885,7 @@ class AbsorptionExperiment(Experiment):
         reverse_title = "reverse" if self.config.reverse else "forward"
         pddef_title_suffix = interpolant_pddef_to_title_suffix(self.config.interpolant_pddef)
         solver_name = "MiniSat" if self.config.use_minisat_proof else "Glucose" if self.config.use_glucose_proof else "CaDiCaL"
-        permute_title_suffix = permute_flag_to_title_suffix(self.config.permute, self.config.permute_index)
+        permute_title_suffix = permute_flag_to_title_suffix(self.config.permute, self.config.permute_index, self.config.scranfilize_profile, self.config.scranfilize_seed)
         for instance in instances:
             title = f"Literal Absorption Pass Percentage Heatmap {instance} ({solver_name})_{include_formula_title}_{use_trimmed_proof_title}_{reverse_title}{pddef_title_suffix}{permute_title_suffix}"
             figure_path = f"{get_figures_dir()}/absorption_experiments/{self.config.K}/pddef_{self.config.interpolant_pddef}/{title}.png"
@@ -810,13 +901,13 @@ class AbsorptionExperiment(Experiment):
                     reverse=self.config.reverse,
                     interpolant_pddef=self.config.interpolant_pddef,
                     permute=self.config.permute,
-                    permute_index=self.config.permute_index,
+                    permute_index=self.config.permute_index, scranfilize_profile=self.config.scranfilize_profile, scranfilize_seed=self.config.scranfilize_seed,
                 )
                 with open(smtcnf_path, "r") as f:
                     lines = f.readlines()
                     proof_door_size += len(lines)
             print(f"Proof door size: {proof_door_size}")
-            proof_size = os.path.getsize(get_proof_path(instance, self.config.K, True, False, not USE_TRIMM_PROOF, self.config.permute, self.config.permute_index))
+            proof_size = os.path.getsize(get_proof_path(instance, self.config.K, True, False, not USE_TRIMM_PROOF, self.config.permute, self.config.permute_index, self.config.scranfilize_profile, self.config.scranfilize_seed))
             print(f"Proof size: {proof_size}")
             results[instance] = f"Proof door size: {proof_door_size}, Proof size: {proof_size}"
 
@@ -827,11 +918,11 @@ class AbsorptionExperiment(Experiment):
         print(f"Processing instance {self.config.instance_list[0]} with K={self.config.K} and use_minisat_proof={self.config.use_minisat_proof}")
         assert(len(self.config.instance_list) == 1)
         instance = self.config.instance_list[0]
-        ensure_permuted_formula_exists(instance, self.config.K, self.config.permute, self.config.permute_index)
+        ensure_permuted_formula_exists(instance, self.config.K, self.config.permute, self.config.permute_index, self.config.scranfilize_profile, self.config.scranfilize_seed)
         if self.config.use_minisat_proof:
             assert not self.config.use_glucose_proof
-            cnf_path = get_formula_cnf_path(instance, self.config.K, self.config.permute, self.config.permute_index)
-            proof_path = get_proof_path(instance, self.config.K, self.config.use_minisat_proof, self.config.use_glucose_proof, not_trim_proof=True, permute=self.config.permute, permute_index=self.config.permute_index)
+            cnf_path = get_formula_cnf_path(instance, self.config.K, self.config.permute, self.config.permute_index, self.config.scranfilize_profile, self.config.scranfilize_seed)
+            proof_path = get_proof_path(instance, self.config.K, self.config.use_minisat_proof, self.config.use_glucose_proof, not_trim_proof=True, permute=self.config.permute, permute_index=self.config.permute_index, scranfilize_profile=self.config.scranfilize_profile, scranfilize_seed=self.config.scranfilize_seed)
             if os.path.exists(proof_path) and True:
                 print(f"force rerunning {proof_path}")
                 os.system(f"rm {proof_path}")
@@ -843,8 +934,8 @@ class AbsorptionExperiment(Experiment):
         elif self.config.use_glucose_proof:
             print(f"Using Glucose proof")
             assert not self.config.use_minisat_proof
-            cnf_path = get_formula_cnf_path(instance, self.config.K, self.config.permute, self.config.permute_index)
-            proof_path = get_proof_path(instance, self.config.K, self.config.use_minisat_proof, self.config.use_glucose_proof, not_trim_proof=True, permute=self.config.permute, permute_index=self.config.permute_index)
+            cnf_path = get_formula_cnf_path(instance, self.config.K, self.config.permute, self.config.permute_index, self.config.scranfilize_profile, self.config.scranfilize_seed)
+            proof_path = get_proof_path(instance, self.config.K, self.config.use_minisat_proof, self.config.use_glucose_proof, not_trim_proof=True, permute=self.config.permute, permute_index=self.config.permute_index, scranfilize_profile=self.config.scranfilize_profile, scranfilize_seed=self.config.scranfilize_seed)
             if os.path.exists(proof_path) and True:
                 print(f"force rerunning {proof_path}")
                 os.system(f"rm {proof_path}")
@@ -856,8 +947,8 @@ class AbsorptionExperiment(Experiment):
                     return
                 print(f"Glucose proof file {proof_path} does not exist, running Glucose to generate")
         else:
-            cnf_path = get_formula_cnf_path(instance, self.config.K, self.config.permute, self.config.permute_index)
-            proof_path = get_proof_path(instance, self.config.K, self.config.use_minisat_proof, self.config.use_glucose_proof, not_trim_proof=True, permute=self.config.permute, permute_index=self.config.permute_index)
+            cnf_path = get_formula_cnf_path(instance, self.config.K, self.config.permute, self.config.permute_index, self.config.scranfilize_profile, self.config.scranfilize_seed)
+            proof_path = get_proof_path(instance, self.config.K, self.config.use_minisat_proof, self.config.use_glucose_proof, not_trim_proof=True, permute=self.config.permute, permute_index=self.config.permute_index, scranfilize_profile=self.config.scranfilize_profile, scranfilize_seed=self.config.scranfilize_seed)
             if os.path.exists(proof_path) and True:
                 print(f"force rerunning {proof_path}")
                 os.system(f"rm {proof_path}")
@@ -873,9 +964,9 @@ class AbsorptionExperiment(Experiment):
         self.check_cnf() # assume the cnf is already generated
         # trim the proof if USE_TRIMM_PROOF is True
         if USE_TRIMM_PROOF:
-            cnf_path = get_formula_cnf_path(instance, self.config.K, self.config.permute, self.config.permute_index)
-            proof_path = get_proof_path(instance, self.config.K, self.config.use_minisat_proof, self.config.use_glucose_proof, not_trim_proof=True, permute=self.config.permute, permute_index=self.config.permute_index)
-            trim_proof_path = get_proof_path(instance, self.config.K, self.config.use_minisat_proof, self.config.use_glucose_proof, False, permute=self.config.permute, permute_index=self.config.permute_index)
+            cnf_path = get_formula_cnf_path(instance, self.config.K, self.config.permute, self.config.permute_index, self.config.scranfilize_profile, self.config.scranfilize_seed)
+            proof_path = get_proof_path(instance, self.config.K, self.config.use_minisat_proof, self.config.use_glucose_proof, not_trim_proof=True, permute=self.config.permute, permute_index=self.config.permute_index, scranfilize_profile=self.config.scranfilize_profile, scranfilize_seed=self.config.scranfilize_seed)
+            trim_proof_path = get_proof_path(instance, self.config.K, self.config.use_minisat_proof, self.config.use_glucose_proof, False, permute=self.config.permute, permute_index=self.config.permute_index, scranfilize_profile=self.config.scranfilize_profile, scranfilize_seed=self.config.scranfilize_seed)
             cmd = f"{DRAT_TRIM_BINARY} {cnf_path} {proof_path} -l {trim_proof_path}"
             res = os.popen(cmd).read()
         self.check_proof() # assume the proof is already generated
@@ -904,7 +995,7 @@ class AbsorptionExperiment(Experiment):
                     interpolant_pddef=self.config.interpolant_pddef,
                     base_dir=res_directory,
                     permute=self.config.permute,
-                    permute_index=self.config.permute_index,
+                    permute_index=self.config.permute_index, scranfilize_profile=self.config.scranfilize_profile, scranfilize_seed=self.config.scranfilize_seed,
                 )
                 if not os.path.exists(absorption_result_path):
                     print(f"Absorption result file {absorption_result_path} does not exist, skipping")
@@ -943,7 +1034,7 @@ class AbsorptionExperiment(Experiment):
                 self.config.interpolant_pddef,
                 reverse=self.config.reverse,
                 permute=self.config.permute,
-                permute_index=self.config.permute_index,
+                permute_index=self.config.permute_index, scranfilize_profile=self.config.scranfilize_profile, scranfilize_seed=self.config.scranfilize_seed,
             ) if auto_effective_K else self.config.K_effective
             if k_eff == 0:
                 print(f"Skipping {instance}: no smtcnf files found")
@@ -957,7 +1048,7 @@ class AbsorptionExperiment(Experiment):
                     reverse=self.config.reverse,
                     interpolant_pddef=self.config.interpolant_pddef,
                     permute=self.config.permute,
-                    permute_index=self.config.permute_index,
+                    permute_index=self.config.permute_index, scranfilize_profile=self.config.scranfilize_profile, scranfilize_seed=self.config.scranfilize_seed,
                 )
                 if not os.path.exists(smt_cnf):
                     print(f"SMT CNF file {smt_cnf} does not exist, skipping instance")
@@ -1107,6 +1198,7 @@ def main():
         default=0,
         help="Permutation index (used as subfolder under scrambled_cnfs/<K>/<index>/)",
     )
+    add_variant_args(parser)
     parser.set_defaults(reverse=False)
     args = parser.parse_args()
     if args.not_include_formula_in_checking:
@@ -1139,7 +1231,7 @@ def main():
                 reverse=args.reverse,
                 interpolant_pddef=args.interpolant_pddef,
                 permute=args.permute,
-                permute_index=args.permute_index,
+                permute_index=args.permute_index, scranfilize_profile=args.scranfilize_profile, scranfilize_seed=args.scranfilize_seed, boundary_mode=args.boundary_mode,
             )
             experiment = AbsorptionExperiment(config)
             experiment.manage()
@@ -1215,7 +1307,7 @@ def main():
                 reverse=args.reverse,
                 interpolant_pddef=row_pddef,
                 permute=args.permute,
-                permute_index=args.permute_index,
+                permute_index=args.permute_index, scranfilize_profile=args.scranfilize_profile, scranfilize_seed=args.scranfilize_seed, boundary_mode=args.boundary_mode,
                 K_effective=resolved_K_effective if not args.auto_effective_K else None, auto_effective_K=args.auto_effective_K,
             )
             experiment = AbsorptionExperiment(config)
@@ -1223,28 +1315,28 @@ def main():
         return
     if args.draw:
         assert args.instance is not None
-        config = AbsorptionExperimentConfig(name="absorption", data_dir="data", result_dir="result", log_dir="log", K=args.K, category=args.category, force_instance=args.instance, use_minisat_proof=args.use_minisat_proof, use_glucose_proof=args.use_glucose_proof, include_formula_in_checking=args.include_formula_in_checking, reverse=args.reverse, interpolant_pddef=args.interpolant_pddef, permute=args.permute, permute_index=args.permute_index, K_effective=resolved_K_effective if not args.auto_effective_K else None, auto_effective_K=args.auto_effective_K)
+        config = AbsorptionExperimentConfig(name="absorption", data_dir="data", result_dir="result", log_dir="log", K=args.K, category=args.category, force_instance=args.instance, use_minisat_proof=args.use_minisat_proof, use_glucose_proof=args.use_glucose_proof, include_formula_in_checking=args.include_formula_in_checking, reverse=args.reverse, interpolant_pddef=args.interpolant_pddef, permute=args.permute, permute_index=args.permute_index, scranfilize_profile=args.scranfilize_profile, scranfilize_seed=args.scranfilize_seed, boundary_mode=args.boundary_mode, K_effective=resolved_K_effective if not args.auto_effective_K else None, auto_effective_K=args.auto_effective_K)
         experiment = AbsorptionExperiment(config)
         experiment.draw_heatmap()
         return
     
     if args.check_minisat_result:
         assert(args.instance is None)
-        config = AbsorptionExperimentConfig(name="absorption", data_dir="data", result_dir="result", log_dir="log", K=args.K, category=args.category, force_instance=args.force_instance, use_minisat_proof=True, use_glucose_proof=args.use_glucose_proof, include_formula_in_checking=args.include_formula_in_checking, reverse=args.reverse, interpolant_pddef=args.interpolant_pddef, permute=args.permute, permute_index=args.permute_index, K_effective=resolved_K_effective if not args.auto_effective_K else None, auto_effective_K=args.auto_effective_K)
+        config = AbsorptionExperimentConfig(name="absorption", data_dir="data", result_dir="result", log_dir="log", K=args.K, category=args.category, force_instance=args.force_instance, use_minisat_proof=True, use_glucose_proof=args.use_glucose_proof, include_formula_in_checking=args.include_formula_in_checking, reverse=args.reverse, interpolant_pddef=args.interpolant_pddef, permute=args.permute, permute_index=args.permute_index, scranfilize_profile=args.scranfilize_profile, scranfilize_seed=args.scranfilize_seed, boundary_mode=args.boundary_mode, K_effective=resolved_K_effective if not args.auto_effective_K else None, auto_effective_K=args.auto_effective_K)
         experiment = AbsorptionExperiment(config)
         experiment.check_minisat_result()
         return
     
     if args.check_result:
         assert(args.instance is None)
-        config = AbsorptionExperimentConfig(name="absorption", data_dir="data", result_dir="result", log_dir="log", K=args.K, category=args.category, force_instance=args.force_instance, use_minisat_proof=args.use_minisat_proof, use_glucose_proof=args.use_glucose_proof, include_formula_in_checking=args.include_formula_in_checking, reverse=args.reverse, interpolant_pddef=args.interpolant_pddef, permute=args.permute, permute_index=args.permute_index, K_effective=resolved_K_effective if not args.auto_effective_K else None, auto_effective_K=args.auto_effective_K)
+        config = AbsorptionExperimentConfig(name="absorption", data_dir="data", result_dir="result", log_dir="log", K=args.K, category=args.category, force_instance=args.force_instance, use_minisat_proof=args.use_minisat_proof, use_glucose_proof=args.use_glucose_proof, include_formula_in_checking=args.include_formula_in_checking, reverse=args.reverse, interpolant_pddef=args.interpolant_pddef, permute=args.permute, permute_index=args.permute_index, scranfilize_profile=args.scranfilize_profile, scranfilize_seed=args.scranfilize_seed, boundary_mode=args.boundary_mode, K_effective=resolved_K_effective if not args.auto_effective_K else None, auto_effective_K=args.auto_effective_K)
         experiment = AbsorptionExperiment(config)
         experiment.check_result()
         return
     
     if args.draw_all:
         assert(args.instance is None)
-        config = AbsorptionExperimentConfig(name="absorption", data_dir="data", result_dir="result", log_dir="log", K=args.K, category=args.category, force_instance=args.force_instance, use_minisat_proof=args.use_minisat_proof, use_glucose_proof=args.use_glucose_proof, include_formula_in_checking=args.include_formula_in_checking, reverse=args.reverse, interpolant_pddef=args.interpolant_pddef, permute=args.permute, permute_index=args.permute_index, K_effective=resolved_K_effective if not args.auto_effective_K else None, auto_effective_K=args.auto_effective_K)
+        config = AbsorptionExperimentConfig(name="absorption", data_dir="data", result_dir="result", log_dir="log", K=args.K, category=args.category, force_instance=args.force_instance, use_minisat_proof=args.use_minisat_proof, use_glucose_proof=args.use_glucose_proof, include_formula_in_checking=args.include_formula_in_checking, reverse=args.reverse, interpolant_pddef=args.interpolant_pddef, permute=args.permute, permute_index=args.permute_index, scranfilize_profile=args.scranfilize_profile, scranfilize_seed=args.scranfilize_seed, boundary_mode=args.boundary_mode, K_effective=resolved_K_effective if not args.auto_effective_K else None, auto_effective_K=args.auto_effective_K)
         experiment = AbsorptionExperiment(config)
         experiment.draw_heatmap_all()
 
@@ -1255,7 +1347,7 @@ def main():
     if args.main:
         # assert(args.instance is None)
         config = AbsorptionExperimentConfig(name="absorption", data_dir="data", result_dir="result", log_dir="log", K=args.K, category=args.category, force_instance=args.force_instance, use_minisat_proof=args.use_minisat_proof, use_glucose_proof=args.use_glucose_proof,
-        include_formula_in_checking=args.include_formula_in_checking, use_pbh_proof=args.use_pbh_proof, reverse=args.reverse, interpolant_pddef=args.interpolant_pddef, permute=args.permute, permute_index=args.permute_index, K_effective=resolved_K_effective if not args.auto_effective_K else None, auto_effective_K=args.auto_effective_K)
+        include_formula_in_checking=args.include_formula_in_checking, use_pbh_proof=args.use_pbh_proof, reverse=args.reverse, interpolant_pddef=args.interpolant_pddef, permute=args.permute, permute_index=args.permute_index, scranfilize_profile=args.scranfilize_profile, scranfilize_seed=args.scranfilize_seed, boundary_mode=args.boundary_mode, K_effective=resolved_K_effective if not args.auto_effective_K else None, auto_effective_K=args.auto_effective_K)
         experiment = AbsorptionExperiment(config)
         experiment.manage()
         # experiment.run()
@@ -1270,7 +1362,7 @@ def main():
             result_dir="result",
             log_dir="log", K=K,
             category=args.category,
-            force_instance=instance, use_minisat_proof=args.use_minisat_proof, use_glucose_proof=args.use_glucose_proof, include_formula_in_checking=args.include_formula_in_checking, use_pbh_proof=args.use_pbh_proof, reverse=args.reverse, interpolant_pddef=args.interpolant_pddef, permute=args.permute, permute_index=args.permute_index,
+            force_instance=instance, use_minisat_proof=args.use_minisat_proof, use_glucose_proof=args.use_glucose_proof, include_formula_in_checking=args.include_formula_in_checking, use_pbh_proof=args.use_pbh_proof, reverse=args.reverse, interpolant_pddef=args.interpolant_pddef, permute=args.permute, permute_index=args.permute_index, scranfilize_profile=args.scranfilize_profile, scranfilize_seed=args.scranfilize_seed, boundary_mode=args.boundary_mode,
             K_effective=resolved_K_effective if not args.auto_effective_K else None, auto_effective_K=args.auto_effective_K)
         experiment = AbsorptionExperiment(config)
         experiment.run()
@@ -1297,7 +1389,7 @@ def main():
                 reverse=args.reverse,
                 interpolant_pddef=args.interpolant_pddef,
                 permute=args.permute,
-                permute_index=args.permute_index,
+                permute_index=args.permute_index, scranfilize_profile=args.scranfilize_profile, scranfilize_seed=args.scranfilize_seed, boundary_mode=args.boundary_mode,
                 K_effective=resolved_K_effective if not args.auto_effective_K else None, auto_effective_K=args.auto_effective_K,
             )
             experiment = AbsorptionExperiment(config)

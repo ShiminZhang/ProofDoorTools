@@ -14,6 +14,7 @@ if SCRIPT_DIR not in sys.path:
     sys.path.insert(0, SCRIPT_DIR)
 
 from pipeline_scheduler import classify_interpolants, classify_smt_cnf  # noqa: E402
+from utils.formula_variants import add_variant_args  # noqa: E402
 
 
 def normalize_status(status: str) -> str:
@@ -44,6 +45,8 @@ def build_rows(
     reverse: bool = False,
     permute: Optional[str] = None,
     permute_index: int = 0,
+    scranfilize_profile: Optional[str] = None,
+    scranfilize_seed: int = 0,
 ) -> List[Dict[str, str]]:
     summary_df = pd.read_csv(summary_path)
     required_cols = {"instance_name", "local_max_k", "best_model"}
@@ -78,6 +81,8 @@ def build_rows(
                     reverse=reverse,
                     permute=permute,
                     permute_index=permute_index,
+                    scranfilize_profile=scranfilize_profile,
+                    scranfilize_seed=scranfilize_seed,
                 )
                 smt2cnf_status, _ = classify_smt_cnf(
                     name,
@@ -86,6 +91,8 @@ def build_rows(
                     reverse=reverse,
                     permute=permute,
                     permute_index=permute_index,
+                    scranfilize_profile=scranfilize_profile,
+                    scranfilize_seed=scranfilize_seed,
                 )
                 rows.append(
                     {
@@ -125,6 +132,7 @@ def main() -> None:
     parser.add_argument("--reverse", action="store_true", default=False)
     parser.add_argument("--permute", default=None)
     parser.add_argument("--permute_index", type=int, default=0)
+    add_variant_args(parser)
     args = parser.parse_args()
 
     categories = None
@@ -140,6 +148,8 @@ def main() -> None:
         reverse=args.reverse,
         permute=args.permute,
         permute_index=args.permute_index,
+        scranfilize_profile=args.scranfilize_profile,
+        scranfilize_seed=args.scranfilize_seed,
     )
 
     fieldnames = [

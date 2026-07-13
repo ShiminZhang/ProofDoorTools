@@ -8,6 +8,7 @@ import time
 import json
 import os
 from utils.scramble import SCRAMBLE_TYPES
+from utils.formula_variants import add_variant_args, make_formula_variant
 
 class SMTTranslationToCNFExperimentConfig(ExperimentConfig):
     def __init__(self, name, data_dir, result_dir, log_dir, K, category, force_instance=None, time="8:00:00"):
@@ -205,13 +206,33 @@ def sanity_check(interpolant,smt_cnf_interpolant):
     return s.check() == unsat
 
 
-def _perm_suffix(permute: str = None, permute_index: int = 0) -> str:
-    return f".perm_{permute}_{permute_index}" if permute else ""
+def _perm_suffix(
+    permute: str = None,
+    permute_index: int = 0,
+    scranfilize_profile: str = None,
+    scranfilize_seed: int = 0,
+) -> str:
+    return make_formula_variant(
+        permute=permute,
+        permute_index=permute_index,
+        scranfilize_profile=scranfilize_profile,
+        scranfilize_seed=scranfilize_seed,
+    ).suffix()
 
-def InterpolantToCNF(instance, K, index, simplify=False, reverse=False, permute: str = None, permute_index: int = 0):
+def InterpolantToCNF(
+    instance,
+    K,
+    index,
+    simplify=False,
+    reverse=False,
+    permute: str = None,
+    permute_index: int = 0,
+    scranfilize_profile: str = None,
+    scranfilize_seed: int = 0,
+):
     _CNF_CACHE.clear()
     print("simplify in InterpolantToCNF", simplify)
-    perm_suffix = _perm_suffix(permute, permute_index)
+    perm_suffix = _perm_suffix(permute, permute_index, scranfilize_profile, scranfilize_seed)
     if reverse:
         SMT_file = f"{get_interpolant_dir(K,1)}/{instance}.{K}.{index}{perm_suffix}.reverse.interpolant"
         SMT_CNF_file = f"{get_interpolant_cnf_dir(K,1)}/{instance}.{K}.{index}{perm_suffix}.reverse.smtcnf"
@@ -265,6 +286,7 @@ if __name__ == "__main__":
     parser.add_argument("--check_result", type=str, default=None)
     parser.add_argument("--permute", type=str, choices=SCRAMBLE_TYPES, default=None)
     parser.add_argument("--permute_index", type=int, default=0)
+    add_variant_args(parser)
     args = parser.parse_args()
     if args.main:
         config = SMTTranslationToCNFExperimentConfig(
@@ -286,7 +308,7 @@ if __name__ == "__main__":
         instances = get_instance_list("exponential") + get_instance_list("linear")
         results = {}
         K = args.K or 10
-        perm_suffix = _perm_suffix(args.permute, args.permute_index)
+        perm_suffix = _perm_suffix(args.permute, args.permute_index, args.scranfilize_profile, args.scranfilize_seed)
         for instance in instances:
             results[instance] = {}
 
@@ -360,6 +382,8 @@ if __name__ == "__main__":
             reverse=args.reverse,
             permute=args.permute,
             permute_index=args.permute_index,
+            scranfilize_profile=args.scranfilize_profile,
+            scranfilize_seed=args.scranfilize_seed,
         )
         print(f"SMT CNF file: {SMT_CNF_file}")
         
